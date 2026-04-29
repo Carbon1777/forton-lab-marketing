@@ -1,0 +1,40 @@
+name: weekly_planner
+
+# Reminder to the project owner that it's time to plan/publish posts.
+# Sends a digest message to a personal Telegram chat via a dedicated
+# planner bot. Does NOT publish anything to public channels.
+on:
+  schedule:
+    # Tue + Thu + Sat, 18:00 UTC = 21:00 MSK
+    - cron: "0 18 * * 2,4,6"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install requests==2.32.3
+
+      - name: Send weekly planner reminder
+        env:
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+        run: |
+          if [[ -z "${TG_PLANNER_BOT_TOKEN}" || -z "${TG_OWNER_CHAT_ID}" ]]; then
+            echo "Planner secrets not configured; skipping."
+            exit 0
+          fi
+          python src/weekly_planner.py
