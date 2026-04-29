@@ -30,9 +30,12 @@ import requests
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PUBLISHED_DIR = REPO_ROOT / "published"
 QUEUE_DIR = REPO_ROOT / "queue"
-INPUTS_RAW_DIR = REPO_ROOT / "inputs" / "raw"
 
 TG_API_BASE = "https://api.telegram.org"
+
+# NOTE: raw assets live in ~/Documents/Forton Lab/media/{Centry,Diktum,Forton Lab}/
+# on the user's Mac. GitHub Actions cannot see that path — analysis of fresh
+# sources happens inside Cowork sessions, not here.
 
 # Filenames in published/ start with YYYY-MM-DD (the date tg_post.py used)
 DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
@@ -80,12 +83,6 @@ def list_queue() -> list[str]:
     )
 
 
-def list_inputs_raw() -> list[str]:
-    if not INPUTS_RAW_DIR.exists():
-        return []
-    return sorted(p.name for p in INPUTS_RAW_DIR.iterdir() if p.is_file())
-
-
 def build_digest() -> str:
     today = dt.date.today()
     weekday_ru = ["понедельник", "вторник", "среда", "четверг",
@@ -93,7 +90,6 @@ def build_digest() -> str:
 
     pub_count, pub_list = count_recent_published(days=7)
     queue_list = list_queue()
-    raw_list = list_inputs_raw()
 
     lines: list[str] = []
     lines.append(f"📅 <b>{weekday_ru.capitalize()}, {today.isoformat()} — время согласовать посты.</b>")
@@ -117,17 +113,7 @@ def build_digest() -> str:
         lines.append("В <code>queue/</code> пусто.")
     lines.append("")
 
-    if raw_list:
-        lines.append(f"В <code>inputs/raw/</code> сырьё: {len(raw_list)} файл(а/ов)")
-        for name in raw_list[:5]:
-            lines.append(f"  · {name}")
-        if len(raw_list) > 5:
-            lines.append(f"  · …ещё {len(raw_list) - 5}")
-    else:
-        lines.append("В <code>inputs/raw/</code> сырья нет.")
-    lines.append("")
-
-    lines.append("Открой Cowork — обсудим план на ближайшие дни.")
+    lines.append("Открой Cowork — посмотрю что нового в <code>media/</code> и предложу темы.")
 
     return "\n".join(lines)
 
