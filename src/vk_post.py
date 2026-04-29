@@ -97,6 +97,7 @@ def publish_one(post_path: Path, token: str, group_id: str) -> int:
     post = frontmatter.load(post_path)
     body = post.content.strip()
     image_rel = post.metadata.get("image")
+    video_rel = post.metadata.get("video")
 
     if not body:
         raise ValueError(f"{post_path.name}: empty body, nothing to post")
@@ -113,9 +114,14 @@ def publish_one(post_path: Path, token: str, group_id: str) -> int:
         f.write(frontmatter.dumps(post))
 
     print(f"✓ {post_path.name} → VK wall post_id={post_id}")
-    if image_rel:
-        # Reminder to the user: a sibling file in ~/Documents/vk_attach/ should
-        # exist (Cowork put it there during post preparation). Manual attach.
+    if video_rel:
+        # Manual video attach reminder. Cowork places an mp4 copy into
+        # ~/Documents/vk_attach/<stem>.mp4 during post preparation.
+        print(
+            f"  ↳ video expected at ~/Documents/vk_attach/{post_path.stem}.mp4 "
+            f"— attach manually in VK via Edit, then delete the file."
+        )
+    elif image_rel:
         print(
             f"  ↳ image expected at ~/Documents/vk_attach/{post_path.stem}.png "
             f"— attach manually in VK via Edit, then delete the file."

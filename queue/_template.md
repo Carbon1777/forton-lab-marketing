@@ -7,7 +7,7 @@ title: Optional post title
 
 # Video path, relative to repo root. Optional. For Telegram → sendVideo, YouTube → videos.insert.
 # Mutually exclusive with `image` (video wins if both set).
-# video: assets/short/centry-promo.mp4
+# video: assets/video/centry-promo.mp4
 
 # YouTube-specific overrides (all optional):
 # youtube_title: Custom title for YT (max 100 chars, else falls back to `title`)
