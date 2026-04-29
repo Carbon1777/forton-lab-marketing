@@ -114,6 +114,10 @@ def build_digest() -> str:
     lines.append("")
 
     lines.append("Открой Cowork — посмотрю что нового в <code>media/</code> и предложу темы.")
+    lines.append("")
+    lines.append("📄 <b>Стартовый промпт для новой сессии:</b>")
+    lines.append("<code>~/Documents/Forton Lab/NEXT_SESSION_PROMPT.md</code>")
+    lines.append("Скопируй его содержимое в первое сообщение Cowork — тогда сессия точно прочитает <code>PUBLISHING_RULES.md</code> и не забудет регламент.")
 
     return "\n".join(lines)
 
