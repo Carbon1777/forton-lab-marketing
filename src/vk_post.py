@@ -122,7 +122,13 @@ def publish_one(post_path: Path, token: str, group_id: str) -> int:
         image_path = (REPO_ROOT / image_rel).resolve()
         if not image_path.exists():
             raise FileNotFoundError(f"image not found: {image_path}")
-        attachment = upload_photo(token, group_id, image_path)
+        try:
+            attachment = upload_photo(token, group_id, image_path)
+        except RuntimeError as e:
+            # VK community tokens are currently blocked from photos.getWallUploadServer.
+            # Fall back to text-only post; we'll fix attachments path in v0.1.1.
+            sys.stderr.write(f"WARN: photo upload failed ({e}); posting text-only.\n")
+            attachment = None
 
     post_id = vk_wall_post(token, group_id, body, attachment)
 
