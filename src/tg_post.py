@@ -37,7 +37,8 @@ PUBLISHED_DIR = REPO_ROOT / "published"
 
 TG_API_BASE = "https://api.telegram.org"
 TG_TEXT_LIMIT = 4096       # sendMessage
-TG_CAPTION_LIMIT = 1024    # sendPhoto
+TG_CAPTION_LIMIT = 1024    # sendPhoto / sendVideo
+TG_VIDEO_SIZE_LIMIT = 50 * 1024 * 1024  # 50 MB via sendVideo on hosted Bot API
 
 
 def env(name: str) -> str:
@@ -75,16 +76,70 @@ def tg_post_photo(token: str, chat_id: str, photo_path: Path, caption: str) -> d
     return r.json()
 
 
+def tg_post_video(token: str, chat_id: str, video_path: Path, caption: str) -> dict:
+    """Send a video file as a video message (not a document).
+
+    Hosted Bot API accepts video files up to 50 MB. Above that, the call fails
+    with HTTP 413 — switch to a self-hosted bot API server or compress.
+
+    `supports_streaming=True` lets Telegram serve the file as a streamable
+    video (preview frame, scrubbing) instead of a generic file attachment.
+    """
+    url = f"{TG_API_BASE}/bot{token}/sendVideo"
+    size = video_path.stat().st_size
+    if size > TG_VIDEO_SIZE_LIMIT:
+        raise ValueError(
+            f"{video_path.name}: {size} bytes exceeds Telegram hosted Bot API "
+            f"50 MB limit for sendVideo. Compress with ffmpeg or split."
+        )
+    with video_path.open("rb") as f:
+        files = {"video": (video_path.name, f, "video/mp4")}
+        data = {
+            "chat_id": chat_id,
+            "caption": caption,
+            "parse_mode": "HTML",
+            "supports_streaming": "true",
+        }
+        r = requests.post(url, data=data, files=files, timeout=300)
+    r.raise_for_status()
+    return r.json()
+
+
 def publish_one(post_path: Path, token: str, chat_id: str) -> Path:
-    """Publish a single queue file. Returns its new path under published/."""
+    """Publish a single queue file. Returns its new path under published/.
+
+    Frontmatter fields:
+      image: <path>   — send as photo with caption.
+      video: <path>   — send as video with caption (mutually exclusive with image).
+      (none)          — send body as plain text message.
+
+    If both `image` and `video` are present, `video` wins (with a warning).
+    """
     post = frontmatter.load(post_path)
     body = post.content.strip()
     image_rel = post.metadata.get("image")
+    video_rel = post.metadata.get("video")
 
-    if not body and not image_rel:
-        raise ValueError(f"{post_path.name}: empty body and no image — nothing to post")
+    if not body and not image_rel and not video_rel:
+        raise ValueError(f"{post_path.name}: empty body, no image, no video — nothing to post")
 
-    if image_rel:
+    if video_rel and image_rel:
+        sys.stderr.write(
+            f"WARN: {post_path.name}: both `video` and `image` set in frontmatter; "
+            "using video, ignoring image.\n"
+        )
+
+    if video_rel:
+        video_path = (REPO_ROOT / video_rel).resolve()
+        if not video_path.exists():
+            raise FileNotFoundError(f"video not found: {video_path}")
+        if len(body) > TG_CAPTION_LIMIT:
+            sys.stderr.write(
+                f"WARN: {post_path.name}: caption {len(body)} > {TG_CAPTION_LIMIT}; "
+                "Telegram will reject. Consider splitting body into a follow-up text post.\n"
+            )
+        result = tg_post_video(token, chat_id, video_path, body)
+    elif image_rel:
         image_path = (REPO_ROOT / image_rel).resolve()
         if not image_path.exists():
             raise FileNotFoundError(f"image not found: {image_path}")
@@ -109,7 +164,9 @@ def publish_one(post_path: Path, token: str, chat_id: str) -> Path:
     new_path = PUBLISHED_DIR / new_name
     PUBLISHED_DIR.mkdir(parents=True, exist_ok=True)
     post_path.rename(new_path)
-    print(f"✓ {post_path.name} → published/{new_name} (msg_id={result['result']['message_id']})")
+    msg_id = result["result"]["message_id"]
+    kind = "video" if video_rel else ("photo" if image_rel else "text")
+    print(f"✓ {post_path.name} → published/{new_name} (msg_id={msg_id}, kind={kind})")
     return new_path
 
 
