@@ -1,21 +1,33 @@
-"""Forton Lab — VK community wall publisher.
+"""Forton Lab — VK community wall publisher (text-only).
 
-Reads the SAME queue/<slug>.md files as tg_post.py — but should be run
-AFTER tg_post.py (or alongside via separate workflow step). Since tg_post.py
-moves files queue → published as it succeeds, vk_post.py looks at recently
-published files and posts them to VK if they haven't been posted there yet.
+Reads published/<slug>.md files (those that already went out via TG by tg_post.py)
+and posts their text bodies to the VK community wall as the community.
+
+Image handling — by design manual.
+    VK community tokens cannot use photos.getWallUploadServer (scope `photos`
+    is granted by VK only via devsupport@corp.vk.com on a case-by-case basis).
+    Old user-token flow (Implicit Flow / VK ID OAuth 2.1) requires the same
+    privileged scope, also via support. We accepted this and chose a manual
+    workflow:
+
+      1. While preparing a post, Cowork places the image into ~/Documents/vk_attach/
+         under the same basename as the post (e.g. 2026-04-29-welcome.png).
+      2. vk_post.py publishes the text-only post here.
+      3. The user opens the published VK post → Edit → attaches the image
+         from ~/Documents/vk_attach/ → saves → deletes the file from the folder.
+
+    Therefore vk_post.py never touches photos.* methods.
 
 Tracking: a file is considered "VK-posted" if its frontmatter contains
-`vk_post_id: <int>`. After successful posting, vk_post.py rewrites the file
-in published/ to add this field.
+`vk_post_id: <int>`. After a successful wall.post we rewrite the file in
+published/ to add this field and `vk_posted_at`.
 
 Environment:
-    VK_GROUP_TOKEN  — community access token with wall+photos+manage scope
+    VK_GROUP_TOKEN  — community access token (wall scope only is needed for text)
     VK_GROUP_ID     — numeric group id (e.g. 238188721)
 
-Notes on VK API:
-    - Posting from group: wall.post with owner_id=-GROUP_ID, from_group=1.
-    - Photo attachments: photos.getWallUploadServer → upload → photos.saveWallPhoto.
+API:
+    - wall.post with owner_id=-GROUP_ID, from_group=1.
     - All requests use v=5.199.
 """
 
@@ -30,7 +42,6 @@ import frontmatter
 import requests
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-QUEUE_DIR = REPO_ROOT / "queue"
 PUBLISHED_DIR = REPO_ROOT / "published"
 
 VK_API = "https://api.vk.com/method"
@@ -57,39 +68,15 @@ def vk_call(method: str, token: str, **params) -> dict:
     return data["response"]
 
 
-def upload_photo(token: str, group_id: str, image_path: Path) -> str:
-    """Upload an image to the community wall photo server, return attachment id."""
-    server = vk_call("photos.getWallUploadServer", token, group_id=group_id)
-    upload_url = server["upload_url"]
-
-    with image_path.open("rb") as f:
-        files = {"photo": (image_path.name, f, "image/png")}
-        r = requests.post(upload_url, files=files, timeout=60)
-    r.raise_for_status()
-    upload_response = r.json()
-
-    saved = vk_call(
-        "photos.saveWallPhoto",
+def vk_wall_post(token: str, group_id: str, message: str) -> int:
+    """Post text-only to community wall as the community. Returns post_id."""
+    result = vk_call(
+        "wall.post",
         token,
-        group_id=group_id,
-        photo=upload_response["photo"],
-        server=upload_response["server"],
-        hash=upload_response["hash"],
+        owner_id=f"-{group_id}",
+        from_group=1,
+        message=message,
     )
-    photo = saved[0]
-    return f"photo{photo['owner_id']}_{photo['id']}"
-
-
-def vk_wall_post(token: str, group_id: str, message: str, attachment: str | None = None) -> int:
-    """Post to community wall as the community itself. Returns post_id."""
-    params = {
-        "owner_id": f"-{group_id}",
-        "from_group": 1,
-        "message": message,
-    }
-    if attachment:
-        params["attachments"] = attachment
-    result = vk_call("wall.post", token, **params)
     return result["post_id"]
 
 
@@ -111,26 +98,13 @@ def publish_one(post_path: Path, token: str, group_id: str) -> int:
     body = post.content.strip()
     image_rel = post.metadata.get("image")
 
-    if not body and not image_rel:
-        raise ValueError(f"{post_path.name}: nothing to post")
+    if not body:
+        raise ValueError(f"{post_path.name}: empty body, nothing to post")
 
     if len(body) > VK_TEXT_LIMIT:
         raise ValueError(f"{post_path.name}: body too long for VK ({len(body)} > {VK_TEXT_LIMIT})")
 
-    attachment = None
-    if image_rel:
-        image_path = (REPO_ROOT / image_rel).resolve()
-        if not image_path.exists():
-            raise FileNotFoundError(f"image not found: {image_path}")
-        try:
-            attachment = upload_photo(token, group_id, image_path)
-        except RuntimeError as e:
-            # VK community tokens are currently blocked from photos.getWallUploadServer.
-            # Fall back to text-only post; we'll fix attachments path in v0.1.1.
-            sys.stderr.write(f"WARN: photo upload failed ({e}); posting text-only.\n")
-            attachment = None
-
-    post_id = vk_wall_post(token, group_id, body, attachment)
+    post_id = vk_wall_post(token, group_id, body)
 
     # Persist vk_post_id back into the file
     post.metadata["vk_post_id"] = post_id
@@ -139,6 +113,13 @@ def publish_one(post_path: Path, token: str, group_id: str) -> int:
         f.write(frontmatter.dumps(post))
 
     print(f"✓ {post_path.name} → VK wall post_id={post_id}")
+    if image_rel:
+        # Reminder to the user: a sibling file in ~/Documents/vk_attach/ should
+        # exist (Cowork put it there during post preparation). Manual attach.
+        print(
+            f"  ↳ image expected at ~/Documents/vk_attach/{post_path.stem}.png "
+            f"— attach manually in VK via Edit, then delete the file."
+        )
     return post_id
 
 
