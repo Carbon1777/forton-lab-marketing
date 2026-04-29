@@ -26,19 +26,25 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Publish queued posts to Telegram
+      - name: Publish queued posts to Telegram (queue → published)
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHANNEL_ID: ${{ secrets.TG_CHANNEL_ID }}
         run: python src/tg_post.py
 
-      - name: Commit moved files (queue → published)
+      - name: Publish freshly-published posts to VK
+        env:
+          VK_GROUP_TOKEN: ${{ secrets.VK_GROUP_TOKEN }}
+          VK_GROUP_ID: ${{ secrets.VK_GROUP_ID }}
+        run: python src/vk_post.py
+
+      - name: Commit moved files (queue → published) + VK metadata
         run: |
           if [[ -n "$(git status --porcelain)" ]]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add -A
-            git commit -m "auto: move published posts from queue/ to published/"
+            git commit -m "auto: publish posts to TG + VK"
             git push
           else
             echo "Nothing to commit."
