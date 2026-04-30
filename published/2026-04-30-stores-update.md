@@ -1,7 +1,9 @@
 ---
-title: Скоро в сторах — Centry и Diktum
 image: assets/stores-update.png
 source: media/Forton Lab/logo_tabl.png + diktum-landing/assets/store-icons (badges)
+title: Скоро в сторах — Centry и Diktum
+vk_post_id: 6
+vk_posted_at: '2026-04-30T11:05:16.801322+00:00'
 ---
 
 Скоро в сторах — обе аппки.
