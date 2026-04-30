@@ -24,8 +24,12 @@ Exit codes:
 from __future__ import annotations
 
 import datetime as dt
+import json
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import frontmatter
@@ -76,6 +80,77 @@ def tg_post_photo(token: str, chat_id: str, photo_path: Path, caption: str) -> d
     return r.json()
 
 
+def _probe_video(video_path: Path) -> dict | None:
+    """Return {'width': int, 'height': int, 'duration': int} or None on any error.
+
+    Why this matters: the Telegram Bot API treats `width`, `height`, and
+    `duration` in `sendVideo` as optional. When omitted, the server tries to
+    extract them from the container, but the result is unreliable on mobile —
+    iOS/Android clients fall back to a default aspect (often 3:4 or 4:5) and
+    visibly stretch 16:9 videos. Web clients are fine because they render a
+    real <video> element and read SAR/DAR straight from the file. Sending the
+    fields explicitly fixes the mobile preview.
+
+    Falls back to None (caller skips the fields) if ffprobe is missing or
+    anything goes wrong — we never want to break publishing over a probe error.
+    """
+    if shutil.which("ffprobe") is None:
+        sys.stderr.write("WARN: ffprobe not found; sending video without width/height/duration.\n")
+        return None
+    try:
+        out = subprocess.run(
+            [
+                "ffprobe", "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=width,height:format=duration",
+                "-of", "json",
+                str(video_path),
+            ],
+            capture_output=True, text=True, timeout=20, check=True,
+        ).stdout
+        data = json.loads(out)
+        stream = data["streams"][0]
+        width = int(stream["width"])
+        height = int(stream["height"])
+        # Duration lives on format, not stream (more reliable). Round up to int.
+        duration = int(float(data["format"]["duration"]) + 0.5)
+        return {"width": width, "height": height, "duration": duration}
+    except Exception as e:
+        sys.stderr.write(f"WARN: ffprobe failed for {video_path.name}: {e}\n")
+        return None
+
+
+def _make_thumbnail(video_path: Path, dst_jpg: Path) -> Path | None:
+    """Grab a frame at 1s as a JPEG thumbnail. Returns dst_jpg or None on error.
+
+    Telegram thumbnail constraints: JPEG, ≤200 KB, ≤320 px on the longer side.
+    Falls back to None if ffmpeg is missing or the call fails — Telegram will
+    autogenerate a thumb in that case.
+    """
+    if shutil.which("ffmpeg") is None:
+        sys.stderr.write("WARN: ffmpeg not found; skipping custom thumbnail.\n")
+        return None
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-ss", "1",
+                "-i", str(video_path),
+                "-frames:v", "1",
+                "-vf", "scale='min(320,iw)':-2",
+                "-q:v", "5",
+                str(dst_jpg),
+            ],
+            capture_output=True, timeout=20, check=True,
+        )
+        if dst_jpg.exists() and dst_jpg.stat().st_size > 0:
+            return dst_jpg
+        return None
+    except Exception as e:
+        sys.stderr.write(f"WARN: ffmpeg thumbnail failed for {video_path.name}: {e}\n")
+        return None
+
+
 def tg_post_video(token: str, chat_id: str, video_path: Path, caption: str) -> dict:
     """Send a video file as a video message (not a document).
 
@@ -84,6 +159,14 @@ def tg_post_video(token: str, chat_id: str, video_path: Path, caption: str) -> d
 
     `supports_streaming=True` lets Telegram serve the file as a streamable
     video (preview frame, scrubbing) instead of a generic file attachment.
+
+    `width`, `height`, `duration` are extracted via ffprobe and sent explicitly.
+    Without them, mobile clients render the preview at a wrong aspect ratio
+    (web clients are fine because they read the file directly). See _probe_video.
+
+    A custom JPEG thumbnail is generated via ffmpeg (frame at 1s, ≤320 px).
+    Without it Telegram autogenerates one — usually OK, but our generated thumb
+    matches the actual frame more reliably.
     """
     url = f"{TG_API_BASE}/bot{token}/sendVideo"
     size = video_path.stat().st_size
@@ -92,15 +175,33 @@ def tg_post_video(token: str, chat_id: str, video_path: Path, caption: str) -> d
             f"{video_path.name}: {size} bytes exceeds Telegram hosted Bot API "
             f"50 MB limit for sendVideo. Compress with ffmpeg or split."
         )
-    with video_path.open("rb") as f:
-        files = {"video": (video_path.name, f, "video/mp4")}
-        data = {
-            "chat_id": chat_id,
-            "caption": caption,
-            "parse_mode": "HTML",
-            "supports_streaming": "true",
-        }
-        r = requests.post(url, data=data, files=files, timeout=300)
+
+    probe = _probe_video(video_path)
+
+    data = {
+        "chat_id": chat_id,
+        "caption": caption,
+        "parse_mode": "HTML",
+        "supports_streaming": "true",
+    }
+    if probe is not None:
+        data["width"] = str(probe["width"])
+        data["height"] = str(probe["height"])
+        data["duration"] = str(probe["duration"])
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        thumb_path = _make_thumbnail(video_path, Path(tmpdir) / "thumb.jpg")
+        with video_path.open("rb") as vf:
+            files = {"video": (video_path.name, vf, "video/mp4")}
+            thumb_fp = None
+            try:
+                if thumb_path is not None:
+                    thumb_fp = thumb_path.open("rb")
+                    files["thumbnail"] = (thumb_path.name, thumb_fp, "image/jpeg")
+                r = requests.post(url, data=data, files=files, timeout=300)
+            finally:
+                if thumb_fp is not None:
+                    thumb_fp.close()
     r.raise_for_status()
     return r.json()
 
