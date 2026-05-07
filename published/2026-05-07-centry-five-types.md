@@ -1,7 +1,9 @@
 ---
-title: 5 типажей в чате компании
 image: assets/centry-five-types.png
 source: AI (Higgsfield Nano Banana Pro) + media/Centry/app_icon.png
+title: 5 типажей в чате компании
+vk_post_id: 13
+vk_posted_at: '2026-05-07T09:36:14.781199+00:00'
 ---
 
 В каждом чате компании есть одни и те же пять.
