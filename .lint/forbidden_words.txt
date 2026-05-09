@@ -1,0 +1,39 @@
+# Forton Lab Brand-Safety Stop-List
+# Source of truth: PUBLISHING_RULES.md §5
+# Format: lowercase, one entry per line, # for comments
+# Matching: case-insensitive, word-boundary OR substring (см. ниже)
+# Updated: 2026-05-09 (Phase 0)
+
+# === Имена авторов (строгий whole-word) ===
+алексей
+carbon
+jcat
+
+# === Технологический стек (строгий whole-word) ===
+flutter
+supabase
+claude
+anthropic
+openai
+chatgpt
+gpt-4
+gpt-5
+cursor
+next.js
+react native
+
+# === Маркетинговая лексика (substring для корней) ===
+уникальн
+революцион
+инновацион
+гениальн
+лучший на рынке
+номер 1
+№1
+амбициозн
+команда рада
+мы рады представить
+прорывн
+прорыв в
+качественно нов
+не имеет аналогов
