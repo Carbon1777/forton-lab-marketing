@@ -136,6 +136,9 @@ def test_run_smoke_boot01_ordering(
     client.run.side_effect = fake_run
     monkeypatch.setattr(st, "preflight_check", fake_preflight)
     monkeypatch.setattr(st, "record_provider_spend", fake_record)
+    # Stub build_collage — the 1×1 mock PNG cannot be Lanczos-resized.
+    # Collage geometry is covered by test_build_collage_1x5_dimensions.
+    monkeypatch.setattr(st, "build_collage", lambda paths, out, **kw: out)
 
     out_dir = tmp_path / "smoke"
     paths = st.run_smoke(ready_yaml, out_dir=out_dir, spend_file=spend_file, client=client)
@@ -147,9 +150,8 @@ def test_run_smoke_boot01_ordering(
     # 5 × (preflight, run, record) — each iteration in canonical order
     assert order == ["preflight", "run", "record"] * 5
 
-    # anchor_prompts.txt + collage written
+    # anchor_prompts.txt written (collage is stubbed in this test)
     assert (out_dir / "anchor_prompts.txt").exists()
-    assert (out_dir / "collage_1x5.png").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -159,6 +161,7 @@ def test_run_smoke_uses_full_ref_from_yaml(
     tmp_path: Path,
     spend_file: Path,
     ready_yaml: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: list = []
     client = MagicMock()
@@ -168,6 +171,8 @@ def test_run_smoke_uses_full_ref_from_yaml(
         return [FakeFileOutput(MOCK_PNG_BYTES)]
 
     client.run.side_effect = fake_run
+    # Stub collage — 1×1 mock PNG cannot be resized.
+    monkeypatch.setattr(st, "build_collage", lambda paths, out, **kw: out)
 
     st.run_smoke(ready_yaml, out_dir=tmp_path / "smoke", spend_file=spend_file, client=client)
 
