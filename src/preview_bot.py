@@ -202,13 +202,14 @@ def _is_expired(draft: frontmatter.Post) -> bool:
 
 
 def _classify_entry_state(entry: PlanEntry, drafts_dir: Path) -> str:
-    """Return 'fresh' | 'pending' | 'expired' | 'approved' | 'skipped'."""
-    if entry.status == "skipped":
-        return "skipped"
-    if entry.status == "approved":
-        return "approved"
-    if entry.status == "expired":
-        return "expired"
+    """Return 'fresh' | 'pending' | 'expired' | 'approved' | 'skipped' | 'published'.
+
+    Terminal statuses (skipped/approved/expired/published) — no further action,
+    no draft generation. Bot saw 'published' record and tried to re-generate
+    until this guard was added.
+    """
+    if entry.status in ("skipped", "approved", "expired", "published"):
+        return entry.status
     draft_path = drafts_dir / f"{entry.slug}.md"
     if not draft_path.exists():
         return "fresh"
@@ -709,7 +710,8 @@ async def handle_edit_cancel(update: Update,
 async def _handle_expired(entry: PlanEntry, draft_path: Path, ctx_dict: dict) -> None:
     """D-2-04 — strip stale kb, mark status: expired, delete draft, tg_nudge alert."""
     bot = ctx_dict["bot"]
-    owner_chat_id = ctx_dict["owner_chat_id"]
+    # Stale kb sits in preview_chat_id (где slать preview), не owner_chat_id.
+    preview_chat_id = ctx_dict.get("preview_chat_id") or ctx_dict["owner_chat_id"]
     plan_path = ctx_dict["plan_path"]
     repo_root = ctx_dict["repo_root"]
 
@@ -720,7 +722,7 @@ async def _handle_expired(entry: PlanEntry, draft_path: Path, ctx_dict: dict) ->
             if stale_msg_id and bot is not None:
                 try:
                     await bot.edit_message_reply_markup(
-                        chat_id=owner_chat_id,
+                        chat_id=preview_chat_id,
                         message_id=int(stale_msg_id),
                         reply_markup=None,
                     )
@@ -816,7 +818,10 @@ async def pre_flight_generate(app: Application | None, ctx_dict: dict) -> dict:
     repo_root = ctx_dict["repo_root"]
     spend_file = ctx_dict["spend_file"]
     bot = ctx_dict["bot"]
-    owner_chat_id = ctx_dict["owner_chat_id"]
+    # preview_chat_id = channel «Планировщик» (send target);
+    # backward-compat: если ctx_dict не содержит preview_chat_id (старые тесты)
+    # — fallback на owner_chat_id (single-operator scenario где они совпадают).
+    preview_chat_id = ctx_dict.get("preview_chat_id") or ctx_dict["owner_chat_id"]
     pending: list[str] = []
 
     for entry in entries:
@@ -830,7 +835,7 @@ async def pre_flight_generate(app: Application | None, ctx_dict: dict) -> dict:
                 )
                 sha8 = _draft_sha8(generated_path)
                 msg_id = await _send_preview_for_draft(
-                    bot, owner_chat_id, generated_path, sha8, repo_root,
+                    bot, preview_chat_id, generated_path, sha8, repo_root,
                 )
                 _store_message_id(generated_path, msg_id)
                 pending.append(entry.slug)
@@ -895,7 +900,14 @@ def _env(key: str) -> str:
 
 def main() -> None:
     token = _env("TG_PLANNER_BOT_TOKEN")
-    owner_chat_id = int(_env("TG_OWNER_USER_ID"))
+    # owner_chat_id = personal user_id (positive) — used by _check_owner against
+    # query.from_user.id. NOT used as send target (bot can't initiate DM to user
+    # who hasn't /start'ed it; Phase 1.5 lesson re-encountered).
+    owner_user_id = int(_env("TG_OWNER_USER_ID"))
+    # preview_chat_id = channel id «Forton Lab Планировщик» (negative for channels,
+    # positive if it's a personal chat with bot already started). Used as send
+    # target for previews + alerts. Phase 1.5 tg_nudge.send посылает туда же.
+    preview_chat_id = int(_env("TG_OWNER_CHAT_ID"))
     # ANTHROPIC_API_KEY + BOT_DISPATCH_PAT validated by daily_post_generator / plan_writer на use
     _env("ANTHROPIC_API_KEY")
     _env("BOT_DISPATCH_PAT")
@@ -908,7 +920,8 @@ def main() -> None:
     plan_path = plans_dir / f"monthly_plan_{today.strftime('%Y-%m')}.md"
 
     app = build_application(token)
-    app.bot_data["owner_chat_id"] = owner_chat_id
+    app.bot_data["owner_chat_id"] = owner_user_id   # for _check_owner
+    app.bot_data["preview_chat_id"] = preview_chat_id   # for send targets
     app.bot_data["plans_dir"] = plans_dir
     app.bot_data["drafts_dir"] = drafts_dir
     app.bot_data["repo_root"] = repo_root
@@ -921,7 +934,8 @@ def main() -> None:
         "repo_root": repo_root,
         "spend_file": spend_file,
         "bot": app.bot,
-        "owner_chat_id": owner_chat_id,
+        "owner_chat_id": owner_user_id,
+        "preview_chat_id": preview_chat_id,
     }
 
     # Pre-flight (sync wrapper around async pre_flight_generate)
