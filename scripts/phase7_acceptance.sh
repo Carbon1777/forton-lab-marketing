@@ -11,6 +11,21 @@ BRAIN_DECISIONS="/Users/jcat/Documents/Brain/projects/forton-lab/decisions.md"
 FAILS=0
 PASSES=0
 
+# Resolve python interpreter. We `cd "$REPO_ROOT"` before the python checks below,
+# so a relative path to .venv works even when $REPO_ROOT contains spaces (the absolute
+# path breaks `eval` quoting in check() — see #issue around Forton Lab spaces in path).
+cd "$REPO_ROOT"
+if [ -x ".venv/bin/python" ]; then
+    PY="./.venv/bin/python"
+    PYTEST="./.venv/bin/pytest"
+elif command -v python3 >/dev/null 2>&1; then
+    PY="python3"
+    PYTEST="pytest"
+else
+    PY="python"
+    PYTEST="pytest"
+fi
+
 check() {
     local name="$1"
     local cmd="$2"
@@ -46,23 +61,23 @@ echo
 echo "[BOOT-01, BOOT-05] spend_tracker v3 imports"
 cd "$REPO_ROOT"
 check "record_provider_spend importable" \
-    "PYTHONPATH=. python -c 'from src.spend_tracker_v2 import record_provider_spend, preflight_check, DailyCapExceededError, MonthlyAbortError, ProviderMonthlyCapExceededError'"
+    "PYTHONPATH=. $PY -c 'from src.spend_tracker_v2 import record_provider_spend, preflight_check, DailyCapExceededError, MonthlyAbortError, ProviderMonthlyCapExceededError'"
 check "DEFAULT_DAILY_CAP_USD == 3.0" \
-    "PYTHONPATH=. python -c 'from src.spend_tracker_v2 import DEFAULT_DAILY_CAP_USD; assert DEFAULT_DAILY_CAP_USD == 3.0'"
+    "PYTHONPATH=. $PY -c 'from src.spend_tracker_v2 import DEFAULT_DAILY_CAP_USD; assert DEFAULT_DAILY_CAP_USD == 3.0'"
 check "DEFAULT_MONTHLY_ABORT_USD == 15.0" \
-    "PYTHONPATH=. python -c 'from src.spend_tracker_v2 import DEFAULT_MONTHLY_ABORT_USD; assert DEFAULT_MONTHLY_ABORT_USD == 15.0'"
+    "PYTHONPATH=. $PY -c 'from src.spend_tracker_v2 import DEFAULT_MONTHLY_ABORT_USD; assert DEFAULT_MONTHLY_ABORT_USD == 15.0'"
 check "v2 readers preserved (read_regen_count)" \
-    "PYTHONPATH=. python -c 'from src.spend_tracker_v2 import read_regen_count, read_regen_limit, DEFAULT_REGEN_LIMIT'"
+    "PYTHONPATH=. $PY -c 'from src.spend_tracker_v2 import read_regen_count, read_regen_limit, DEFAULT_REGEN_LIMIT'"
 echo
 
 # --- BOOT-02: elevenlabs_tier ---
 echo "[BOOT-02] elevenlabs_tier module"
 check "elevenlabs_tier importable" \
-    "PYTHONPATH=. python -c 'from src.elevenlabs_tier import get_studio_tier, is_paid_tier, require_paid_tier, PAID_TIERS, TierMissingError'"
+    "PYTHONPATH=. $PY -c 'from src.elevenlabs_tier import get_studio_tier, is_paid_tier, require_paid_tier, PAID_TIERS, TierMissingError'"
 check "is_paid_tier(\"starter\") is True" \
-    "PYTHONPATH=. python -c 'from src.elevenlabs_tier import is_paid_tier; assert is_paid_tier(\"starter\")'"
+    "PYTHONPATH=. $PY -c 'from src.elevenlabs_tier import is_paid_tier; assert is_paid_tier(\"starter\")'"
 check "is_paid_tier(\"free\") is False" \
-    "PYTHONPATH=. python -c 'from src.elevenlabs_tier import is_paid_tier; assert not is_paid_tier(\"free\")'"
+    "PYTHONPATH=. $PY -c 'from src.elevenlabs_tier import is_paid_tier; assert not is_paid_tier(\"free\")'"
 echo
 
 # --- BOOT-03: fonts presence + OFL ---
@@ -79,7 +94,7 @@ echo
 
 # --- Pytest gate (full marketing-v3 test suite) ---
 echo "[GATE] Full pytest"
-PYTEST_OUT=$(PYTHONPATH=. pytest -q --no-header 2>&1 | tail -3)
+PYTEST_OUT=$(PYTHONPATH=. $PYTEST -q --no-header 2>&1 | tail -3)
 echo "$PYTEST_OUT"
 PASSED_COUNT=$(echo "$PYTEST_OUT" | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+')
 if [ -n "${PASSED_COUNT:-}" ] && [ "$PASSED_COUNT" -ge 111 ]; then
