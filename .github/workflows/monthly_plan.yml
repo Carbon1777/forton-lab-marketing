@@ -21,6 +21,11 @@ on:
         description: "Override month (YYYY-MM). Empty = current month."
         required: false
         default: ""
+      force_regenerate:
+        description: "Overwrite existing plan and bump regen_count[month]."
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write   # required for git commit + push of generated plan
@@ -73,6 +78,7 @@ jobs:
           TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
           TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
           MONTH_OVERRIDE: ${{ inputs.month }}
+          FORCE_REGENERATE: ${{ inputs.force_regenerate }}
         # Capture exit code so we can route to the right action after.
         # Generator itself sends a nudge on every fail-path, so we don't double-tap;
         # we only need to commit on success and propagate exit code on failure.
