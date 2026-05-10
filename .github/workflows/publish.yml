@@ -6,16 +6,31 @@ on:
     paths:
       - "queue/*.md"
   workflow_dispatch:
+    inputs:
+      slug:
+        description: "Draft slug to publish (reads drafts/<slug>.md, promotes to queue, then publishes)"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: write
 
+concurrency:
+  # T-2-06 + RESEARCH OQ5 — single group для serialize multi-post per day
+  # (single-operator typical: 1-3 posts/day; параллельный publish = git rebase race)
+  group: publish
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need full history for rebase before push
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -25,6 +40,19 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Promote draft → queue (workflow_dispatch path)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.slug != '' }}
+        env:
+          SLUG: ${{ inputs.slug }}
+        run: |
+          if [[ ! -f "drafts/${SLUG}.md" ]]; then
+            echo "ERROR: drafts/${SLUG}.md not found"
+            exit 1
+          fi
+          mkdir -p queue
+          mv "drafts/${SLUG}.md" "queue/${SLUG}.md"
+          echo "Promoted drafts/${SLUG}.md → queue/${SLUG}.md"
 
       - name: Publish queued posts to Telegram (queue → published)
         env:
@@ -50,14 +78,60 @@ jobs:
           fi
           python src/youtube_post.py
 
+      - name: Update plan entry status → published (workflow_dispatch path)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.slug != '' && success() }}
+        env:
+          BOT_DISPATCH_PAT: ${{ secrets.BOT_DISPATCH_PAT }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          SLUG: ${{ inputs.slug }}
+        run: |
+          PYTHONPATH=. python <<'PY'
+          import datetime as dt
+          import os
+          import sys
+          from pathlib import Path
+          from src.plan_writer import set_entry_status
+          repo_root = Path(".")
+          today = dt.date.today()
+          month = today.strftime("%Y-%m")
+          plan_path = repo_root / "plans" / f"monthly_plan_{month}.md"
+          slug = os.environ["SLUG"]
+          if not plan_path.exists():
+              sys.stderr.write(f"WARN: plan not found at {plan_path}; skipping status mutation\n")
+              sys.exit(0)
+          try:
+              set_entry_status(
+                  plan_path, repo_root, slug, "published",
+                  {"published_at": dt.datetime.now(dt.timezone.utc).isoformat()},
+              )
+              print(f"Marked {slug} as published in {plan_path}")
+          except Exception as e:
+              sys.stderr.write(f"WARN: status mutation failed: {e!r}\n")
+          PY
+
       - name: Commit moved files (queue → published) + VK + YouTube metadata
         run: |
           if [[ -n "$(git status --porcelain)" ]]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add -A
-            git commit -m "auto: publish posts to TG + VK + YT [skip ci]"
+            git commit -m "auto: publish ${{ inputs.slug || 'queued posts' }} [skip ci]"
+            git pull --rebase origin main
             git push
           else
             echo "Nothing to commit."
           fi
+
+      - name: Дзен manual-check reminder (PUB-10, scope-downgraded)
+        if: ${{ success() }}
+        env:
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+          SLUG: ${{ inputs.slug || '' }}
+        run: |
+          # Yandex closed anonymous Дзен access in 2024-2025 (см.
+          # Brain/projects/forton-lab/decisions.md, 2026-05-10).
+          # dzen_verify шлёт TG-нудж — юзер вручную сверяет канал через 10 мин.
+          PYTHONPATH=. python -m src.dzen_verify "${SLUG}"
+        continue-on-error: true   # silent-fail nonblocking
