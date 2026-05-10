@@ -12,9 +12,12 @@ import pytest
 import yaml
 
 from src.ai_talent.character_selector import (
+    LoraTriggerMismatchError,
     SelectionMismatchError,
+    _normalize_version_sha,
     read_manifest,
     write_initial_manifest,
+    write_lora_ready,
     write_selection,
 )
 from src.ai_talent.preview_sender import compute_batch_sha8
@@ -168,3 +171,172 @@ def test_write_selection_missing_frames_raises(tmp_path: Path) -> None:
             character_card="card",
             total_spend_usd=0.10,
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 9 Plan 03 — write_lora_ready tests
+# ---------------------------------------------------------------------------
+
+
+def _bootstrap_phase8_approved(tmp_path: Path) -> Path:
+    """Bootstrap a manifest already past Phase 8 (selected_variant=variant_2)."""
+    yaml_path = tmp_path / "character.yaml"
+    write_initial_manifest(yaml_path)
+    frames = _make_frames(tmp_path / "frames")
+    sha8 = compute_batch_sha8(frames)
+    write_selection(
+        yaml_path,
+        frame_root=tmp_path / "frames",
+        selected="variant_2",
+        batch_sha8=sha8,
+        character_card="card-2",
+        total_spend_usd=0.30,
+        selected_by="tester",
+    )
+    return yaml_path
+
+
+def test_write_lora_ready_happy_path(tmp_path: Path) -> None:
+    yaml_path = _bootstrap_phase8_approved(tmp_path)
+
+    result = write_lora_ready(
+        yaml_path,
+        model="x/forton-lab-character-v1",
+        version_sha256="abc123def456",
+        training_run_id="t_xyz",
+        trigger_word="OHWX_FORTONA",
+        training_dataset_size=30,
+        training_cost_usd=2.18,
+        dataset_path="ai_talent/dataset/v1",
+        training_metadata={"steps": 1000, "rank": 16, "trainer_version": "def456"},
+    )
+
+    assert result["lora"]["status"] == "ready"
+    assert result["lora"]["model"] == "x/forton-lab-character-v1"
+    assert result["lora"]["version_sha256"] == "abc123def456"
+    assert result["lora"]["trigger_word"] == "OHWX_FORTONA"
+    assert result["lora"]["training_dataset_size"] == 30
+    assert result["lora"]["training_run_id"] == "t_xyz"
+    assert result["lora"]["training_cost_usd"] == 2.18
+    assert result["lora"]["dataset_path"] == "ai_talent/dataset/v1"
+    assert result["lora"]["training_metadata"] == {
+        "steps": 1000,
+        "rank": 16,
+        "trainer_version": "def456",
+    }
+
+    reloaded = read_manifest(yaml_path)
+    assert reloaded["lora"]["status"] == "ready"
+    assert reloaded["lora"]["version_sha256"] == "abc123def456"
+
+    events = [(h["phase"], h["event"]) for h in reloaded["history"]]
+    assert (9, "lora_trained") in events
+    last = reloaded["history"][-1]
+    assert last["phase"] == 9
+    assert last["event"] == "lora_trained"
+    assert "x/forton-lab-character-v1:abc123def456" in last["note"]
+
+
+def test_write_lora_ready_trigger_word_mismatch(tmp_path: Path) -> None:
+    yaml_path = _bootstrap_phase8_approved(tmp_path)
+    before = read_manifest(yaml_path)
+    before_lora_status = before["lora"]["status"]
+    before_history_len = len(before["history"])
+
+    with pytest.raises(LoraTriggerMismatchError):
+        write_lora_ready(
+            yaml_path,
+            model="x/forton-lab-character-v1",
+            version_sha256="abc123def456",
+            training_run_id="t_xyz",
+            trigger_word="DIFFERENT",
+            training_dataset_size=30,
+            training_cost_usd=2.18,
+            dataset_path="ai_talent/dataset/v1",
+            training_metadata={"steps": 1000, "rank": 16, "trainer_version": "def456"},
+        )
+
+    after = read_manifest(yaml_path)
+    assert after["lora"]["status"] == before_lora_status  # still pending
+    assert after["lora"]["status"] == "pending"
+    assert after["lora"]["model"] is None
+    assert after["lora"]["version_sha256"] is None
+    assert len(after["history"]) == before_history_len  # no event appended
+
+
+def test_write_lora_ready_phase8_additivity(tmp_path: Path) -> None:
+    """Phase 8 and voice blocks must remain byte-equal after lora write."""
+    yaml_path = _bootstrap_phase8_approved(tmp_path)
+
+    before = read_manifest(yaml_path)
+    phase_8_before = yaml.safe_dump(before["phase_8"], sort_keys=False, allow_unicode=True)
+    voice_before = yaml.safe_dump(before["voice"], sort_keys=False, allow_unicode=True)
+    brief_before = yaml.safe_dump(before["brief"], sort_keys=False, allow_unicode=True)
+
+    write_lora_ready(
+        yaml_path,
+        model="x/forton-lab-character-v1",
+        version_sha256="abc123def456",
+        training_run_id="t_xyz",
+        trigger_word="OHWX_FORTONA",
+        training_dataset_size=30,
+        training_cost_usd=2.18,
+        dataset_path="ai_talent/dataset/v1",
+        training_metadata={"steps": 1000, "rank": 16, "trainer_version": "def456"},
+    )
+
+    after = read_manifest(yaml_path)
+    phase_8_after = yaml.safe_dump(after["phase_8"], sort_keys=False, allow_unicode=True)
+    voice_after = yaml.safe_dump(after["voice"], sort_keys=False, allow_unicode=True)
+    brief_after = yaml.safe_dump(after["brief"], sort_keys=False, allow_unicode=True)
+
+    assert phase_8_after == phase_8_before, "phase_8 block must be byte-equal"
+    assert voice_after == voice_before, "voice block must be byte-equal"
+    assert brief_after == brief_before, "brief block must be byte-equal"
+
+
+def test_write_lora_ready_normalizes_full_ref(tmp_path: Path) -> None:
+    """version_sha256 accepts `owner/name:sha` and stores only SHA part."""
+    yaml_path = _bootstrap_phase8_approved(tmp_path)
+
+    full_ref = (
+        "carbon1777/forton-lab-character-v1:"
+        "5d950b9d38b55d13c5ebf1ed2a086f269a3663b9e9244b82b6984bf79ffb3ca1"
+    )
+    write_lora_ready(
+        yaml_path,
+        model="carbon1777/forton-lab-character-v1",
+        version_sha256=full_ref,
+        training_run_id="6pv1wkhrg9rmr0cy2fysg4y4e8",
+        trigger_word="OHWX_FORTONA",
+        training_dataset_size=30,
+        training_cost_usd=2.20,
+        dataset_path="ai_talent/dataset/v1",
+        training_metadata={
+            "steps": 1000,
+            "rank": 16,
+            "trainer_version": "26dce37af90b9d997eeb970d92e47de3064d46c300504ae376c75bef6a9022d2",
+        },
+    )
+
+    reloaded = read_manifest(yaml_path)
+    assert reloaded["lora"]["version_sha256"] == (
+        "5d950b9d38b55d13c5ebf1ed2a086f269a3663b9e9244b82b6984bf79ffb3ca1"
+    )
+
+
+def test_normalize_version_sha_helper() -> None:
+    """Direct unit test for the SHA-normalization helper."""
+    assert _normalize_version_sha("abc123def456") == "abc123def456"
+    assert _normalize_version_sha("owner/name:abc123def456") == "abc123def456"
+    assert (
+        _normalize_version_sha(
+            "carbon1777/forton-lab-character-v1:"
+            "5d950b9d38b55d13c5ebf1ed2a086f269a3663b9e9244b82b6984bf79ffb3ca1"
+        )
+        == "5d950b9d38b55d13c5ebf1ed2a086f269a3663b9e9244b82b6984bf79ffb3ca1"
+    )
+    with pytest.raises(ValueError):
+        _normalize_version_sha("not-a-sha")
+    with pytest.raises(ValueError):
+        _normalize_version_sha("owner/name:zzz")  # not hex
