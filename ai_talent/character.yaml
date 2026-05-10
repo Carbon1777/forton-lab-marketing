@@ -1,7 +1,7 @@
 schema_version: 1
 character_id: forton-lab-mascot-v1
 created_at: '2026-05-10'
-updated_at: '2026-05-10T21:09:22.512826+00:00'
+updated_at: '2026-05-10T22:55:18.900562+00:00'
 brief:
   gender: female
   age_range: 25-28
@@ -34,13 +34,18 @@ phase_8:
     Mood: warm, approachable, lifestyle-ready, gently confident.'
   regen_count: 0
 lora:
-  status: pending
-  model: null
-  version_sha256: null
+  status: ready
+  model: carbon1777/forton-lab-character-v1
+  version_sha256: 5d950b9d38b55d13c5ebf1ed2a086f269a3663b9e9244b82b6984bf79ffb3ca1
   trigger_word: OHWX_FORTONA
-  training_dataset_size: null
-  training_run_id: null
-  training_cost_usd: null
+  training_dataset_size: 30
+  training_run_id: 6pv1wkhrg9rmr0cy2fysg4y4e8
+  training_cost_usd: 2.2
+  dataset_path: ai_talent/dataset/v1
+  training_metadata:
+    steps: 1000
+    rank: 16
+    trainer_version: 26dce37af90b9d997eeb970d92e47de3064d46c300504ae376c75bef6a9022d2
 voice:
   status: pending
   provider: elevenlabs
@@ -63,3 +68,7 @@ history:
   event: selected
   at: '2026-05-10T21:09:22.512826+00:00'
   note: Selected variant_2 (sha8=46e8bbce)
+- phase: 9
+  event: lora_trained
+  at: '2026-05-10T22:55:18.900562+00:00'
+  note: carbon1777/forton-lab-character-v1:5d950b9d38b55d13c5ebf1ed2a086f269a3663b9e9244b82b6984bf79ffb3ca1
