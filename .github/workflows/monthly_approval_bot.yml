@@ -49,6 +49,7 @@ jobs:
         env:
           TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
           TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+          TG_OWNER_USER_ID: ${{ secrets.TG_OWNER_USER_ID }}
           BOT_DISPATCH_PAT: ${{ secrets.BOT_DISPATCH_PAT }}
           REPO_OWNER: ${{ github.repository_owner }}
           REPO_NAME: forton-lab-marketing
