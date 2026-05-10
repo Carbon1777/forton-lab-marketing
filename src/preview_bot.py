@@ -575,10 +575,17 @@ def build_edit_conversation() -> ConversationHandler:
         ],
         states={
             WAITING_EDIT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_edit_text),
+                # TG различает message (личка/группа) и channel_post (канал).
+                # filters.UpdateType.MESSAGES = message + channel_post + business_*
+                # Без этого reply owner в канале «Планировщик» не доходит до handler.
+                MessageHandler(
+                    filters.UpdateType.MESSAGES & filters.TEXT & ~filters.COMMAND,
+                    handle_edit_text,
+                ),
             ],
             ConversationHandler.TIMEOUT: [
-                MessageHandler(filters.ALL, handle_edit_timeout),
+                MessageHandler(filters.UpdateType.MESSAGES & filters.ALL,
+                               handle_edit_timeout),
                 CallbackQueryHandler(handle_edit_timeout, pattern=r".*"),
             ],
         },
@@ -643,16 +650,34 @@ async def handle_edit_entry(update: Update,
 
 async def handle_edit_text(update: Update,
                              ctx: ContextTypes.DEFAULT_TYPE) -> int:
-    """User sent edit instruction — call regen, validate, send new preview."""
-    if update.message.from_user.id != ctx.application.bot_data["owner_chat_id"]:
+    """User sent edit instruction — call regen, validate, send new preview.
+
+    `effective_message` обрабатывает оба случая: личка/группа (Update.message)
+    и канал (Update.channel_post). В канале from_user может быть None если
+    юзер пишет «как канал», тогда фоллбэк на sender_chat.id (== owner_chat_id
+    для admin-постов).
+    """
+    # update.message в личке/группе, update.channel_post в канале
+    msg = update.message or update.channel_post
+    if msg is None or not msg.text:
+        return WAITING_EDIT
+    # Owner check работает для message (from_user.id) и для channel_post
+    # (sender_chat.id у admin-постов; sometimes from_user тоже set если пост
+    # от signed admin).
+    owner = ctx.application.bot_data["owner_chat_id"]
+    preview_chat = ctx.application.bot_data.get("preview_chat_id")
+    sender_id = msg.from_user.id if msg.from_user else None
+    chat_id = msg.chat_id
+    # Admin reply в нашем канале считаем валидным (chat_id == preview channel)
+    if sender_id != owner and chat_id != preview_chat:
         return WAITING_EDIT   # ignore non-owner silently
 
-    instruction = update.message.text or ""
+    instruction = msg.text or ""
     draft_path = Path(ctx.user_data.get("edit_draft_path", ""))
     spend_file = ctx.application.bot_data["spend_file"]
     repo_root = ctx.application.bot_data["repo_root"]
 
-    progress = await update.message.reply_text("⏳ Перегенерирую...")
+    progress = await msg.reply_text("⏳ Перегенерирую...")
 
     try:
         await asyncio.to_thread(regen_one, draft_path, instruction, spend_file)
@@ -1006,7 +1031,7 @@ def main() -> None:
     # PTB run_polling сам управляет loop: использует текущий (который мы set_event_loop).
     app.run_polling(
         timeout=POLL_TIMEOUT_S,
-        allowed_updates=["callback_query", "message"],
+        allowed_updates=["callback_query", "message", "channel_post"],
         drop_pending_updates=False,
     )
 
