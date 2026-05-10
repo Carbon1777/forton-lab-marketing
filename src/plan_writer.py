@@ -222,3 +222,117 @@ def plan_sha8(plan_path: Path) -> str:
         for chunk in iter(lambda: f.read(65536), b""):
             h.update(chunk)
     return h.hexdigest()[:8]
+
+
+# ============================================================
+# Phase 2 extensions — per-entry yaml mutation + dispatch_publish
+# ============================================================
+
+import re as _re_p2
+import yaml as _yaml_p2
+
+ALLOWED_ENTRY_STATUSES = {"draft", "approved", "skipped", "expired", "published"}
+
+# Match fenced ```yaml ... ``` blocks inside plan body. Non-greedy body match,
+# DOTALL so newlines included. Used by _mutate_entry_status to find per-entry
+# yaml mini-blocks to rewrite.
+_YAML_FENCE_RE = _re_p2.compile(r"(```yaml\n)(.*?)(\n```)", _re_p2.S)
+
+
+def _mutate_entry_status(plan_text: str, slug: str, new_status: str,
+                         extra: dict) -> str:
+    """Find ```yaml block whose 'slug' matches, mutate status + merge extra.
+
+    Pure string mutation; preserves all surrounding markdown including order
+    of date sections and other entries' yaml blocks. Returns plan_text
+    UNCHANGED if slug not found in any block (caller detects via comparison
+    and raises — keeps function pure).
+
+    Why string-level: avoids round-tripping through frontmatter library which
+    would normalise quoting / re-order keys / drop blank lines in section bodies.
+    """
+    def _replace_one(m: _re_p2.Match) -> str:
+        block_body = m.group(2)
+        try:
+            data = _yaml_p2.safe_load(block_body) or {}
+        except _yaml_p2.YAMLError:
+            return m.group(0)   # leave malformed block untouched
+        if not isinstance(data, dict) or data.get("slug") != slug:
+            return m.group(0)
+        data["status"] = new_status
+        for k, v in extra.items():
+            data[k] = v
+        new_body = _yaml_p2.safe_dump(
+            data, allow_unicode=True, sort_keys=False
+        ).rstrip()
+        return m.group(1) + new_body + m.group(3)
+
+    return _YAML_FENCE_RE.sub(_replace_one, plan_text)
+
+
+def set_entry_status(plan_path: Path, repo_root: Path, slug: str,
+                     new_status: str,
+                     metadata: dict | None = None) -> str:
+    """Mutate per-entry yaml block (status + optional fields) + GH commit.
+
+    Implements D-2-03 (cancel→skipped), D-2-04 (TTL→expired), and used by
+    publish.yml for status→published.
+
+    Args:
+        plan_path:  Absolute Path to monthly_plan_YYYY-MM.md
+        repo_root:  Absolute Path to marketing-v3 repo root (for relative_to)
+        slug:       per-entry slug to mutate (must exist in some yaml block)
+        new_status: one of ALLOWED_ENTRY_STATUSES
+        metadata:   dict merged into entry yaml block (e.g.
+                    {"skipped_at": iso, "skipped_via": "forton-via-tg-bot"}
+                    or {"published_at": iso})
+
+    Returns:
+        commit_sha (str) — GH commit hash from PUT /contents.
+
+    Raises:
+        ValueError("unsupported status: ...") if new_status not in whitelist
+        ValueError("slug ... not found in plan ...") if slug absent
+        GitHubAPIError on any non-success HTTP (incl. 409 concurrent edit)
+        KeyError if BOT_DISPATCH_PAT not in env
+    """
+    if new_status not in ALLOWED_ENTRY_STATUSES:
+        raise ValueError(
+            f"unsupported status: {new_status!r} "
+            f"(allowed: {sorted(ALLOWED_ENTRY_STATUSES)})"
+        )
+
+    pat = os.environ["BOT_DISPATCH_PAT"]
+    owner = os.environ.get("REPO_OWNER", "Carbon1777")
+    repo = os.environ.get("REPO_NAME", "forton-lab-marketing")
+    rel_path = str(plan_path.relative_to(repo_root))
+
+    text, blob_sha = fetch_file(pat, owner, repo, rel_path)
+    new_text = _mutate_entry_status(text, slug, new_status, metadata or {})
+    if new_text == text:
+        raise ValueError(
+            f"slug {slug!r} not found in plan {rel_path} (no mutation made)"
+        )
+
+    commit_msg = f"chore(plan): {slug} → {new_status} via TG bot"
+    return commit_file(pat, owner, repo, rel_path, new_text, blob_sha, commit_msg)
+
+
+def dispatch_publish(slug: str,
+                     repo_owner: str = "Carbon1777",
+                     repo_name: str = "forton-lab-marketing",
+                     ref: str = "main") -> None:
+    """Trigger publish.yml workflow_dispatch with inputs={slug}.
+
+    Implements D-2-06 (preview-bot directly via GH API → publish.yml).
+    Thin wrapper over dispatch_regenerate (generic dispatcher misnamed in
+    Phase 1.5).
+
+    Reads BOT_DISPATCH_PAT from env. Raises GitHubAPIError on non-204.
+    """
+    pat = os.environ["BOT_DISPATCH_PAT"]
+    dispatch_regenerate(
+        pat=pat, owner=repo_owner, repo=repo_name,
+        workflow="publish.yml", ref=ref,
+        inputs={"slug": slug},
+    )
