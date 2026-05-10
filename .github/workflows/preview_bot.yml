@@ -1,0 +1,53 @@
+name: preview_bot
+
+on:
+  schedule:
+    # 12:00-22:00 МСК = 09:00-19:00 UTC (Россия не использует DST с 2014).
+    # 10-минутный шаг — стандартный для polling-в-окне (Phase 1.5 D-1.5-04).
+    # Worst-case 60 iter/день × 9.5 min = 570 min/день; typical с быстрым approve
+    # ≈ 30-60 min/день (RESEARCH §«Mitigations»).
+    - cron: "*/10 9-19 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  # Bot reads (checkout); все mutations через BOT_DISPATCH_PAT (Contents API),
+  # НЕ через GITHUB_TOKEN. publish.yml dispatched через PAT тоже.
+  contents: read
+
+concurrency:
+  # T-2-06: serialize parallel preview_bot iterations (cron + manual dispatch overlap)
+  group: preview-bot
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 11   # 9-min polling + ~30s startup + headroom
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run preview bot (pre-flight gen + polling)
+        env:
+          # Phase 1.5 secrets reused (single-operator, same TG bot)
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_USER_ID: ${{ secrets.TG_OWNER_USER_ID }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+          # Phase 1 secret (для daily_post_generator)
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Phase 1.5 secret (для plan_writer.set_entry_status + dispatch_publish)
+          BOT_DISPATCH_PAT: ${{ secrets.BOT_DISPATCH_PAT }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: PYTHONPATH=. python -m src.preview_bot
