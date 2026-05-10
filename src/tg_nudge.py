@@ -32,8 +32,11 @@ Security & quality:
 """
 from __future__ import annotations
 
+import html
 import os
 import sys
+import time
+from collections import defaultdict
 
 import requests
 
@@ -181,3 +184,105 @@ def _main_from_argv(argv: list[str]) -> int:
 
 if __name__ == "__main__":  # pragma: no cover
     sys.exit(_main_from_argv(sys.argv))
+
+
+# =====================================================================
+# Phase 1.5 Plan 03 — Multi-message weekly split + inline keyboard
+# APPROVE-01. Added 2026-05-10.
+# =====================================================================
+
+_WEEK_HEADER = "📅 <b>Неделя {n} ({range_short})</b>\n\n"
+_ENTRY_LINE = (
+    "<b>{date_short}</b> <code>{slug}</code> ({channels})\n"
+    "<i>{excerpt}</i>\n"
+    "sha: <code>{media_sha8}</code>\n\n"
+)
+_EXCERPT_MAX = 120
+_MESSAGE_LIMIT = 4096  # TG sendMessage text limit
+
+
+def _render_week_message(week_num: int, entries: list) -> str:
+    """Render one weekly TG-message in HTML format. All dynamic fields escaped.
+
+    Truncates at ``_MESSAGE_LIMIT`` to guarantee TG accepts the message —
+    worst case we drop the trailing entries (extremely unlikely with our
+    per-day sizes, but safety net).
+    """
+    first = entries[0].date
+    last = entries[-1].date
+    range_short = f"{first.strftime('%d.%m')}-{last.strftime('%d.%m')}"
+    parts = [_WEEK_HEADER.format(n=week_num, range_short=range_short)]
+    for e in entries:
+        excerpt_raw = (e.content or "").strip().replace("\n", " ")
+        truncated = excerpt_raw[:_EXCERPT_MAX] + (
+            "…" if len(excerpt_raw) > _EXCERPT_MAX else ""
+        )
+        excerpt = html.escape(truncated)
+        slug_esc = html.escape(e.slug)
+        channels_esc = html.escape(",".join(e.channels))
+        media_sha8 = e.media[0].sha256[:8] if e.media else "—"
+        parts.append(
+            _ENTRY_LINE.format(
+                date_short=e.date.strftime("%d.%m"),
+                slug=slug_esc,
+                channels=channels_esc,
+                excerpt=excerpt,
+                media_sha8=media_sha8,
+            )
+        )
+    text = "".join(parts)
+    if len(text) > _MESSAGE_LIMIT:
+        text = text[: _MESSAGE_LIMIT - 1] + "…"
+    return text
+
+
+def send_weekly_split(
+    plan,
+    inline_keyboard: list | None = None,
+    pause_between_s: float = 0.2,
+) -> list[int]:
+    """Send N TG-messages (one per ISO-week) for the monthly plan preview.
+
+    APPROVE-01 implementation. Groups ``plan.entries`` by ISO-week, renders one
+    HTML message per group, sends sequentially via raw TG Bot API.
+
+    - ``reply_markup`` is attached ONLY to the LAST message (the one carrying
+      the [✅ Утвердить] [✏️ Редактировать] [❌ Отклонить] buttons).
+    - ``disable_notification=True`` for all but the LAST (silent preview pages,
+      loud action page).
+    - ``time.sleep(pause_between_s)`` between sends (rate-limit + ordering).
+
+    Returns ``list[int]`` of TG message_ids in send order; the LAST element is
+    the keyboard-bearing message_id which the bot edits on callback.
+    """
+    token = env("TG_PLANNER_BOT_TOKEN")
+    chat_id = env("TG_OWNER_CHAT_ID")
+    url = f"{TG_API_BASE}/bot{token}/sendMessage"
+
+    # Group entries by ISO-week number (preserves date order — entries already
+    # sorted by date in plan_reader.parse_plan_text).
+    weeks: dict[int, list] = defaultdict(list)
+    for e in plan.entries:
+        weeks[e.date.isocalendar()[1]].append(e)
+    sorted_weeks = [weeks[w] for w in sorted(weeks)]
+
+    message_ids: list[int] = []
+    last_idx = len(sorted_weeks) - 1
+    for i, week_entries in enumerate(sorted_weeks):
+        text = _render_week_message(i + 1, week_entries)
+        body: dict = {
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+            "disable_notification": (i != last_idx),
+        }
+        if i == last_idx and inline_keyboard:
+            body["reply_markup"] = {"inline_keyboard": inline_keyboard}
+        r = requests.post(url, json=body, timeout=30)
+        r.raise_for_status()
+        message_ids.append(int(r.json()["result"]["message_id"]))
+        if i < last_idx:
+            time.sleep(pause_between_s)
+
+    return message_ids
