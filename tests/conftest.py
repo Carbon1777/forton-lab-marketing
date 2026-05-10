@@ -79,3 +79,81 @@ def mock_anthropic_client():
     fake_client = MagicMock()
     fake_client.messages.create.return_value = fake_msg
     return fake_client, fake_msg
+
+
+# ============================================================
+# Phase 1.5 fixtures — PTB Application / CallbackQuery mocks
+# ============================================================
+
+import datetime as _dt_15
+from unittest.mock import AsyncMock as _AsyncMock_15, MagicMock as _MagicMock_15
+
+
+@pytest.fixture
+def mock_owner_id() -> int:
+    """Synthetic Telegram chat_id used as owner across handler tests."""
+    return 12345
+
+
+@pytest.fixture
+def sample_plan_text_30days() -> str:
+    """Valid 30-day plan со status=draft (covers 5 ISO weeks of June 2026)."""
+    return (FIXTURES_DIR / "sample_plan_2026-06.md").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def mock_query(mock_owner_id):
+    """Construct a minimal CallbackQuery for handler tests.
+
+    Defaults to data='approve:deadbeef' — tests override via `mock_query.data = ...`.
+    All TG-side I/O methods are AsyncMock (PTB 21.x is async-only).
+    """
+    from telegram import CallbackQuery, Chat, Message, User
+
+    user = User(id=mock_owner_id, first_name="Forton", is_bot=False)
+    chat = Chat(id=mock_owner_id, type="private")
+    msg = Message(
+        message_id=999,
+        date=_dt_15.datetime.now(_dt_15.timezone.utc),
+        chat=chat,
+        from_user=user,
+    )
+    # PTB v21 Message.reply_text is async — mock it
+    msg.reply_text = _AsyncMock_15()
+
+    q = _MagicMock_15(spec=CallbackQuery)
+    q.from_user = user
+    q.message = msg
+    q.id = "test_callback_id"
+    q.data = "approve:deadbeef"
+    q.answer = _AsyncMock_15(return_value=True)
+    q.edit_message_text = _AsyncMock_15()
+    q.edit_message_reply_markup = _AsyncMock_15()
+    return q
+
+
+@pytest.fixture
+def mock_ctx(mock_owner_id, tmp_path):
+    """ContextTypes-like object with bot_data + stop_running mock.
+
+    bot_data['repo_root'] points to tmp_path so handlers writing files
+    don't pollute the real working tree. Handlers needing a plan file
+    should create one under tmp_path / 'plans' / f'monthly_plan_{...}.md'.
+    """
+    ctx = _MagicMock_15()
+    ctx.application = _MagicMock_15()
+    ctx.application.bot_data = {
+        "owner_chat_id": mock_owner_id,
+        "repo_root": tmp_path,
+    }
+    ctx.application.stop_running = _MagicMock_15()
+    return ctx
+
+
+@pytest.fixture
+def tmp_repo_with_draft_plan(tmp_repo, sample_plan_text_30days):
+    """Extends tmp_repo by writing sample plan as plans/monthly_plan_2026-06.md.
+    Used by approve/reject/sha-verify tests."""
+    plan = tmp_repo / "plans" / "monthly_plan_2026-06.md"
+    plan.write_text(sample_plan_text_30days, encoding="utf-8")
+    return tmp_repo, plan
