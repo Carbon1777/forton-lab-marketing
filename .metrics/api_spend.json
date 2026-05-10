@@ -1,4 +1,16 @@
 {
   "_schema_version": 1,
-  "_updated": null
+  "_updated": "2026-05-10T13:05:39.748304+00:00",
+  "2026-05": {
+    "input_tokens": 5677,
+    "output_tokens": 4652,
+    "usd": 0.0868,
+    "calls": 1,
+    "by_purpose": {
+      "monthly_plan": {
+        "calls": 1,
+        "usd": 0.0868
+      }
+    }
+  }
 }
