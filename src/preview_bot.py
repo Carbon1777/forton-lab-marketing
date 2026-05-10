@@ -594,7 +594,12 @@ def build_edit_conversation() -> ConversationHandler:
         ],
         conversation_timeout=600,   # 10 min per D-2-02 (requires JobQueue from Plan 01)
         per_chat=True,
-        per_user=True,
+        # per_user=False для канала: callback_query (от Правь) приносит real
+        # user_id (admin clicked button), а channel_post с правкой может
+        # прийти БЕЗ from_user (post as channel) → state mismatch если key
+        # включает user_id. На single-operator канале owner check в handler
+        # обеспечивает безопасность независимо.
+        per_user=False,
         per_message=False,           # mixed entry types (CBQuery + MessageHandler)
         allow_reentry=True,           # юзер может тапнуть «Правь» снова после timeout
     )
@@ -659,18 +664,25 @@ async def handle_edit_text(update: Update,
     """
     # update.message в личке/группе, update.channel_post в канале
     msg = update.message or update.channel_post
+    sys.stderr.write(
+        f"DEBUG handle_edit_text: msg_type="
+        f"{'message' if update.message else ('channel_post' if update.channel_post else 'none')} "
+        f"text={(msg.text[:30] if msg and msg.text else None)!r}\n"
+    )
     if msg is None or not msg.text:
+        sys.stderr.write("DEBUG: msg empty → WAITING_EDIT\n")
         return WAITING_EDIT
-    # Owner check работает для message (from_user.id) и для channel_post
-    # (sender_chat.id у admin-постов; sometimes from_user тоже set если пост
-    # от signed admin).
     owner = ctx.application.bot_data["owner_chat_id"]
     preview_chat = ctx.application.bot_data.get("preview_chat_id")
     sender_id = msg.from_user.id if msg.from_user else None
     chat_id = msg.chat_id
-    # Admin reply в нашем канале считаем валидным (chat_id == preview channel)
+    sys.stderr.write(
+        f"DEBUG owner check: sender_id={sender_id} owner={owner} "
+        f"chat_id={chat_id} preview_chat={preview_chat}\n"
+    )
     if sender_id != owner and chat_id != preview_chat:
-        return WAITING_EDIT   # ignore non-owner silently
+        sys.stderr.write("DEBUG: owner check failed → WAITING_EDIT\n")
+        return WAITING_EDIT
 
     instruction = msg.text or ""
     draft_path = Path(ctx.user_data.get("edit_draft_path", ""))
