@@ -1,0 +1,27 @@
+name: monthly_prep_reminder
+
+on:
+  schedule:
+    # 12:00 МСК 21 числа каждого месяца = 09:00 UTC 21 *
+    - cron: "0 9 21 * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Send monthly prep reminder
+        env:
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+        run: PYTHONPATH=. python -m src.prep_reminder
