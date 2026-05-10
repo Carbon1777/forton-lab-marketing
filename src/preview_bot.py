@@ -143,8 +143,23 @@ async def _check_owner(query, ctx) -> bool:
 # ---------------------------------------------------------------------------
 
 def _draft_sha8(draft_path: Path) -> str:
-    """First 8 hex chars of sha256 of draft file. Reused plan_sha8."""
-    return plan_sha8(draft_path)
+    """Sha8 от draft.content + slug — НЕ от полного файла.
+
+    Раньше использовали `plan_sha8(file)` который sha-шит ВСЕ байты файла,
+    включая frontmatter. Это создавало баг: после `_store_message_id` в
+    pre_flight_generate (которая дописывает preview_message_id в frontmatter)
+    sha файла менялся → callback кнопок становился invalid сразу после
+    отправки preview → юзер кликает → mismatch.
+
+    Now: sha8 — это invariant самого контента поста, который regen_one
+    меняет (правильно invalidates кнопки старых preview), а
+    _store_message_id не трогает (правильно сохраняет валидность).
+    """
+    import hashlib
+    draft = frontmatter.load(draft_path)
+    slug = str(draft.metadata.get("slug") or draft_path.stem)
+    payload = (draft.content + "\n---\n" + slug).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()[:8]
 
 
 async def _verify_draft_sha(query, draft_path: Path, expected_sha8: str) -> bool:
