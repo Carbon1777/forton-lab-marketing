@@ -207,18 +207,46 @@ centryweb.ru
 ## 2026-05-10
 
 ```yaml
-slug: forton-may10-smoke-test
+slug: centry-may10-smoke-photo
 channels: [tg]
-product: forton-lab
-rubric: from_studio
-media: []
+product: centry
+rubric: feature_carousel
+media:
+  - path: assets/centry-five-types.png
+    sha256: 57378ab4f1bb0d750d17ccc19fddd796949692507410060bc4218b831a657758
+    role: image
+image: assets/centry-five-types.png
 status: draft
 ```
 
-Forton Lab.
+Centry — пять типов мест в одной ленте.
 
-Тестовая запись для smoke-проверки preview_bot Phase 2 — без медиа,
-только текст, только TG. Если preview прилетит и кнопки сработают — фаза закрыта.
+Кафе с авторской подачей, бары с тихой музыкой, спот для завтрака с видом,
+комьюнити-пространства, точки с локальной едой. Каждое место — с активностью
+жителей вокруг и пометкой «куда сегодня».
+
+centryweb.ru
+
+## 2026-05-10
+
+```yaml
+slug: forton-may10-smoke-video
+channels: [tg]
+product: forton-lab
+rubric: from_studio
+media:
+  - path: assets/video/forton-intro-story.mp4
+    sha256: ac87b28757755fa4ad28cf9a2893220fa42b49b6833302d91a010e61bb3eb3fc
+    role: video
+video: assets/video/forton-intro-story.mp4
+status: draft
+```
+
+Forton Lab — короткое intro студии.
+
+Один день из жизни команды: концепт → прототип → первые ответы людей.
+Сегодня показываем кусочек кулис — как растёт продукт, который вы потом
+видите в App Store / Google Play / RuStore.
 
 fortonlab.ru
 
