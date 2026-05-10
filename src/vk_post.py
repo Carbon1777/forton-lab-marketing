@@ -80,6 +80,17 @@ def vk_wall_post(token: str, group_id: str, message: str) -> int:
     return result["post_id"]
 
 
+def _should_publish(post: frontmatter.Post, channel: str) -> bool:
+    """Phase 2 channel filter (mirror of tg_post._should_publish).
+
+    Backward-compat: пустой/отсутствующий ``channels:`` → True (Phase 1 legacy).
+    """
+    channels = post.metadata.get("channels")
+    if not channels:
+        return True
+    return channel in channels
+
+
 def find_pending_published_files() -> list[Path]:
     """Files in published/ that don't have vk_post_id yet."""
     if not PUBLISHED_DIR.exists():
@@ -93,8 +104,17 @@ def find_pending_published_files() -> list[Path]:
 
 
 def publish_one(post_path: Path, token: str, group_id: str) -> int:
-    """Post a single file to VK. Returns vk post_id."""
+    """Post a single file to VK. Returns vk post_id, or -1 if skipped by channel filter."""
     post = frontmatter.load(post_path)
+
+    # Phase 2 channel filter — skip silently if 'vk' not in entry channels
+    if not _should_publish(post, "vk"):
+        print(
+            f"  ↳ skip {post_path.name}: channels="
+            f"{post.metadata.get('channels')!r} excludes 'vk'"
+        )
+        return -1
+
     body = post.content.strip()
     image_rel = post.metadata.get("image")
     video_rel = post.metadata.get("video")

@@ -206,6 +206,42 @@ def tg_post_video(token: str, chat_id: str, video_path: Path, caption: str) -> d
     return r.json()
 
 
+def _should_publish(post: frontmatter.Post, channel: str) -> bool:
+    """Phase 2 channel filter. Backward-compat: если ``channels:`` field
+    отсутствует / пустой → publish (legacy queue/* без channels работают).
+    Иначе — publish только если ``channel`` в списке.
+
+    Args:
+        post: parsed frontmatter.Post (queue/<slug>.md content)
+        channel: one of "tg", "vk", "yt", "dzen"
+
+    Returns:
+        True if this post should be published to ``channel``.
+    """
+    channels = post.metadata.get("channels")
+    if not channels:
+        return True   # legacy без channels → publish (preserves Phase 1 behavior)
+    return channel in channels
+
+
+def _move_to_published(post_path: Path) -> Path:
+    """Move queue/<slug>.md → published/<YYYY-MM-DD>-<slug>.md.
+
+    Same naming convention used after a successful TG publish (publish_one).
+    Used when channel filter excludes ``tg`` so file still moves to published/
+    for VK/YT downstream pickup.
+    """
+    today = dt.date.today().isoformat()
+    new_name = (
+        post_path.name if post_path.name.startswith(today)
+        else f"{today}-{post_path.stem}.md"
+    )
+    new_path = PUBLISHED_DIR / new_name
+    PUBLISHED_DIR.mkdir(parents=True, exist_ok=True)
+    post_path.rename(new_path)
+    return new_path
+
+
 def publish_one(post_path: Path, token: str, chat_id: str) -> Path:
     """Publish a single queue file. Returns its new path under published/.
 
@@ -213,10 +249,24 @@ def publish_one(post_path: Path, token: str, chat_id: str) -> Path:
       image: <path>   — send as photo with caption.
       video: <path>   — send as video with caption (mutually exclusive with image).
       (none)          — send body as plain text message.
+      channels: [tg, vk, yt]   — Phase 2 channel filter; if 'tg' not in list,
+                                  skip TG post but still move file to published/
+                                  for VK/YT downstream.
 
     If both `image` and `video` are present, `video` wins (with a warning).
     """
     post = frontmatter.load(post_path)
+
+    # Phase 2 channel filter — skip TG but move file so VK/YT can process it
+    if not _should_publish(post, "tg"):
+        new_path = _move_to_published(post_path)
+        print(
+            f"  ↳ skip {post_path.name}: channels="
+            f"{post.metadata.get('channels')!r} excludes 'tg'; "
+            f"moved to published/{new_path.name} for VK/YT"
+        )
+        return new_path
+
     body = post.content.strip()
     image_rel = post.metadata.get("image")
     video_rel = post.metadata.get("video")

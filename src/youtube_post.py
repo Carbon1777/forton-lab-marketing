@@ -176,15 +176,34 @@ def upload_video(
     return response["id"]
 
 
+def _should_publish(post: frontmatter.Post, channel: str) -> bool:
+    """Phase 2 channel filter (mirror of tg_post / vk_post _should_publish).
+
+    Backward-compat: пустой/отсутствующий ``channels:`` → True (Phase 1 legacy).
+    """
+    channels = post.metadata.get("channels")
+    if not channels:
+        return True
+    return channel in channels
+
+
 def find_pending_files() -> list[Path]:
-    """Files in published/ with `video:` set and no `youtube_video_id` yet."""
+    """Files in published/ with `video:` set and no `youtube_video_id` yet,
+    AND channels include 'yt' (Phase 2; backward-compat если channels отсутствует).
+    """
     if not PUBLISHED_DIR.exists():
         return []
     pending = []
     for p in sorted(PUBLISHED_DIR.glob("*.md")):
         post = frontmatter.load(p)
-        if post.metadata.get("video") and not post.metadata.get("youtube_video_id"):
-            pending.append(p)
+        if not post.metadata.get("video"):
+            continue
+        if post.metadata.get("youtube_video_id"):
+            continue
+        if not _should_publish(post, "yt"):
+            print(f"  ↳ skip {p.name}: channels excludes 'yt'")
+            continue
+        pending.append(p)
     return pending
 
 
