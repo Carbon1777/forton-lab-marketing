@@ -5,3 +5,4 @@ venv/
 .env
 *.local
 .DS_Store
+.cache/
