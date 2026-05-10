@@ -94,6 +94,24 @@ _CALLBACK_DATA_RE: Final[re.Pattern] = re.compile(
     r"^(publish|edit|cancel):([a-z0-9-]{1,40}):([a-f0-9]{8})$"
 )
 
+def _today_msk() -> dt.date:
+    """Сегодняшняя дата по МСК.
+
+    На локальном маке (TZ=МСК) — `dt.date.today()` уже МСК.
+    На GH Actions runner (TZ=UTC) — `dt.date.today()` показывает UTC; если
+    сейчас ≥21:00 UTC (= ≥00:00 МСК следующего дня), сдвигаем на +1 день
+    чтобы юзер увидел запись плана на «сегодня по МСК».
+
+    Detect runner через GITHUB_ACTIONS env (set always на GH runners).
+    Это позволяет тестам patch'ить `dt.date.today` как раньше — их код
+    не отличает runner от локала.
+    """
+    today = dt.date.today()
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        if dt.datetime.utcnow().hour >= 21:
+            today = today + dt.timedelta(days=1)
+    return today
+
 
 class _SoftFail(Exception):
     """Raised by handler to signal NOT to call stop_running (recoverable)."""
@@ -401,7 +419,7 @@ async def _send_preview_for_draft(bot, chat_id: int, draft_path: Path,
 def _resolve_plan_path(ctx) -> Path:
     """Current month plan path from bot_data."""
     plans_dir = ctx.application.bot_data["plans_dir"]
-    today = dt.date.today()
+    today = _today_msk()
     return plans_dir / f"monthly_plan_{today.strftime('%Y-%m')}.md"
 
 
@@ -819,7 +837,7 @@ async def pre_flight_generate(app: Application | None, ctx_dict: dict) -> dict:
         sys.stderr.write(f"ERROR: parse_plan failed: {exc!r}\n")
         return {"should_poll": False, "pending_slugs": []}
 
-    today = dt.date.today()
+    today = _today_msk()
     entries = get_today_entries(plan, today)
     if not entries:
         sys.stderr.write(f"INFO: no entries for {today.isoformat()}\n")
@@ -927,7 +945,7 @@ def main() -> None:
     plans_dir = repo_root / PLANS_DIR_NAME
     drafts_dir = repo_root / DRAFTS_DIR_NAME
     spend_file = repo_root / SPEND_FILE_REL
-    today = dt.date.today()
+    today = _today_msk()
     plan_path = plans_dir / f"monthly_plan_{today.strftime('%Y-%m')}.md"
 
     app = build_application(token)
