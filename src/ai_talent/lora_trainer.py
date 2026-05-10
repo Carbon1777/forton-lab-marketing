@@ -34,6 +34,9 @@ TRAINING_TIMEOUT_SEC: Final[int] = 45 * 60
 EST_COST_USD: Final[float] = 2.20
 PREDICT_SECONDS_BUDGET: Final[int] = 1800
 PROVIDER_MONTHLY_CAP_USD: Final[float] = 6.0
+# Daily cap override — Phase 9 training day = dataset $0.75 + training $2.20 = $2.95 + Phase 8 $0.30 = $3.25.
+# Default daily cap = $3 too tight for the single-day training event. Bump to $5 for safety margin.
+DAILY_CAP_USD_OVERRIDE: Final[float] = 5.0
 
 # Resolve paths via __file__ (per PR #31 hot-fix #29).
 _REPO_ROOT: Final[Path] = Path(__file__).resolve().parent.parent.parent
@@ -151,11 +154,12 @@ def train_v1(
     client = client or replicate.Client()
     cache_dir.mkdir(parents=True, exist_ok=True)
 
-    # STEP 1: BOOT-01 preflight
+    # STEP 1: BOOT-01 preflight (daily cap bumped to $5 for the single-day training event)
     preflight_check(
         spend_file,
         "replicate",
         EST_COST_USD,
+        daily_cap=DAILY_CAP_USD_OVERRIDE,
         provider_monthly_cap=PROVIDER_MONTHLY_CAP_USD,
     )
 
