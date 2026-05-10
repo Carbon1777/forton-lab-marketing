@@ -36,15 +36,22 @@ def fake_post(monkeypatch):
 # --- Template structural tests ---------------------------------------------
 
 
-def test_templates_dict_has_4_keys():
-    """All 4 events must be templated (RESEARCH §«TG nudge template»)."""
-    expected = {
+def test_templates_dict_has_phase1_monthly_plan_keys():
+    """All 4 Phase 1 monthly_plan events must remain templated.
+
+    Asserts subset (not equality) so subsequent phases can extend the registry
+    (Phase 2 added 'dzen_manual_check'; future phases may add more) without
+    breaking this guard.
+    """
+    required = {
         "monthly_plan_success",
         "monthly_plan_failure",
         "monthly_plan_brand_violation",
         "monthly_plan_budget_cap",
     }
-    assert set(TEMPLATES.keys()) == expected, f"keys: {sorted(TEMPLATES.keys())}"
+    actual = set(TEMPLATES.keys())
+    missing = required - actual
+    assert not missing, f"missing Phase 1 templates: {sorted(missing)}"
 
 
 def test_success_template_formats():
