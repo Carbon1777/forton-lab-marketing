@@ -207,17 +207,27 @@ centryweb.ru
 ## 2026-05-11
 
 ```yaml
-slug: forton-may11-mobile-first
+slug: forton-may11-centry-or-diktum
 channels: [tg, vk]
-product: forton
+product: forton-lab
 rubric: philosophy
-media: []
+media:
+  - path: assets/posts/2026-05/forton-may11-centry-or-diktum.png
+    sha256: 7c65ce878f79abd1545786bbe2fb3757f7572575eb4a064f8b70cd8960e0103a
+    role: image
+image: assets/posts/2026-05/forton-may11-centry-or-diktum.png
 status: draft
 ```
 
-Мы делаем только мобильные приложения. Никаких веб-версий, никаких десктопов.
+Centry или Diktum — что начать первым?
 
-Телефон всегда с тобой — значит, продукт должен работать там, где ты есть.
+Зависит от твоей задачи на эту неделю.
+
+Если впереди публичное выступление, презентация, собес — Diktum. Тренируешь речь, разбираешь паразитов, контролируешь темп.
+
+Если выходные с друзьями нужно собрать — Centry. Лента живых мест в твоём районе, голосование за компанию, чат внутри плана.
+
+Можно оба. Они друг другу не мешают.
 
 fortonlab.ru
 
@@ -225,18 +235,24 @@ fortonlab.ru
 
 ```yaml
 slug: diktum-may12-interview-prep
-channels: [tg, vk, dzen]
+channels: [tg, vk, yt]
 product: diktum
-rubric: use_case
-media: []
+rubric: feature_demo
+media:
+  - path: assets/posts/2026-05/diktum-may12-interview-prep.mp4
+    sha256: 689b14c797b2bb8f1aac23f8e8e3a9583500919b6464c9ec4e95460024559bce
+    role: video
+video: assets/posts/2026-05/diktum-may12-interview-prep.mp4
 status: draft
 ```
 
-Собеседование через неделю? Готовься заранее.
+Собеседование — место где «потом подготовлюсь» не работает.
 
-Diktum — это симулятор интервью. Отвечай на вопросы вслух, получай анализ речи, исправляй слабые места.
+В Diktum есть полноценный тренажёр HR-этапа: типовые вопросы, твои ответы, разбор слабых мест.
 
-Чем больше репетиций — тем спокойнее на реальной встрече.
+Записал ответ — увидел метрики. Слишком быстро? Много «эээ»? Слишком сухо? Конкретные точки роста, не общие советы.
+
+Потом приходишь и говоришь спокойно. Без удивлений.
 
 diktumweb.ru
 
@@ -246,317 +262,424 @@ diktumweb.ru
 slug: centry-may13-no-spam
 channels: [tg, vk]
 product: centry
-rubric: privacy
-media: []
+rubric: principle
+media:
+  - path: assets/posts/2026-05/centry-may13-no-spam.png
+    sha256: e8ca8c8e5fa8eff122d58f416a6952fcb1eabc20cf16efd1869a92d96103e30d
+    role: image
+image: assets/posts/2026-05/centry-may13-no-spam.png
 status: draft
 ```
 
-В Centry нет рекламы. Вообще.
+В Centry нет рекламы.
 
-Нет рекомендаций от партнёров, нет «специальных предложений», нет встроенных баннеров.
+Ни баннеров, ни «специальных предложений», ни рекомендаций от партнёров.
 
-Только места, которые выбираешь ты и твои друзья.
+Только места, которые добавили ты и твои друзья. Только их активность. Только ваши планы.
+
+Никто не платит за то, чтобы ты увидел его кафе первым.
 
 centryweb.ru
 
 ## 2026-05-14
 
 ```yaml
-slug: forton-may14-testing
-channels: [tg, vk]
-product: forton
-rubric: behind_the_scenes
-media: []
+slug: centry-may14-nickname-not-number
+channels: [tg, vk, yt]
+product: centry
+rubric: feature_demo
+media:
+  - path: assets/posts/2026-05/centry-may14-nickname-not-number.mp4
+    sha256: 2684290cf4a66a63307a2c953528b5e3c1c4b1162ec84902d6b8ab7296eef65d
+    role: video
+video: assets/posts/2026-05/centry-may14-nickname-not-number.mp4
 status: draft
 ```
 
-Перед каждым релизом — неделя тестирования.
+Дала номер? Жди спама.
 
-Проверяем на iOS и Android, на старых и новых устройствах, при медленном интернете и без него.
+В Centry знакомства идут через никнейм. Не через номер телефона.
 
-Если что-то работает криво — релиз откладывается.
+Захотел продолжить общение — пишешь в чат внутри приложения. Не понравилось — закрыл диалог, и человек теряет с тобой связь.
 
-fortonlab.ru
+Никаких звонков по ночам. Никакого «откуда ты взял мой номер».
+
+centryweb.ru
 
 ## 2026-05-15
 
 ```yaml
-slug: diktum-may15-tempo
-channels: [tg, vk, dzen]
-product: diktum
-rubric: speech_tips
-media: []
+slug: forton-may15-day-rhythm
+channels: [tg, vk]
+product: forton-lab
+rubric: use_case
+media:
+  - path: assets/posts/2026-05/forton-may15-day-rhythm.png
+    sha256: bf3b86d5820631580e69e45e7e7ab81bf3929e5869087003bfe1559959a9770f
+    role: image
+image: assets/posts/2026-05/forton-may15-day-rhythm.png
 status: draft
 ```
 
-Слишком быстрая речь — слушатель не успевает. Слишком медленная — теряет интерес.
+Один день с двумя приложениями Forton Lab.
 
-Оптимальный темп — 120-150 слов в минуту. Diktum считает автоматически и показывает, где ты ускоряешься, а где тянешь.
+Утром по дороге на работу — Diktum. Записал монолог на 2 минуты, посмотрел разбор. Темп, паузы, паразиты — всё видно.
 
-diktumweb.ru
+Вечером — Centry. Открыл ленту, увидел где сегодня живой район. Собрал друзей за полчаса.
+
+День, в котором голос звучит чётче, а вечер не теряется в переписке.
+
+fortonlab.ru
 
 ## 2026-05-16
 
 ```yaml
-slug: centry-may16-voting
-channels: [tg, vk]
-product: centry
-rubric: feature_explainer
-media: []
+slug: diktum-may16-free-monologue
+channels: [tg, vk, yt]
+product: diktum
+rubric: feature_demo
+media:
+  - path: assets/posts/2026-05/diktum-may16-free-monologue.mp4
+    sha256: af36971075d11f4b63ef17281ae24072b21ff53e05d1a7cf24fdbc858589ef48
+    role: video
+video: assets/posts/2026-05/diktum-may16-free-monologue.mp4
 status: draft
 ```
 
-Голосование в Centry — это не опрос в чате.
+Сказали «расскажи о себе» — и ты замер на 5 секунд?
 
-Каждый видит варианты, кликает на понравившиеся, видит результаты в реальном времени.
+Это не недостаток интеллекта. Это недостаток тренировки.
 
-Когда большинство выбрало место — бронируй и идите.
+В Diktum есть «Свободный монолог»: тебе случайная тема, и говоришь 30-120 секунд без подготовки. Приложение разбирает темп, паузы, паразитов.
 
-centryweb.ru
+Через две недели реакция на любой вопрос — мгновенная.
+
+diktumweb.ru
 
 ## 2026-05-17
 
 ```yaml
-slug: forton-may17-seal
+slug: centry-may17-feed-of-places
 channels: [tg, vk]
-product: forton
-rubric: branding
+product: centry
+rubric: feature_carousel
 media:
-  - path: assets/seal.png
-    sha256: 3863be28c8c78bc7c17e9e7efa0ab114ae473145bb1619b637b808f55802fb34
+  - path: assets/posts/2026-05/centry-may17-feed-of-places.png
+    sha256: f8751323fc184132c896b61ab3696e26ce2446d345466e6eb9f28c26d44500de
     role: image
+image: assets/posts/2026-05/centry-may17-feed-of-places.png
 status: draft
 ```
 
-Печать студии — это не просто логотип.
+Открываешь приложение — лента, где живой район сегодня.
 
-Золотая окантовка, тёмный фон, шрифт с засечками. Всё, что мы делаем, проходит через этот знак качества.
+Не каталог всех заведений. Не «топ ресторанов по версии редакции».
 
-fortonlab.ru
+Реальная активность: куда твои друзья и соседи собрались сегодня вечером, кто ищет компанию, какие места набрали интерес за последний час.
+
+Местная жизнь как стрим. Без рекламных вбросов.
+
+centryweb.ru
 
 ## 2026-05-18
 
 ```yaml
-slug: diktum-may18-star-method
-channels: [tg, vk, dzen]
-product: diktum
-rubric: feature_explainer
-media: []
+slug: centry-may18-meet-via-places
+channels: [tg, vk, yt]
+product: centry
+rubric: feature_demo
+media:
+  - path: assets/posts/2026-05/centry-may18-meet-via-places.mp4
+    sha256: c8eb2885f4f9260e40e60c47046bb9d6ffcd5b3d9f576d1053dc6f812eb88acd
+    role: video
+video: assets/posts/2026-05/centry-may18-meet-via-places.mp4
 status: draft
 ```
 
-STAR — это метод ответа на поведенческие вопросы на собеседовании.
+Знакомство в Centry начинается не с фотографии, а с места.
 
-Situation (ситуация), Task (задача), Action (действие), Result (результат).
+Видишь в ленте: 4 человека интересуются «Нашим Очагом» сегодня вечером. У вас совпали интересы. Отправляешь знак внимания.
 
-В Diktum есть тренажёр STAR — отвечай на вопросы по структуре, записывай, анализируй.
+Если ответили — встречаетесь там же. Без часов переписки. Без «давай созвонимся». Без неловкого первого свидания вслепую.
 
-diktumweb.ru
+Сначала компания. Потом всё остальное.
+
+centryweb.ru
 
 ## 2026-05-19
 
 ```yaml
-slug: centry-may19-groups
+slug: forton-may19-shared-principles
 channels: [tg, vk]
-product: centry
-rubric: use_case
-media: []
+product: forton-lab
+rubric: philosophy
+media:
+  - path: assets/posts/2026-05/forton-may19-shared-principles.png
+    sha256: edf4c648a577efe0780b8f3828e4f9e8523442cd7ed1cda5f2962056a67438c3
+    role: image
+image: assets/posts/2026-05/forton-may19-shared-principles.png
 status: draft
 ```
 
-У тебя несколько компаний друзей? Создавай группы в Centry.
+Что общего у Centry и Diktum.
 
-Одна группа — коллеги по работе. Другая — друзья из универа. Третья — семья.
+Тёмная тема по умолчанию — для глаз вечером.
+Без рекламы и партнёрских вставок — никто не платит за твоё внимание.
+Без подписки и pay-walls — все функции открыты.
+Фокус на одном — каждое приложение делает одну вещь хорошо.
 
-Каждой группе — своё событие, свои предложения, свой чат.
+Это не маркетинговые слоганы. Это правила, по которым студия выпускает продукт.
 
-centryweb.ru
+fortonlab.ru
 
 ## 2026-05-20
 
 ```yaml
-slug: forton-may20-support
-channels: [tg, vk]
-product: forton
-rubric: support
-media: []
+slug: diktum-may20-five-min-daily
+channels: [tg, vk, yt]
+product: diktum
+rubric: feature_demo
+media:
+  - path: assets/posts/2026-05/diktum-may20-five-min-daily.mp4
+    sha256: 8c544004553b6efd0f9b357c0267cb2c42b17e8be6145a715fb1f38fa78eba1a
+    role: video
+video: assets/posts/2026-05/diktum-may20-five-min-daily.mp4
 status: draft
 ```
 
-Если что-то в приложении работает не так — пиши в поддержку прямо внутри.
+5 минут в день — и через две недели речь становится острее.
 
-Раздел «Настройки» → «Поддержка» → описываешь проблему.
+Diktum — про регулярность. Не про марафоны, не про курсы по 6 часов в выходной.
 
-Отвечаем в течение суток, чаще — быстрее.
+Каждый день одно небольшое упражнение: монолог, ответ на каверзный вопрос, пересказ.
 
-fortonlab.ru
+Маленькие шаги, измеримый прогресс. Через месяц замечаешь — слова находятся быстрее, паузы короче, голос увереннее.
+
+diktumweb.ru
 
 ## 2026-05-21
 
 ```yaml
 slug: diktum-may21-filler-words
-channels: [tg, vk, dzen]
+channels: [tg, vk]
 product: diktum
 rubric: speech_tips
-media: []
+media:
+  - path: assets/posts/2026-05/diktum-may21-filler-words.png
+    sha256: 88e98842b10a531b5e9129ee9a02b0599c475c87a972547137314046b2248690
+    role: image
+image: assets/posts/2026-05/diktum-may21-filler-words.png
 status: draft
 ```
 
-«Ээ», «ну», «как бы», «в общем» — слова-паразиты.
+«Эээ», «ну», «как бы», «в общем», «короче».
 
-Они не несут смысла, но портят впечатление от речи. Особенно заметны на собеседованиях и презентациях.
+Слова-паразиты не несут смысла, но крадут вес твоей речи. Особенно слышны на собеседованиях, презентациях, в публичных выступлениях.
 
 Diktum считает их автоматически. Записал монолог — увидел статистику — начал контролировать.
+
+Через неделю — на 30% меньше. Через месяц — почти ноль.
 
 diktumweb.ru
 
 ## 2026-05-22
 
 ```yaml
-slug: centry-may22-privacy
-channels: [tg, vk]
+slug: centry-may22-tokens-rating
+channels: [tg, vk, yt]
 product: centry
-rubric: privacy
-media: []
+rubric: feature_demo
+media:
+  - path: assets/posts/2026-05/centry-may22-tokens-rating.mp4
+    sha256: 8a7d27771104a63ede21445d896d6db5fcd2f9061eb82fe88be318dabd692091
+    role: video
+video: assets/posts/2026-05/centry-may22-tokens-rating.mp4
 status: draft
 ```
 
-Твои данные в Centry — только твои.
+В Centry за активность дают токены.
 
-Мы не продаём контакты, не передаём историю посещений, не строим профили для рекламы.
+Создал план — токен. Поучаствовал в чужом — токен. Помог с выбором места — токен.
 
-Всё, что ты добавляешь — остаётся в приложении и доступно только тебе и твоим друзьям.
+Из токенов складывается рейтинг — внутренний показатель «насколько ты живой в комьюнити». Чем выше рейтинг — тем чаще тебя видят другие.
+
+Простая механика. Без нагрузки. Без обязательств.
 
 centryweb.ru
 
 ## 2026-05-23
 
 ```yaml
-slug: forton-may23-roadmap
+slug: forton-may23-reviews-matter
 channels: [tg, vk]
-product: forton
-rubric: product_update
-media: []
+product: forton-lab
+rubric: principle
+media:
+  - path: assets/posts/2026-05/forton-may23-reviews-matter.png
+    sha256: ca7ca52d29c6a34c6f64afb47b3342247a9720cbcb3ca060838afcb65b300bc1
+    role: image
+image: assets/posts/2026-05/forton-may23-reviews-matter.png
 status: draft
 ```
 
-План на лето: расширение функционала Centry (новые фильтры мест, интеграция с картами), доработка тренажёров в Diktum (новые сценарии интервью).
+Каждый отзыв в магазинах читаем.
 
-Релизы будут раз в 2-3 недели — следи за обновлениями в сторах.
+App Store, Google Play, RuStore — оттуда приходят самые честные слова.
+
+Не игнорируем низкие оценки. Не отмахиваемся от «маленьких» проблем. Каждое сообщение через форму поддержки попадает к тому, кто это писал.
+
+Если оставил отзыв — мы прочли. Если предложил фичу — обсуждаем.
 
 fortonlab.ru
 
 ## 2026-05-24
 
 ```yaml
-slug: diktum-may24-presentations
-channels: [tg, vk, dzen]
+slug: diktum-may24-speech-parasites
+channels: [tg, vk, yt]
 product: diktum
-rubric: use_case
-media: []
+rubric: feature_demo
+media:
+  - path: assets/posts/2026-05/diktum-may24-speech-parasites.mp4
+    sha256: c6aed06f6def5126addb07ae06843228b32e39721ca8f903b352288245d11085
+    role: video
+video: assets/posts/2026-05/diktum-may24-speech-parasites.mp4
 status: draft
 ```
 
-Готовишь презентацию? Отрепетируй вслух.
+47 слов-паразитов за минуту речи.
 
-Diktum записывает речь, анализирует темп и паузы, показывает, где ты сбиваешься.
+Так считает AI-разбор Diktum для типичной неподготовленной речи. Сорок семь — за одну минуту.
 
-Чем больше репетиций — тем меньше волнения перед выступлением.
+Не верится? Запиши свой монолог сегодня вечером. Посмотри метрику.
+
+Хорошая новость: контролируется быстро. Через две недели регулярных записей счёт падает к нулю.
 
 diktumweb.ru
 
 ## 2026-05-25
 
 ```yaml
-slug: centry-may25-notifications
+slug: diktum-may25-tempo
 channels: [tg, vk]
-product: centry
-rubric: feature_explainer
-media: []
+product: diktum
+rubric: speech_tips
+media:
+  - path: assets/posts/2026-05/diktum-may25-tempo.png
+    sha256: 08e1b229ceb89ed9d8e82467b5f130fcc61049fd04974930f6fa25a7b206a847
+    role: image
+image: assets/posts/2026-05/diktum-may25-tempo.png
 status: draft
 ```
 
-Уведомления в Centry — только по делу.
+Оптимальный темп речи — 120-150 слов в минуту.
 
-Кто-то предложил новое место — уведомление. Голосование завершилось — уведомление. Событие завтра — напоминание.
+Быстрее — слушатель не успевает обработать. Медленнее — теряет интерес и переключается.
 
-Никаких «вернись в приложение» и «ты давно не заходил».
+Diktum считает темп автоматически и показывает где ты ускоряешься (обычно в моменты неуверенности), а где тянешь (когда теряешь нить).
 
-centryweb.ru
+Видишь паттерн — учишься держать ровный темп без напряжения.
+
+diktumweb.ru
 
 ## 2026-05-26
 
 ```yaml
-slug: forton-may26-design-language
-channels: [tg, vk]
-product: forton
-rubric: branding
-media: []
+slug: centry-may26-30-seconds
+channels: [tg, vk, yt]
+product: centry
+rubric: feature_demo
+media:
+  - path: assets/posts/2026-05/centry-may26-thirty-seconds.mp4
+    sha256: 755319ed5f8ab720f663a0f7f58bcd287bf9aeb598ff248d5c7dceaac20ba2a9
+    role: video
+video: assets/posts/2026-05/centry-may26-thirty-seconds.mp4
 status: draft
 ```
 
-Дизайн обоих приложений построен на одной системе: тёмные фоны, золотые акценты, крупная типографика.
+247 сообщений в чате — 0 решений куда идти.
 
-Centry — про социальность, поэтому больше живых карточек. Diktum — про фокус, поэтому минимализм и чистота.
+Знакомо? Centry убирает этот цикл.
 
-fortonlab.ru
+Вместо переписки — структурированный план: кто, где, когда. Голосование за время и место. Подтверждения от участников.
+
+Решение принимается за 30 секунд вместо двух часов в групповом чате.
+
+centryweb.ru
 
 ## 2026-05-27
 
 ```yaml
-slug: diktum-may27-recording-tips
-channels: [tg, vk, dzen]
-product: diktum
-rubric: how_to
-media: []
+slug: forton-may27-notifications-hard
+channels: [tg, vk]
+product: forton-lab
+rubric: ux_insight
+media:
+  - path: assets/posts/2026-05/forton-may27-notifications-hard.png
+    sha256: 9a651f48a5ecb28e2922f7cc61d66a024e0b9f1700de76454504cf3552e46651
+    role: image
+image: assets/posts/2026-05/forton-may27-notifications-hard.png
 status: draft
 ```
 
-Как записать чистую речь в Diktum:
+Уведомления — самое сложное в мобильной разработке.
 
-— Тихое место (без эха и шума).
-— Микрофон на расстоянии 20-30 см от рта.
-— Говори с обычной громкостью, как на встрече.
+Слишком много — выключат «не беспокоить».
+Слишком мало — забудут, что приложение установлено.
+Не вовремя — раздражают.
+Не по теме — теряют доверие.
 
-Приложение само отфильтрует лишнее, но чем чище запись — тем точнее анализ.
+Forton Lab пересматривает уведомления Centry и Diktum каждый релиз. Что важно — оставляем. Что можно убрать — убираем.
 
-diktumweb.ru
+fortonlab.ru
 
 ## 2026-05-28
 
 ```yaml
-slug: centry-may28-map-integration
-channels: [tg, vk]
+slug: centry-may28-vs-competitors
+channels: [tg, vk, yt]
 product: centry
-rubric: feature_explainer
-media: []
+rubric: comparison
+media:
+  - path: assets/posts/2026-05/centry-may28-vs-competitors.mp4
+    sha256: 80e68a968033c48bec4194a21f91975f3d1c2960de8bd9448f9526b809bc405c
+    role: video
+video: assets/posts/2026-05/centry-may28-vs-competitors.mp4
 status: draft
 ```
 
-Выбрали место в Centry — открывай карту одним тапом.
+Сравним Centry с конкурентом — Кавёр.
 
-Адрес, маршрут, время в пути — всё подтягивается автоматически.
+Кавёр: 1 миллион установок, рейтинг 4.4. Платный. Возраст 18+. Знакомства как основной use case.
 
-Без переключений между приложениями, без копирования адресов.
+Centry: бесплатный. Без возрастных барьеров. Знакомства — побочная функция, главное — собирать компанию по местам и интересам.
+
+Разные продукты для разных задач. Выбирай по тому, что нужно тебе.
 
 centryweb.ru
 
 ## 2026-05-29
 
 ```yaml
-slug: forton-may29-team
+slug: forton-may29-loading-speed
 channels: [tg, vk]
-product: forton
-rubric: behind_the_scenes
-media: []
+product: forton-lab
+rubric: ux_insight
+media:
+  - path: assets/posts/2026-05/forton-may29-loading-speed.png
+    sha256: 841cce75da89d92cbce0cc2a6c11b5f0acc3a996bb442d8a03d8f4602b062f0b
+    role: image
+image: assets/posts/2026-05/forton-may29-loading-speed.png
 status: draft
 ```
 
-Команда студии — 5 человека.
+2 секунды на старт — или пользователь уходит.
 
-Разработка, дизайн, аналитика — всё внутри. Без подрядчиков, без аутсорса.
+Это не маркетинговая цифра, это статистика App Store.
 
-Поэтому решения принимаются быстро, а обратная связь от пользователей доходит напрямую.
+Centry и Diktum загружаются за 1.2 и 1.5 секунды соответственно. Не потому что код магический — а потому что каждый релиз меряем cold-start время и не пропускаем регрессии.
+
+Если приложение тормозит — об этом узнаёт вся команда в день релиза.
 
 fortonlab.ru
 
@@ -564,36 +687,49 @@ fortonlab.ru
 
 ```yaml
 slug: diktum-may30-confidence
-channels: [tg, vk, dzen]
+channels: [tg, vk]
 product: diktum
 rubric: philosophy
-media: []
+media:
+  - path: assets/posts/2026-05/diktum-may30-confidence.png
+    sha256: 0493b037fd0b4050858bbbd0140c6819a7cac1811e0fa3a2ee62179038173280
+    role: image
+image: assets/posts/2026-05/diktum-may30-confidence.png
 status: draft
 ```
 
-Уверенность в речи — это не громкость. Это контроль.
+Уверенность в речи — это не громкость.
 
-Контроль темпа, контроль пауз, контроль слов.
+Это контроль. Контроль темпа, контроль пауз, контроль слов.
 
-Diktum помогает увидеть, где ты теряешь контроль — и вернуть его.
+Diktum показывает где ты теряешь контроль: где темп срывается, где паузы превращаются в неловкое молчание, где появляются слова-паразиты.
+
+Видишь точку — возвращаешь контроль. Через месяц голос звучит иначе.
 
 diktumweb.ru
 
 ## 2026-05-31
 
 ```yaml
-slug: centry-may31-june-preview
+slug: forton-may31-may-recap
 channels: [tg, vk]
-product: centry
-rubric: product_update
-media: []
+product: forton-lab
+rubric: monthly_recap
+media:
+  - path: assets/posts/2026-05/forton-may31-may-recap.png
+    sha256: 140ed7dd1382354bbcfc6c9711f3f7d792d9cd3fb2f96c24b4f8f310c864e943
+    role: image
+image: assets/posts/2026-05/forton-may31-may-recap.png
 status: draft
 ```
 
-Май заканчивается — впереди лето.
+Май в Forton Lab — 21 пост в каналах, 9 видеороликов, 3 продуктовых трека.
 
-В июне добавим новые фишки, улучшим карту, ускорим загрузку ленты.
+В июне продолжаем темп: каждый день — пост, каждые 2-3 недели — релиз приложения.
 
-Следи за обновлениями в сторах.
+Что добавим в Centry: новые фильтры мест, интеграция с картами, ускоренная лента.
+Что добавим в Diktum: расширенный тренажёр презентаций, новые сценарии собесов, экспорт прогресса.
 
-centryweb.ru
+Следи за обновлениями в App Store, Google Play, RuStore.
+
+fortonlab.ru
