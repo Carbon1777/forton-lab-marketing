@@ -104,11 +104,36 @@ _T_FAILURE = (
     "   (cron в следующий раз через месяц, ждать нельзя если хочешь план на текущий месяц)"
 )
 
+# ============================================================
+# Phase 2 — dzen_manual_check template (PUB-10, scope-downgraded)
+# ============================================================
+# Дзен closed anonymous HTTP scrape (Yandex SSO). dzen_verify шлёт этот
+# нудж после публикации в TG — юзер вручную проверяет канал в браузере где
+# залогинен Yandex. См. Brain/projects/forton-lab/decisions.md (2026-05-10).
+
+_T_DZEN_MANUAL_CHECK = (
+    "📡 <b>Проверка Дзен — через {wait_min} мин</b>\n"
+    "\n"
+    "Slug: <code>{slug}</code>\n"
+    'Канал: <a href="{channel_url}">{channel_url}</a>\n'
+    "\n"
+    "<b>Что сделать:</b>\n"
+    "1. Через ~{wait_min} мин открой канал по ссылке выше (там ты залогинен в Yandex).\n"
+    "2. Найди свежий пост с этим slug — должен появиться сверху ленты.\n"
+    "3. Если поста нет — открой @zen_sync_bot и проверь что подписка активна.\n"
+    "4. Известная задержка Яндекса до 30 мин — если бот ОК, просто подожди ещё.\n"
+    "\n"
+    "<i>Auto HTTP-проверка отключена: Yandex закрыл анонимный доступ к Дзен в 2024-2025. "
+    "Cookie-based вариант отложен в v2 — не оправдан для вторичного канала.</i>"
+)
+
+
 TEMPLATES: dict[str, str] = {
     "monthly_plan_success": _T_SUCCESS,
     "monthly_plan_failure": _T_FAILURE,
     "monthly_plan_brand_violation": _T_BRAND_VIOLATION,
     "monthly_plan_budget_cap": _T_BUDGET_CAP,
+    "dzen_manual_check": _T_DZEN_MANUAL_CHECK,
 }
 
 
