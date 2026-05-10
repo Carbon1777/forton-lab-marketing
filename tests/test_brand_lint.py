@@ -244,3 +244,39 @@ def test_snippet_at_text_end():
     vs = lint(text)
     assert len(vs) >= 1
     assert "**" in vs[0].snippet
+
+
+def test_categorize_fallback_substring_header(tmp_path: Path):
+    """Header без русских keyword'ов, только '(substring)' → 'marketing'."""
+    f = tmp_path / "words.txt"
+    f.write_text(
+        "# === SomeRenamedSection (substring) ===\n"
+        "fluffword\n",
+        encoding="utf-8",
+    )
+    cats = categorize_words(f)
+    assert cats["fluffword"] == "marketing"
+
+
+def test_categorize_fallback_whole_word_header(tmp_path: Path):
+    """Header без русских keyword'ов, только '(whole-word)' → 'stack'."""
+    f = tmp_path / "words.txt"
+    f.write_text(
+        "# === RenamedTech (whole-word) ===\n"
+        "techword\n",
+        encoding="utf-8",
+    )
+    cats = categorize_words(f)
+    assert cats["techword"] == "stack"
+
+
+def test_categorize_unknown_header_defaults_to_stack(tmp_path: Path):
+    """Header without any recognised keyword → safest default 'stack'."""
+    f = tmp_path / "words.txt"
+    f.write_text(
+        "# === SomethingCompletelyNew ===\n"
+        "mystery\n",
+        encoding="utf-8",
+    )
+    cats = categorize_words(f)
+    assert cats["mystery"] == "stack"
