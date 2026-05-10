@@ -1,0 +1,56 @@
+schema_version: 1
+character_id: forton-lab-mascot-v1
+created_at: '2026-05-10'
+updated_at: null
+brief:
+  gender: female
+  age_range: 25-28
+  ethnicity: caucasian-eastern-european
+  description: Брюнетка с голубыми глазами, 25-28 лет, lifestyle stylized cinema look
+    (не photorealistic). Тёплая для Centry, чёткая для Diktum — через voice_settings
+    split.
+  reference_video: https://youtu.be/E5niFTS3Vm0
+  reference_timestamp: '12:10'
+  brand_palette:
+  - '#1A0F08'
+  - '#D4A640'
+  - '#F4C757'
+  - '#8B6F2D'
+phase_8:
+  status: pending
+  variants_generated: 3
+  frames_per_variant: 4
+  selected_variant: null
+  selected_at: null
+  selected_by: null
+  batch_sha8: null
+  preview_dir: ai_talent/preview/v1/
+  total_spend_usd: null
+  character_card: null
+  regen_count: 0
+lora:
+  status: pending
+  model: null
+  version_sha256: null
+  trigger_word: OHWX_FORTONA
+  training_dataset_size: null
+  training_run_id: null
+  training_cost_usd: null
+voice:
+  status: pending
+  provider: elevenlabs
+  voice_id: null
+  voice_settings:
+    stability: null
+    similarity_boost: null
+    style: null
+  language: ru
+  sample_url: null
+  splits:
+    centry: null
+    diktum: null
+history:
+- phase: 8
+  event: created
+  at: '2026-05-10'
+  note: Initial structure scaffolded
