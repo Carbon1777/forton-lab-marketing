@@ -17,7 +17,8 @@ from telegram import CallbackQuery, Update, User
 from telegram.error import BadRequest
 
 
-pytestmark = pytest.mark.asyncio  # all tests in this file are async
+# NOTE: each async test is marked individually with @pytest.mark.asyncio
+# (asyncio_mode=strict in pyproject); sync helpers below remain unmarked.
 
 
 def _set_callback_data_for_plan(mock_query, plan_path, action="approve"):
@@ -79,6 +80,7 @@ def test_extract_month_from_path():
 # ============================================================
 
 
+@pytest.mark.asyncio
 async def test_callback_from_wrong_user_rejected(mock_ctx):
     """T-1.5-01: callback from non-owner silently rejected; no side effect."""
     from src.monthly_approval_bot import handle_callback
@@ -109,6 +111,7 @@ async def test_callback_from_wrong_user_rejected(mock_ctx):
 # ============================================================
 
 
+@pytest.mark.asyncio
 async def test_stale_sha_callback_rejected(mock_query, mock_ctx, tmp_repo_with_draft_plan, mocker):
     """T-1.5-04: callback_data sha != current sha → reject + remove buttons."""
     from src.monthly_approval_bot import handle_callback
@@ -136,6 +139,7 @@ async def test_stale_sha_callback_rejected(mock_query, mock_ctx, tmp_repo_with_d
 # ============================================================
 
 
+@pytest.mark.asyncio
 async def test_approve_callback_calls_plan_writer(
     mock_query, mock_ctx, tmp_repo_with_draft_plan, mocker
 ):
@@ -171,6 +175,7 @@ async def test_approve_callback_calls_plan_writer(
     mock_ctx.application.stop_running.assert_called_once()
 
 
+@pytest.mark.asyncio
 async def test_buttons_removed_before_side_effect(
     mock_query, mock_ctx, tmp_repo_with_draft_plan, mocker
 ):
@@ -206,6 +211,7 @@ async def test_buttons_removed_before_side_effect(
     assert call_order.index("buttons_removed") < call_order.index("approve_plan")
 
 
+@pytest.mark.asyncio
 async def test_double_callback_idempotent(
     mock_query, mock_ctx, tmp_repo_with_draft_plan, mocker
 ):
@@ -232,6 +238,7 @@ async def test_double_callback_idempotent(
     mock_ctx.application.stop_running.assert_not_called()
 
 
+@pytest.mark.asyncio
 async def test_409_on_approve_handled(
     mock_query, mock_ctx, tmp_repo_with_draft_plan, mocker
 ):
@@ -271,6 +278,7 @@ async def test_409_on_approve_handled(
 # ============================================================
 
 
+@pytest.mark.asyncio
 async def test_edit_handler_sends_reminder(
     mock_query, mock_ctx, tmp_repo_with_draft_plan, mocker
 ):
@@ -302,6 +310,7 @@ async def test_edit_handler_sends_reminder(
 # ============================================================
 
 
+@pytest.mark.asyncio
 async def test_reject_under_limit_dispatches(
     mock_query, mock_ctx, tmp_repo_with_draft_plan, mocker, monkeypatch
 ):
@@ -353,6 +362,7 @@ async def test_reject_under_limit_dispatches(
     mock_ctx.application.stop_running.assert_called_once()
 
 
+@pytest.mark.asyncio
 async def test_regen_limit_blocks_4th_attempt(
     mock_query, mock_ctx, tmp_repo_with_draft_plan, mocker
 ):
@@ -407,6 +417,7 @@ async def test_regen_limit_blocks_4th_attempt(
     )
 
 
+@pytest.mark.asyncio
 async def test_reject_without_pat_replies_error(
     mock_query, mock_ctx, tmp_repo_with_draft_plan, mocker, monkeypatch
 ):
@@ -444,6 +455,7 @@ async def test_reject_without_pat_replies_error(
 # ============================================================
 
 
+@pytest.mark.asyncio
 async def test_no_token_in_logs(
     mock_query, mock_ctx, tmp_repo_with_draft_plan, mocker, monkeypatch, capsys
 ):
@@ -488,6 +500,7 @@ async def test_no_token_in_logs(
 # ============================================================
 
 
+@pytest.mark.asyncio
 async def test_bad_callback_data_handled(
     mock_query, mock_ctx, tmp_repo_with_draft_plan
 ):
@@ -509,6 +522,98 @@ async def test_bad_callback_data_handled(
 # ============================================================
 # Module-level constants & exports
 # ============================================================
+
+
+def test_should_skip_polling_corrupt_frontmatter_returns_false(tmp_path, monkeypatch):
+    """Corrupt frontmatter → return False (poll anyway, defensive)."""
+    from src import monthly_approval_bot as bot
+
+    month = dt.date.today().strftime("%Y-%m")
+    plan = tmp_path / "plans" / f"monthly_plan_{month}.md"
+    plan.parent.mkdir(parents=True)
+    # Genuinely unparseable content (no closing frontmatter delimiter, etc.)
+    plan.write_text("---\n: : : not valid yaml\nstatus draft\n")
+    monkeypatch.setattr(bot, "_repo_root", lambda: tmp_path)
+    # Either parses with status=None (→ False) or raises (→ False); both branches
+    # converge on returning False (must poll). We accept either path.
+    assert bot._should_skip_polling() is False
+
+
+def test_resolve_plan_path_uses_today():
+    """_resolve_plan_path returns repo_root / plans / monthly_plan_YYYY-MM.md."""
+    from src.monthly_approval_bot import _resolve_plan_path
+
+    ctx = MagicMock()
+    ctx.application.bot_data = {"repo_root": Path("/tmp/repo")}
+    expected_month = dt.date.today().strftime("%Y-%m")
+    result = _resolve_plan_path(ctx)
+    assert result == Path(f"/tmp/repo/plans/monthly_plan_{expected_month}.md")
+
+
+def test_extract_month_from_path_fallback_today():
+    """Filename without month pattern → returns today's month (defensive)."""
+    from src.monthly_approval_bot import _extract_month_from_path
+
+    today_month = dt.date.today().strftime("%Y-%m")
+    assert _extract_month_from_path(Path("/garbage/path.md")) == today_month
+
+
+@pytest.mark.asyncio
+async def test_check_owner_returns_true_for_owner(mock_query, mock_ctx):
+    """_check_owner returns True when from_user.id matches owner_chat_id."""
+    from src.monthly_approval_bot import _check_owner
+
+    assert await _check_owner(mock_query, mock_ctx) is True
+
+
+@pytest.mark.asyncio
+async def test_check_owner_returns_false_for_attacker(mock_ctx):
+    """_check_owner returns False + answers query when ids differ."""
+    from src.monthly_approval_bot import _check_owner
+
+    q = MagicMock()
+    q.from_user = MagicMock(id=99999)
+    q.answer = AsyncMock()
+    assert await _check_owner(q, mock_ctx) is False
+    q.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_verify_sha_missing_file_returns_false(mock_query, tmp_path):
+    """_verify_sha returns False + edits message when plan file is missing."""
+    from src.monthly_approval_bot import _verify_sha
+
+    nonexistent = tmp_path / "missing.md"
+    assert await _verify_sha(mock_query, nonexistent, "anything") is False
+    mock_query.edit_message_text.assert_awaited()
+
+
+def test_build_application_has_callback_handler(monkeypatch):
+    """build_application registers exactly one CallbackQueryHandler."""
+    # Avoid real network: stub Application.builder().build()
+    from src.monthly_approval_bot import build_application
+    from telegram.ext import CallbackQueryHandler
+
+    app = build_application("123:fake_token_for_unit_test")
+    # Application stores handlers in a dict by group; default group is 0.
+    handlers = app.handlers.get(0, [])
+    assert any(isinstance(h, CallbackQueryHandler) for h in handlers), (
+        "build_application must register a CallbackQueryHandler"
+    )
+
+
+def test_main_skips_when_should_skip(monkeypatch, capsys):
+    """main() exits 0 immediately when _should_skip_polling is True."""
+    from src import monthly_approval_bot as bot
+
+    monkeypatch.setenv("TG_PLANNER_BOT_TOKEN", "fake_token")
+    monkeypatch.setenv("TG_OWNER_CHAT_ID", "12345")
+    monkeypatch.setattr(bot, "_should_skip_polling", lambda: True)
+    # If main reached run_polling, this would block — assert it doesn't.
+    rc = bot.main()
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "nothing to approve" in captured.err.lower()
 
 
 def test_module_exports_required_symbols():

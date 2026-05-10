@@ -107,19 +107,18 @@ def mock_query(mock_owner_id):
 
     Defaults to data='approve:deadbeef' — tests override via `mock_query.data = ...`.
     All TG-side I/O methods are AsyncMock (PTB 21.x is async-only).
+
+    NOTE: PTB ``telegram.Message`` is a frozen dataclass-style object that
+    forbids attribute assignment, so ``query.message`` is a plain ``MagicMock``
+    (not a real Message instance) — handlers only touch ``query.message.reply_text``
+    which is provided as an AsyncMock.
     """
-    from telegram import CallbackQuery, Chat, Message, User
+    from telegram import CallbackQuery, User
 
     user = User(id=mock_owner_id, first_name="Forton", is_bot=False)
-    chat = Chat(id=mock_owner_id, type="private")
-    msg = Message(
-        message_id=999,
-        date=_dt_15.datetime.now(_dt_15.timezone.utc),
-        chat=chat,
-        from_user=user,
-    )
-    # PTB v21 Message.reply_text is async — mock it
+    msg = _MagicMock_15()
     msg.reply_text = _AsyncMock_15()
+    msg.message_id = 999
 
     q = _MagicMock_15(spec=CallbackQuery)
     q.from_user = user
