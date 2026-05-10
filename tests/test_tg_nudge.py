@@ -165,3 +165,33 @@ def test_send_unknown_template_raises(env_set, fake_post):
     """KeyError on unknown template — explicit, not silent."""
     with pytest.raises(KeyError):
         send("not_a_template", month_ru="x")
+
+
+# --- CLI entry --------------------------------------------------------------
+
+
+def test_cli_entry_no_args_returns_1(monkeypatch, capsys):
+    from src.tg_nudge import _main_from_argv
+
+    rc = _main_from_argv(["tg_nudge"])
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "usage" in err.lower()
+
+
+def test_cli_entry_reads_nudge_env_vars(env_set, fake_post, monkeypatch):
+    from src.tg_nudge import _main_from_argv
+
+    # Set NUDGE_<KEY> env vars — they should be lower-cased and stripped of prefix
+    monkeypatch.setenv("NUDGE_MONTH_RU", "июня 2026")
+    monkeypatch.setenv("NUDGE_PLAN_PATH", "plans/x.md")
+    monkeypatch.setenv("NUDGE_COMMIT_URL", "https://example/c/abc")
+    monkeypatch.setenv("NUDGE_COMMIT_SHA7", "abc1234")
+    monkeypatch.setenv("NUDGE_ENTRIES_COUNT", "30")
+    monkeypatch.setenv("NUDGE_USD_SPENT", "0.07")
+
+    rc = _main_from_argv(["tg_nudge", "monthly_plan_success"])
+    assert rc == 0
+    body = fake_post.call_args.kwargs["json"]
+    assert "июня 2026" in body["text"]
+    assert "abc1234" in body["text"]
