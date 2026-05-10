@@ -108,7 +108,8 @@ def _today_msk() -> dt.date:
     """
     today = dt.date.today()
     if os.environ.get("GITHUB_ACTIONS") == "true":
-        if dt.datetime.utcnow().hour >= 21:
+        # tz-aware UTC now (Python 3.12+ deprecated utcnow())
+        if dt.datetime.now(dt.timezone.utc).hour >= 21:
             today = today + dt.timedelta(days=1)
     return today
 
@@ -967,9 +968,19 @@ def main() -> None:
         "preview_chat_id": preview_chat_id,
     }
 
-    # Pre-flight (sync wrapper around async pre_flight_generate)
-    result = asyncio.run(pre_flight_generate(app, ctx_dict))
+    # Pre-flight + run_polling должны делить ОДИН event loop, иначе
+    # PTB run_polling в Python 3.12 падает с RuntimeError "no current event loop"
+    # после asyncio.run() закрыл первый loop.
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        result = loop.run_until_complete(pre_flight_generate(app, ctx_dict))
+    except Exception:
+        loop.close()
+        raise
+
     if not result["should_poll"]:
+        loop.close()
         sys.stderr.write("INFO: nothing to poll for — exit 0\n")
         return
 
@@ -977,6 +988,7 @@ def main() -> None:
         f"INFO: pending_slugs={result['pending_slugs']}; "
         f"entering polling for {POLL_TIMEOUT_S}s\n"
     )
+    # PTB run_polling сам управляет loop: использует текущий (который мы set_event_loop).
     app.run_polling(
         timeout=POLL_TIMEOUT_S,
         allowed_updates=["callback_query", "message"],
