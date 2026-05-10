@@ -59,6 +59,11 @@ from src.plan_reader import (
     verify_media_sha256,
 )
 from src import tg_nudge
+from src.spend_tracker_v2 import increment_regen_count
+# Phase 1.5 Plan 04: send_weekly_split is the unified preview-send entry point
+# both for initial generate AND force_regenerate (W1 fix from plan-checker)
+from src.tg_nudge import send_weekly_split
+from src.plan_writer import plan_sha8
 
 
 # ---------------------------------------------------------------------------
@@ -239,6 +244,7 @@ def record_spend(
     input_tokens: int,
     output_tokens: int,
     purpose: str = "monthly_plan",
+    is_regenerate: bool = False,
 ) -> None:
     """Update spend tracker atomically (tmp file + os.replace).
 
@@ -246,6 +252,11 @@ def record_spend(
         {"_schema_version": 1, "_updated": ISO,
          "YYYY-MM": {"input_tokens", "output_tokens", "usd", "calls",
                      "by_purpose": {purpose: {"calls", "usd"}}}}
+
+    Phase 1.5 Plan 04: when ``is_regenerate=True``, additionally invoke
+    :func:`spend_tracker_v2.increment_regen_count` after the v1 fields are
+    persisted. The increment helper bumps the schema to v2 (additive — v1
+    readers continue to work) and atomically increments ``regen_count[month]``.
     """
     data = _load_spend(spend_file)
     month_key = dt.date.today().strftime("%Y-%m")
@@ -281,6 +292,10 @@ def record_spend(
     tmp = spend_file.with_suffix(spend_file.suffix + ".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     os.replace(tmp, spend_file)
+
+    if is_regenerate:
+        # Atomic bump to v2 schema with regen_count[month] += 1
+        increment_regen_count(spend_file, month_key)
 
 
 # ---------------------------------------------------------------------------
@@ -601,8 +616,17 @@ def _format_violations(brand_violations: dict) -> str:
 def main(
     today: dt.date | None = None,
     month_override: str | None = None,
+    force_regenerate: bool = False,
 ) -> int:
-    """Orchestrate the full pipeline. Returns exit code (0..4)."""
+    """Orchestrate the full pipeline. Returns exit code (0..4).
+
+    Phase 1.5 Plan 04: ``force_regenerate=True`` allows overwriting an existing
+    plan file (the default ``False`` path returns 1 on collision). When the
+    overwrite path completes successfully, ``record_spend`` is invoked with
+    ``is_regenerate=True`` which atomically increments ``regen_count[month]``
+    in the spend tracker (T-1.5-02 budget protection — bot's regen-limit
+    handler reads this counter).
+    """
     today = today or dt.date.today()
     month = month_override or today.strftime("%Y-%m")
     try:
@@ -617,6 +641,16 @@ def main(
     actions_url = "https://github.com/Carbon1777/forton-lab-marketing/actions"
     status_url = "https://status.anthropic.com"
     console_url = "https://console.anthropic.com/settings/limits"
+
+    # --- 0. Existence guard (Phase 1.5 Plan 04) ----------------------------
+    plan_file_check = DEFAULT_PLANS_DIR / f"monthly_plan_{month}.md"
+    if plan_file_check.exists() and not force_regenerate:
+        sys.stderr.write(
+            f"ERROR: plan {plan_file_check.name} already exists; "
+            "pass --force-regenerate (CLI) or workflow_dispatch input "
+            "force_regenerate=true\n"
+        )
+        return 1
 
     # --- 1. Pre-flight budget ----------------------------------------------
     est_cost = estimate_call_cost(prompt_tokens=10_000, max_tokens=MAX_TOKENS_MONTHLY_PLAN)
@@ -736,12 +770,16 @@ def main(
 
     # --- 6. Record spend ---------------------------------------------------
     try:
-        record_spend(spend_file, in_tok, out_tok)
+        record_spend(spend_file, in_tok, out_tok, is_regenerate=force_regenerate)
     except OSError as exc:
         sys.stderr.write(f"WARN: record_spend failed: {exc}\n")
         # Plan was already saved — don't fail the run
 
-    # --- 7. Success nudge --------------------------------------------------
+    # --- 7. Success preview — UNIFIED (W1 fix, Plan 04) --------------------
+    # Both initial generate AND force_regenerate emit a multi-message weekly
+    # preview with the inline approve/edit/reject keyboard (APPROVE-01).
+    # Old single-message tg_nudge.send("monthly_plan_success", ...) is kept
+    # ONLY as a fallback when send_weekly_split raises (network / TG outage).
     plan_usd = (
         in_tok / 1_000_000 * INPUT_PRICE_PER_M
         + out_tok / 1_000_000 * OUTPUT_PRICE_PER_M
@@ -751,18 +789,33 @@ def main(
         "https://github.com/Carbon1777/forton-lab-marketing/commits/main",
     )
     commit_sha7 = os.environ.get("PLAN_COMMIT_SHA7", "n/a")
-    _safe_nudge(
-        "monthly_plan_success",
-        month_ru=month_ru,
-        plan_path=str(plan_file.relative_to(REPO_ROOT))
-        if plan_file.is_absolute() else str(plan_file),
-        commit_url=commit_url,
-        commit_sha7=commit_sha7,
-        entries_count=len(plan.entries),
-        usd_spent=f"{plan_usd:.4f}",
-    )
+
+    try:
+        sha8 = plan_sha8(plan_file)
+        inline_kb = [
+            [
+                {"text": "✅ Утвердить", "callback_data": f"approve:{sha8}"},
+                {"text": "✏️ Редактировать", "callback_data": f"edit:{sha8}"},
+                {"text": "❌ Отклонить", "callback_data": f"reject:{sha8}"},
+            ]
+        ]
+        send_weekly_split(plan, inline_keyboard=inline_kb)
+    except Exception as exc:  # noqa: BLE001 — fall back to single nudge
+        sys.stderr.write(f"WARN: weekly preview send failed: {exc!r}\n")
+        _safe_nudge(
+            "monthly_plan_success",
+            month_ru=month_ru,
+            plan_path=str(plan_file.relative_to(REPO_ROOT))
+            if plan_file.is_absolute() else str(plan_file),
+            commit_url=commit_url,
+            commit_sha7=commit_sha7,
+            entries_count=len(plan.entries),
+            usd_spent=f"{plan_usd:.4f}",
+        )
+
     sys.stderr.write(
-        f"OK: saved {plan_file} ({len(plan.entries)} entries, ${plan_usd:.4f})\n"
+        f"OK: saved {plan_file} ({len(plan.entries)} entries, ${plan_usd:.4f}; "
+        f"force_regenerate={force_regenerate})\n"
     )
     return 0
 
@@ -773,5 +826,20 @@ def main(
 
 
 if __name__ == "__main__":  # pragma: no cover
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument(
+        "--force-regenerate",
+        action="store_true",
+        help="Overwrite existing plan; bump regen_count[month] in spend tracker",
+    )
+    args, _ = ap.parse_known_args()
+    # ENV var FORCE_REGENERATE=true takes precedence over CLI flag
+    # (workflow_dispatch path passes via env, not argv).
+    force = (
+        os.environ.get("FORCE_REGENERATE", "").lower() == "true"
+        or args.force_regenerate
+    )
     month_override = os.environ.get("MONTH_OVERRIDE", "").strip() or None
-    sys.exit(main(month_override=month_override))
+    sys.exit(main(month_override=month_override, force_regenerate=force))
