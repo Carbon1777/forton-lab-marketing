@@ -1,16 +1,18 @@
 {
-  "_schema_version": 1,
-  "_updated": "2026-05-10T13:05:39.748304+00:00",
+  "_schema_version": 2,
+  "_updated": "2026-05-10T15:20:18.481825+00:00",
   "2026-05": {
-    "input_tokens": 5677,
-    "output_tokens": 4652,
-    "usd": 0.0868,
-    "calls": 1,
+    "input_tokens": 11354,
+    "output_tokens": 10070,
+    "usd": 0.1851,
+    "calls": 2,
     "by_purpose": {
       "monthly_plan": {
-        "calls": 1,
-        "usd": 0.0868
+        "calls": 2,
+        "usd": 0.1851
       }
-    }
-  }
+    },
+    "regen_count": 1
+  },
+  "regen_limit_per_month": 3
 }
