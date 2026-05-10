@@ -1,0 +1,23 @@
+name: vk_token_probe
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: Run VK token scopes probe
+        env:
+          VK_COMMUNITY_TOKEN_PHOTOS: ${{ secrets.VK_COMMUNITY_TOKEN_PHOTOS }}
+          VK_GROUP_ID: ${{ secrets.VK_GROUP_ID }}
+        run: python scripts/vk_token_probe.py
