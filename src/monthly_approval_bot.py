@@ -415,7 +415,11 @@ def main() -> int:
         4. On stop_running() (from successful callback) — return 0
     """
     token = _env("TG_PLANNER_BOT_TOKEN")
-    owner_chat_id = int(_env("TG_OWNER_CHAT_ID"))
+    # TG_OWNER_USER_ID = personal Telegram user_id (positive, validated against callback_query.from_user.id)
+    # TG_OWNER_CHAT_ID = channel/chat_id where bot sends messages (often negative for channels) — different value!
+    # Fallback to TG_OWNER_CHAT_ID for backward-compat if TG_OWNER_USER_ID not set.
+    import os
+    owner_chat_id = int(os.environ.get("TG_OWNER_USER_ID") or _env("TG_OWNER_CHAT_ID"))
 
     if _should_skip_polling():
         sys.stderr.write("OK: nothing to approve, exiting\n")
