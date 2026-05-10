@@ -4,6 +4,8 @@ python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
 addopts = "--strict-markers --strict-config"
+asyncio_mode = "strict"
 markers = [
   "integration: tests that exercise mocked external services (Anthropic SDK, requests to TG)",
+  "asyncio: async test that runs on event loop",
 ]
