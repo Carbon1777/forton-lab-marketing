@@ -589,8 +589,19 @@ async def handle_edit_entry(update: Update,
     ctx.user_data["edit_original_kb"] = _build_inline_kb(slug, sha8)
 
     await query.message.reply_text(
-        "✏️ <b>Опиши правки одним сообщением</b>\n"
-        "<i>(10 минут таймаут; /cancel_edit для отмены)</i>",
+        "✏️ <b>Что поправить?</b>\n"
+        "\n"
+        "Ответь на это сообщение текстом — Claude перепишет пост и пришлёт "
+        "новое preview с теми же кнопками.\n"
+        "\n"
+        "<b>Примеры правок:</b>\n"
+        "• <code>сделай короче</code>\n"
+        "• <code>убери эмодзи</code>\n"
+        "• <code>добавь акцент на бесплатность</code>\n"
+        "• <code>замени ссылку на diktumweb.ru</code>\n"
+        "• <code>убери последнее предложение</code>\n"
+        "\n"
+        "<i>Лимит 3 правки на пост · таймаут 10 мин · /cancel_edit чтобы вернуть кнопки</i>",
         parse_mode=ParseMode.HTML,
     )
     return WAITING_EDIT

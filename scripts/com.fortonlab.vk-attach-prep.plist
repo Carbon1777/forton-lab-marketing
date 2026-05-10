@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchAgent для автоматической подготовки vk_attach.
+  Установка:
+    cp scripts/com.fortonlab.vk-attach-prep.plist ~/Library/LaunchAgents/
+    launchctl load -w ~/Library/LaunchAgents/com.fortonlab.vk-attach-prep.plist
+  Логи:
+    tail -f /tmp/fortonlab-vk-attach.log
+  Запустить вручную сейчас:
+    launchctl start com.fortonlab.vk-attach-prep
+  Удалить:
+    launchctl unload -w ~/Library/LaunchAgents/com.fortonlab.vk-attach-prep.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.fortonlab.vk-attach-prep</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/jcat/Documents/Forton Lab/marketing-v3/.venv/bin/python</string>
+    <string>/Users/jcat/Documents/Forton Lab/marketing-v3/scripts/prep_vk_attach.py</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/jcat/Documents/Forton Lab/marketing-v3</string>
+
+  <!-- Каждый день в 11:00 локального времени (МСК) — за час до preview_bot cron -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>11</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <!-- Запустить сразу при загрузке (если мак был выключен в 11:00 — догонит при включении) -->
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/fortonlab-vk-attach.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/tmp/fortonlab-vk-attach.log</string>
+</dict>
+</plist>

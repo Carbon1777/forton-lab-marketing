@@ -105,6 +105,29 @@ _T_FAILURE = (
 )
 
 # ============================================================
+# monthly_prep_due template — напоминание 21 числа
+# ============================================================
+
+_T_MONTHLY_PREP_DUE = (
+    "📅 <b>{today_str} — пора готовить контент на {next_month}!</b>\n"
+    "\n"
+    "Осталось <b>{days_left} дней</b> до начала следующего месяца.\n"
+    "\n"
+    "<b>Что нужно сделать:</b>\n"
+    "1. Записать видеоролики (~9 на месяц) — фичи Centry / Diktum, intro Forton Lab\n"
+    "2. Положить их в <code>~/Documents/Forton Lab/посты/&lt;месяц&gt;/видео/</code>\n"
+    "3. Скажи мне «готов к контент-сессии для {next_month}» — отсмотрю, составлю распределение\n"
+    "4. Я подберу темы для текстовых дней + сгенерю картинки в брендовом стиле\n"
+    "5. К 1 числу следующего месяца — план готов, месяц в авто-режиме\n"
+    "\n"
+    "<b>Время выделить:</b> ~1-2 часа на запись видео + 1 час review со мной.\n"
+    "\n"
+    "<i>Этот напоминалка приходит автоматически 21 числа каждого месяца "
+    "(workflow monthly_prep_reminder).</i>"
+)
+
+
+# ============================================================
 # Phase 2 — dzen_manual_check template (PUB-10, scope-downgraded)
 # ============================================================
 # Дзен closed anonymous HTTP scrape (Yandex SSO). dzen_verify шлёт этот
@@ -134,6 +157,7 @@ TEMPLATES: dict[str, str] = {
     "monthly_plan_brand_violation": _T_BRAND_VIOLATION,
     "monthly_plan_budget_cap": _T_BUDGET_CAP,
     "dzen_manual_check": _T_DZEN_MANUAL_CHECK,
+    "monthly_prep_due": _T_MONTHLY_PREP_DUE,
 }
 
 
