@@ -8,3 +8,9 @@ anthropic>=0.39,<1.0
 python-telegram-bot[job-queue]==21.7
 replicate>=1.0.7,<2
 PyYAML==6.0.3
+# Phase 9-05 — identity anchor (Facenet512 + cosine ≥0.85, CHAR-06).
+# Install in a separate Python 3.12 venv (.venv-face) — TensorFlow has no wheel for 3.14.
+# Also requires `tf-keras` (TF 2.16+ uses Keras 3, retina-face/deepface need legacy Keras shim).
+deepface==0.0.100
+tf-keras
+
