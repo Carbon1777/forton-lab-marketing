@@ -156,3 +156,138 @@ def tmp_repo_with_draft_plan(tmp_repo, sample_plan_text_30days):
     plan = tmp_repo / "plans" / "monthly_plan_2026-06.md"
     plan.write_text(sample_plan_text_30days, encoding="utf-8")
     return tmp_repo, plan
+
+
+# ============================================================
+# Phase 2 fixtures — preview_bot / daily_post_generator / dzen_verify
+# ============================================================
+
+from unittest.mock import AsyncMock as _AsyncMock_p2, MagicMock as _MagicMock_p2, patch as _patch_p2
+
+
+@pytest.fixture
+def tmp_drafts_dir(tmp_path):
+    """Path to drafts/ inside tmp_path (created on first use)."""
+    d = tmp_path / "drafts"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+@pytest.fixture
+def mock_bot_send():
+    """Patch PTB Bot.send_photo / send_video / send_message / send_media_group /
+    edit_message_reply_markup as AsyncMock instances. Returns dict for assertions.
+
+    Each send_* mock returns MagicMock(message_id=N) where N differs per type
+    (photo=1001, video=1002, message=1003, media_group=[(1004,)]) so tests can
+    verify which API was called via message_id.
+    """
+    with _patch_p2("telegram.Bot.send_photo", new_callable=_AsyncMock_p2) as mp, \
+         _patch_p2("telegram.Bot.send_video", new_callable=_AsyncMock_p2) as mv, \
+         _patch_p2("telegram.Bot.send_message", new_callable=_AsyncMock_p2) as mm, \
+         _patch_p2("telegram.Bot.send_media_group", new_callable=_AsyncMock_p2) as mg, \
+         _patch_p2("telegram.Bot.edit_message_reply_markup", new_callable=_AsyncMock_p2) as me:
+        mp.return_value = _MagicMock_p2(message_id=1001)
+        mv.return_value = _MagicMock_p2(message_id=1002)
+        mm.return_value = _MagicMock_p2(message_id=1003)
+        mg.return_value = [_MagicMock_p2(message_id=1004), _MagicMock_p2(message_id=1005)]
+        me.return_value = _MagicMock_p2(message_id=1003)
+        yield {
+            "photo": mp,
+            "video": mv,
+            "message": mm,
+            "media_group": mg,
+            "edit_reply_markup": me,
+        }
+
+
+@pytest.fixture
+def mock_anthropic_regen():
+    """Patch daily_post_generator.generate to return canned regen output.
+
+    Used by Plan 02 tests for regen_one(); returns (text, in_tokens, out_tokens).
+    Tests can override via `mock_anthropic_regen.return_value = (custom, 800, 400)`.
+
+    NOTE: imports daily_post_generator lazily — module not yet exists in Wave 0,
+    Plan 02 creates it. Fixture only resolves at test-call time.
+    """
+    with _patch_p2("src.daily_post_generator.generate", create=True) as gen:
+        gen.return_value = ("Новый текст после правки. centryweb.ru", 800, 400)
+        yield gen
+
+
+@pytest.fixture
+def long_caption_draft(tmp_path):
+    """Fixture for T-2-08 — body 1500+ chars > 1024 caption limit triggers split fallback.
+
+    Returns tuple (draft_path, image_path) — frontmatter draft with image: field
+    and a fake 100-byte PNG.
+    """
+    import frontmatter as _fm
+    body = "Слово недели «как бы». " * 60   # ≈ 1380 chars
+    if len(body) < 1100:
+        body += " centryweb.ru " * 5
+    assert len(body) > 1024, f"body too short for T-2-08 fixture: {len(body)} chars"
+
+    image_path = tmp_path / "assets" / "long_caption_test.png"
+    image_path.parent.mkdir(parents=True, exist_ok=True)
+    image_path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+
+    draft_path = tmp_path / "drafts" / "diktum-long-caption.md"
+    draft_path.parent.mkdir(parents=True, exist_ok=True)
+    post = _fm.Post(
+        content=body,
+        slug="diktum-long-caption",
+        channels=["tg", "vk"],
+        product="diktum",
+        rubric="words_of_week",
+        media=[{"path": "assets/long_caption_test.png", "sha256": "deadbeef", "role": "image"}],
+        image="assets/long_caption_test.png",
+        generated_at="2026-06-15T09:00:00Z",
+        status="draft",
+        daily_regen_count=0,
+        plan_date="2026-06-15",
+    )
+    draft_path.write_text(_fm.dumps(post), encoding="utf-8")
+    return draft_path, image_path
+
+
+@pytest.fixture
+def short_caption_draft(tmp_path):
+    """Counterpart fixture: body < 1024 chars triggers normal send_photo with caption."""
+    import frontmatter as _fm
+    body = "Утренняя подборка кафе. centryweb.ru"
+    image_path = tmp_path / "assets" / "short_caption_test.png"
+    image_path.parent.mkdir(parents=True, exist_ok=True)
+    image_path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+
+    draft_path = tmp_path / "drafts" / "centry-short-caption.md"
+    draft_path.parent.mkdir(parents=True, exist_ok=True)
+    post = _fm.Post(
+        content=body,
+        slug="centry-short-caption",
+        channels=["tg", "vk"],
+        product="centry",
+        rubric="city_picks",
+        media=[{"path": "assets/short_caption_test.png", "sha256": "cafe1234", "role": "image"}],
+        image="assets/short_caption_test.png",
+        generated_at="2026-06-15T09:00:00Z",
+        status="draft",
+        daily_regen_count=0,
+        plan_date="2026-06-15",
+    )
+    draft_path.write_text(_fm.dumps(post), encoding="utf-8")
+    return draft_path, image_path
+
+
+@pytest.fixture
+def multi_entry_plan(fixtures_dir, tmp_path):
+    """Reads sample_plan_2026-06-multi.md (3 entries on 2026-06-15 + 1+1).
+
+    Writes copy to tmp_path/plans/monthly_plan_2026-06.md. Returns (plan_path, fixture_text).
+    """
+    fixture_text = (fixtures_dir / "sample_plan_2026-06-multi.md").read_text(encoding="utf-8")
+    plan_path = tmp_path / "plans" / "monthly_plan_2026-06.md"
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    plan_path.write_text(fixture_text, encoding="utf-8")
+    return plan_path, fixture_text
