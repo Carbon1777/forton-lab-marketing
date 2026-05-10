@@ -344,3 +344,64 @@ def test_discover_plans_sorted(tmp_repo: Path) -> None:
         "monthly_plan_2026-07.md",
         "monthly_plan_2026-08.md",
     ]
+
+
+# ============================================================
+# Phase 2 — get_today_entries (multi-entry per date, GEN-04)
+# ============================================================
+
+import datetime as _dt_p2
+from src.plan_reader import get_today_entries
+
+
+def _multi_entry_plan_text(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "sample_plan_2026-06-multi.md").read_text(encoding="utf-8")
+
+
+def test_get_today_entries_returns_multiple_for_same_date(fixtures_dir: Path) -> None:
+    """Three entries on 2026-06-15 → list of 3 PlanEntry."""
+    plan = parse_plan_text(_multi_entry_plan_text(fixtures_dir),
+                           Path("sample_plan_2026-06-multi.md"))
+    entries = get_today_entries(plan, _dt_p2.date(2026, 6, 15))
+    assert len(entries) == 3
+    slugs = [e.slug for e in entries]
+    assert slugs == ["centry-jun15-morning", "diktum-jun15-words", "forton-jun15-evening"]
+
+
+def test_get_today_entries_returns_empty_when_no_match(fixtures_dir: Path) -> None:
+    """No entry on 2026-06-30 in this fixture → empty list (no exception)."""
+    plan = parse_plan_text(_multi_entry_plan_text(fixtures_dir),
+                           Path("sample_plan_2026-06-multi.md"))
+    entries = get_today_entries(plan, _dt_p2.date(2026, 6, 30))
+    assert entries == []
+
+
+def test_get_today_entries_preserves_order(fixtures_dir: Path) -> None:
+    """Source-order preservation: pre_flight_generate iterates predictably."""
+    plan = parse_plan_text(_multi_entry_plan_text(fixtures_dir),
+                           Path("sample_plan_2026-06-multi.md"))
+    entries = get_today_entries(plan, _dt_p2.date(2026, 6, 15))
+    assert [e.slug for e in entries] == [
+        "centry-jun15-morning",
+        "diktum-jun15-words",
+        "forton-jun15-evening",
+    ]
+
+
+def test_get_today_entries_single_entry_date_works(fixtures_dir: Path) -> None:
+    """2026-06-14 has only one entry → list of 1 (not single, not None)."""
+    plan = parse_plan_text(_multi_entry_plan_text(fixtures_dir),
+                           Path("sample_plan_2026-06-multi.md"))
+    entries = get_today_entries(plan, _dt_p2.date(2026, 6, 14))
+    assert len(entries) == 1
+    assert entries[0].slug == "forton-jun14"
+
+
+def test_get_today_entry_still_returns_single_for_backward_compat(fixtures_dir: Path) -> None:
+    """Existing API preserved: get_today_entry returns FIRST match (single PlanEntry)."""
+    from src.plan_reader import get_today_entry
+    plan = parse_plan_text(_multi_entry_plan_text(fixtures_dir),
+                           Path("sample_plan_2026-06-multi.md"))
+    entry = get_today_entry(plan, _dt_p2.date(2026, 6, 15))
+    assert entry is not None
+    assert entry.slug == "centry-jun15-morning"   # FIRST match

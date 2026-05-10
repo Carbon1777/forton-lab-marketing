@@ -375,3 +375,170 @@ def test_no_token_in_logs(mocker, caplog):
     for record in caplog.records:
         assert pat not in record.getMessage()
         assert pat2 not in record.getMessage()
+
+
+# ============================================================
+# Phase 2 — set_entry_status + dispatch_publish + _mutate_entry_status
+# ============================================================
+
+from unittest.mock import patch as _patch_p2
+
+
+_PLAN_FIXTURE_P2 = """\
+---
+month: 2026-06
+status: approved
+---
+
+# plan
+
+## 2026-06-14
+
+```yaml
+slug: forton-jun14
+channels: [tg]
+status: draft
+```
+
+Body 14.
+
+## 2026-06-15
+
+```yaml
+slug: centry-jun15-morning
+channels: [tg, vk]
+status: draft
+```
+
+Body 15a.
+
+## 2026-06-15
+
+```yaml
+slug: diktum-jun15-words
+channels: [tg]
+status: draft
+```
+
+Body 15b.
+"""
+
+
+def test_mutate_entry_status_changes_only_matched_slug():
+    """Mutate centry slug → other 2 entries' status: draft preserved."""
+    from src.plan_writer import _mutate_entry_status
+    result = _mutate_entry_status(_PLAN_FIXTURE_P2, "centry-jun15-morning",
+                                   "skipped",
+                                   {"skipped_at": "2026-06-15T12:00:00Z"})
+    assert "status: skipped" in result
+    assert ("skipped_at: '2026-06-15T12:00:00Z'" in result
+            or "skipped_at: 2026-06-15T12:00:00Z" in result)
+    # Other entries: status: draft preserved (forton + diktum still draft)
+    assert "slug: forton-jun14" in result
+    assert result.count("status: draft") == 2
+    # Bodies preserved verbatim
+    assert "Body 14." in result
+    assert "Body 15a." in result
+    assert "Body 15b." in result
+
+
+def test_mutate_entry_status_unknown_slug_returns_unchanged():
+    """Slug not found → returns plan_text unchanged (caller raises)."""
+    from src.plan_writer import _mutate_entry_status
+    result = _mutate_entry_status(_PLAN_FIXTURE_P2, "nope-not-real",
+                                   "skipped", {})
+    assert result == _PLAN_FIXTURE_P2
+
+
+def test_set_entry_status_unknown_status_raises(tmp_path, monkeypatch):
+    from src.plan_writer import set_entry_status
+    monkeypatch.setenv("BOT_DISPATCH_PAT", "ghp_test")
+    plan = tmp_path / "plans" / "monthly_plan_2026-06.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(_PLAN_FIXTURE_P2, encoding="utf-8")
+    with pytest.raises(ValueError, match="unsupported status"):
+        set_entry_status(plan, tmp_path, "centry-jun15-morning",
+                         "wrong-status", None)
+
+
+def test_set_entry_status_slug_not_found_raises(tmp_path, monkeypatch):
+    """If _mutate returns unchanged → set_entry_status raises ValueError."""
+    from src.plan_writer import set_entry_status
+    monkeypatch.setenv("BOT_DISPATCH_PAT", "ghp_test")
+    plan = tmp_path / "plans" / "monthly_plan_2026-06.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(_PLAN_FIXTURE_P2, encoding="utf-8")
+
+    with _patch_p2("src.plan_writer.fetch_file") as mock_fetch:
+        mock_fetch.return_value = (_PLAN_FIXTURE_P2, "blob_sha_dummy")
+        with pytest.raises(ValueError, match="not found"):
+            set_entry_status(plan, tmp_path, "nonexistent-slug",
+                             "skipped", None)
+
+
+def test_set_entry_status_409_raises(tmp_path, monkeypatch):
+    """409 Conflict from commit_file propagates as GitHubAPIError."""
+    from src.plan_writer import set_entry_status, GitHubAPIError
+    monkeypatch.setenv("BOT_DISPATCH_PAT", "ghp_test")
+    plan = tmp_path / "plans" / "monthly_plan_2026-06.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(_PLAN_FIXTURE_P2, encoding="utf-8")
+
+    with _patch_p2("src.plan_writer.fetch_file") as mock_fetch, \
+         _patch_p2("src.plan_writer.commit_file") as mock_commit:
+        mock_fetch.return_value = (_PLAN_FIXTURE_P2, "blob_sha_dummy")
+        mock_commit.side_effect = GitHubAPIError("HTTP 409 Conflict: ...")
+        with pytest.raises(GitHubAPIError, match="409"):
+            set_entry_status(plan, tmp_path, "centry-jun15-morning",
+                             "skipped", {"skipped_at": "2026-06-15T12:00:00Z"})
+
+
+def test_set_entry_status_happy_path_calls_commit(tmp_path, monkeypatch):
+    """Happy path: fetch_file → mutate → commit_file with right message."""
+    from src.plan_writer import set_entry_status
+    monkeypatch.setenv("BOT_DISPATCH_PAT", "ghp_test")
+    plan = tmp_path / "plans" / "monthly_plan_2026-06.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(_PLAN_FIXTURE_P2, encoding="utf-8")
+
+    with _patch_p2("src.plan_writer.fetch_file") as mock_fetch, \
+         _patch_p2("src.plan_writer.commit_file") as mock_commit:
+        mock_fetch.return_value = (_PLAN_FIXTURE_P2, "blob_sha_dummy")
+        mock_commit.return_value = "commit_sha_xyz"
+        result = set_entry_status(plan, tmp_path, "centry-jun15-morning",
+                                   "skipped",
+                                   {"skipped_at": "2026-06-15T12:00:00Z",
+                                    "skipped_via": "forton-via-tg-bot"})
+        assert result == "commit_sha_xyz"
+        # commit_file signature: (pat, owner, repo, path, content, blob_sha, message, ...)
+        args, kwargs = mock_commit.call_args
+        commit_content = args[4] if len(args) > 4 else kwargs.get("content")
+        commit_msg = args[6] if len(args) > 6 else kwargs.get("message")
+        assert "status: skipped" in commit_content
+        assert "centry-jun15-morning" in commit_msg
+        assert "skipped" in commit_msg
+
+
+def test_dispatch_publish_posts_workflow_dispatch(monkeypatch):
+    """dispatch_publish(slug) calls dispatch_regenerate with publish.yml + slug input."""
+    from src.plan_writer import dispatch_publish
+    monkeypatch.setenv("BOT_DISPATCH_PAT", "ghp_test")
+    with _patch_p2("src.plan_writer.dispatch_regenerate") as mock_disp:
+        dispatch_publish("centry-jun15-morning")
+        mock_disp.assert_called_once()
+        kwargs = mock_disp.call_args.kwargs
+        assert kwargs["workflow"] == "publish.yml"
+        assert kwargs["inputs"] == {"slug": "centry-jun15-morning"}
+        assert kwargs["owner"] == "Carbon1777"
+        assert kwargs["repo"] == "forton-lab-marketing"
+        assert kwargs["pat"] == "ghp_test"
+
+
+def test_allowed_entry_statuses_contains_required():
+    """ALLOWED_ENTRY_STATUSES covers D-2-03 (skipped), D-2-04 (expired), publish (published)."""
+    from src.plan_writer import ALLOWED_ENTRY_STATUSES
+    assert "draft" in ALLOWED_ENTRY_STATUSES
+    assert "approved" in ALLOWED_ENTRY_STATUSES
+    assert "skipped" in ALLOWED_ENTRY_STATUSES
+    assert "expired" in ALLOWED_ENTRY_STATUSES
+    assert "published" in ALLOWED_ENTRY_STATUSES

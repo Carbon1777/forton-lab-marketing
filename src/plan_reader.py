@@ -77,6 +77,7 @@ __all__ = [
     "parse_plan",
     "parse_plan_text",
     "get_today_entry",
+    "get_today_entries",
     "get_entry_by_date",
     "verify_media_sha256",
     "sha256_of_file",
@@ -298,6 +299,24 @@ def parse_plan(plan_path: Path) -> Plan:
 def get_today_entry(plan: Plan, today: dt.date) -> PlanEntry | None:
     """Return the first entry whose date matches ``today``, else ``None``."""
     return get_entry_by_date(plan, today)
+
+
+def get_today_entries(plan: Plan, today: dt.date) -> list[PlanEntry]:
+    """Return ALL entries for ``today`` (multi-post per day, GEN-04).
+
+    A single date may have N entries (1-3) with different slugs. Existing
+    :func:`get_today_entry` (single) is preserved for backward-compat with
+    Phase 1/1.5 callers.
+
+    Args:
+        plan:  Parsed Plan object (from parse_plan / parse_plan_text).
+        today: date to filter by.
+
+    Returns:
+        List of PlanEntry objects whose ``.date == today``, in source order.
+        Empty list if no entries match.
+    """
+    return [e for e in plan.entries if e.date == today]
 
 
 def get_entry_by_date(plan: Plan, target: dt.date) -> PlanEntry | None:
