@@ -1,0 +1,107 @@
+name: monthly_plan
+
+# Forton Lab Phase 1 PLAN-01 — generate next month's content plan draft.
+# Cron: 1st of month at 07:00 UTC (= 10:00 МСК).
+# workflow_dispatch — manual trigger for recovery/testing (input `month` overrides).
+#
+# Generator exit codes (src/monthly_plan_generator.py):
+#   0 — success → commit draft + success nudge (sent by generator itself)
+#   1 — internal error → failure nudge (sent by generator itself)
+#   2 — brand-lint violation → brand_violation nudge (sent by generator itself)
+#   3 — budget cap reached → budget_cap nudge (sent by generator itself)
+#   4 — Anthropic API failure → failure nudge (sent by generator itself)
+
+on:
+  schedule:
+    # 1st of every month at 07:00 UTC (= 10:00 МСК).
+    - cron: "0 7 1 * *"
+  workflow_dispatch:
+    inputs:
+      month:
+        description: "Override month (YYYY-MM). Empty = current month."
+        required: false
+        default: ""
+
+permissions:
+  contents: write   # required for git commit + push of generated plan
+
+concurrency:
+  # Один план — один runner. Двойной запуск (cron + manual в одну минуту)
+  # не плодит дубль; второй ждёт первого (cancel-in-progress: false).
+  # Mitigation T-1-08 (race condition cron + manual).
+  group: monthly-plan
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10   # API call ≤120s, commit+push ≤30s, install ≤120s; 5x запас
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history для безопасного git push
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Pre-flight env check
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+        run: |
+          missing=0
+          for var in ANTHROPIC_API_KEY TG_PLANNER_BOT_TOKEN TG_OWNER_CHAT_ID; do
+            if [ -z "${!var}" ]; then
+              echo "::error::missing secret $var"
+              missing=1
+            fi
+          done
+          [ $missing -eq 0 ] || exit 1
+
+      - name: Generate monthly plan draft
+        id: gen
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+          MONTH_OVERRIDE: ${{ inputs.month }}
+        # Capture exit code so we can route to the right action after.
+        # Generator itself sends a nudge on every fail-path, so we don't double-tap;
+        # we only need to commit on success and propagate exit code on failure.
+        run: |
+          set +e
+          python src/monthly_plan_generator.py
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Commit draft (success only)
+        if: steps.gen.outputs.rc == '0'
+        run: |
+          if [ -z "$(git status --porcelain plans/ .metrics/)" ]; then
+            echo "Nothing changed — generator wrote no new file. Treating as no-op."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add plans/ .metrics/
+          MONTH_FOR_MSG="${MONTH_OVERRIDE:-$(date -u +%Y-%m)}"
+          # [skip ci] предотвращает теоретический self-trigger (T-1-22) — двойная
+          # защита поверх GitHub policy «GITHUB_TOKEN commits don't trigger workflows».
+          git commit -m "feat(plan): monthly draft for ${MONTH_FOR_MSG} [skip ci]"
+          git push
+        env:
+          MONTH_OVERRIDE: ${{ inputs.month }}
+
+      - name: Fail workflow if generator did not exit 0
+        if: steps.gen.outputs.rc != '0'
+        run: |
+          echo "::error::generator exited with code ${{ steps.gen.outputs.rc }}"
+          echo "Nudge was sent by the generator itself (per exit code routing)."
+          exit 1
