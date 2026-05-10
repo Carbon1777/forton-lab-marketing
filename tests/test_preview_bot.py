@@ -174,7 +174,7 @@ async def test_send_preview_text_uses_send_message():
     call_kwargs = bot.send_message.call_args.kwargs
     assert "Короткий текст" in call_kwargs["text"]
     assert "lint clean" in call_kwargs["text"]
-    assert "abc12345" in call_kwargs["text"]
+    # sha8 живёт в callback_data, не в visible тексте
     assert call_kwargs["reply_markup"] is not None
 
 
@@ -190,7 +190,7 @@ async def test_send_preview_photo_with_short_caption_uses_send_photo(short_capti
     bot.send_photo.assert_called_once()
     call_kwargs = bot.send_photo.call_args.kwargs
     assert "Утренняя подборка" in call_kwargs["caption"]
-    assert "abc12345" in call_kwargs["caption"]
+    assert "lint clean" in call_kwargs["caption"]
 
 
 @pytest.mark.asyncio
@@ -220,7 +220,7 @@ async def test_preview_includes_lint_clean_badge(short_caption_draft, tmp_path):
                                sha8="cafe1234", repo_root=tmp_path)
     caption = bot.send_photo.call_args.kwargs["caption"]
     assert "lint clean" in caption
-    assert "cafe1234" in caption
+    # sha8 теперь только в callback_data, не в visible caption
 
 
 @pytest.mark.asyncio

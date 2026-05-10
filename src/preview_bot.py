@@ -249,7 +249,7 @@ def _store_message_id(draft_path: Path, message_id: int) -> None:
 # Preview send — 5 variants (D-2-01 WYSIWYG)
 # ---------------------------------------------------------------------------
 
-_LINT_BADGE_TPL: Final[str] = "\n\n<i>✓ lint clean · sha:</i> <code>{sha8}</code>"
+_LINT_BADGE_TPL: Final[str] = "\n\n<i>✓ lint clean</i>"
 
 
 async def _send_preview_text(bot, chat_id: int, draft: frontmatter.Post,
