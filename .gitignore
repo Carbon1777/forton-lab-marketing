@@ -6,3 +6,6 @@ venv/
 *.local
 .DS_Store
 .cache/
+
+# preview_bot drafts — эфемерные, держим в GH Actions cache не в git
+drafts/

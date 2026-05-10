@@ -38,6 +38,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Restore drafts/ cache (idempotency между cron runs)
+        uses: actions/cache@v4
+        with:
+          path: drafts/
+          key: drafts-${{ github.run_id }}
+          restore-keys: |
+            drafts-
+
       - name: Run preview bot (pre-flight gen + polling)
         env:
           # Phase 1.5 secrets reused (single-operator, same TG bot)
