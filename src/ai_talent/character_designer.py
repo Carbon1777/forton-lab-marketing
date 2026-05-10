@@ -32,8 +32,12 @@ COMPOSITIONS: Final[dict[str, str]] = {
     "lifestyle": "Lifestyle candid moment capturing authentic action, environment-driven framing",
 }
 
-DEFAULT_SPEND_FILE: Final[Path] = Path("marketing-v3/.metrics/api_spend.json")
-DEFAULT_CACHE_DIR: Final[Path] = Path("marketing-v3/.cache/character_preview/v1")
+# Resolve relative to module file → marketing-v3/.metrics/* and marketing-v3/.cache/*.
+# Previous relative path "marketing-v3/.metrics/..." created nested marketing-v3/marketing-v3/.metrics/
+# when called from the marketing-v3 cwd. Fixes issue #29.
+_REPO_ROOT: Final[Path] = Path(__file__).resolve().parent.parent.parent
+DEFAULT_SPEND_FILE: Final[Path] = _REPO_ROOT / ".metrics" / "api_spend.json"
+DEFAULT_CACHE_DIR: Final[Path] = _REPO_ROOT / ".cache" / "character_preview" / "v1"
 
 
 class CharacterDesignError(Exception):

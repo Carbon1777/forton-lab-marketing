@@ -1,18 +1,37 @@
 {
-  "_schema_version": 2,
-  "_updated": "2026-05-10T15:52:27.242813+00:00",
+  "_schema_version": 3,
+  "_updated": "2026-05-10T21:26:05.194886+00:00",
   "2026-05": {
     "input_tokens": 17031,
     "output_tokens": 15025,
-    "usd": 0.2765,
-    "calls": 3,
+    "usd": 0.5765,
+    "calls": 15,
     "by_purpose": {
       "monthly_plan": {
         "calls": 3,
         "usd": 0.2765
       }
     },
-    "regen_count": 2
+    "regen_count": 2,
+    "by_provider": {
+      "anthropic": {
+        "usd": 0.2765,
+        "calls": 3
+      },
+      "replicate": {
+        "usd": 0.3,
+        "calls": 12,
+        "predict_seconds": 168
+      }
+    },
+    "by_day": {
+      "2026-05-11": {
+        "usd": 0.3,
+        "by_provider": {
+          "replicate": 0.3
+        }
+      }
+    }
   },
   "regen_limit_per_month": 3
 }
