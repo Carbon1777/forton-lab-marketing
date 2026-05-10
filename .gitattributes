@@ -1,1 +1,2 @@
 ai_talent/dataset/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+ai_talent/smoke/**/*.png filter=lfs diff=lfs merge=lfs -text
