@@ -9,3 +9,5 @@ venv/
 
 # preview_bot drafts — эфемерные, держим в GH Actions cache не в git
 drafts/
+.venv-face/
+ai_talent/dataset/v1.zip

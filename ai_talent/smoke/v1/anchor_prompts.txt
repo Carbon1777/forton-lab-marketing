@@ -1,0 +1,5 @@
+01_closeup	OHWX_FORTONA, close-up portrait, neutral expression, soft golden hour light, looking at camera, lifestyle photograph
+02_three_quarter	OHWX_FORTONA, 3/4 body shot, 3/4 view, warm smile, diffused daylight, coffee shop background
+03_fullbody	OHWX_FORTONA, full body shot, standing confidently in autumn street, cream blouse, lifestyle cinema
+04_profile	OHWX_FORTONA, side profile, contemplative expression, cinematic warm tungsten, dark neutral background
+05_emotion	OHWX_FORTONA, close-up portrait, laughing genuinely, eyes crinkled, soft daylight, lifestyle
