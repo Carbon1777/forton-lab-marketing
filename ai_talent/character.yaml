@@ -1,7 +1,7 @@
 schema_version: 1
 character_id: forton-lab-mascot-v1
 created_at: '2026-05-10'
-updated_at: null
+updated_at: '2026-05-10T21:09:22.512826+00:00'
 brief:
   gender: female
   age_range: 25-28
@@ -17,16 +17,21 @@ brief:
   - '#F4C757'
   - '#8B6F2D'
 phase_8:
-  status: pending
+  status: approved
   variants_generated: 3
   frames_per_variant: 4
-  selected_variant: null
-  selected_at: null
-  selected_by: null
-  batch_sha8: null
+  selected_variant: variant_2
+  selected_at: '2026-05-10T21:09:22.512826+00:00'
+  selected_by: user@cowork-2026-05-11
+  batch_sha8: 46e8bbce
   preview_dir: ai_talent/preview/v1/
-  total_spend_usd: null
-  character_card: null
+  total_spend_usd: 0.3
+  character_card: 'A 26-year-old Russian woman with long wavy dark-brunette hair,
+    bright clear blue eyes that crinkle slightly when smiling, softer cheek contour
+    with natural rosy flush, friendly expressive face, naturally pink lips with a
+    hint of warm smile, healthy peach-toned skin, slim figure with easy posture. Casual
+    cosy style, oversized warm beige knit pullover, simple thin gold chain necklace.
+    Mood: warm, approachable, lifestyle-ready, gently confident.'
   regen_count: 0
 lora:
   status: pending
@@ -54,3 +59,7 @@ history:
   event: created
   at: '2026-05-10'
   note: Initial structure scaffolded
+- phase: 8
+  event: selected
+  at: '2026-05-10T21:09:22.512826+00:00'
+  note: Selected variant_2 (sha8=46e8bbce)
