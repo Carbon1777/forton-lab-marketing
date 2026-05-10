@@ -1,7 +1,10 @@
 ---
-month: 2026-05
+approved_at: '2026-05-10T16:01:06.072263+00:00'
+approved_by: forton-via-tg-bot
 days: 31
-generated_at: 2026-05-08T00:00:00Z
+generated_at: 2026-05-08 00:00:00+00:00
+month: 2026-05
+status: approved
 strategy: generic_monthly_plan
 ---
 
