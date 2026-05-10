@@ -78,7 +78,7 @@ jobs:
         # we only need to commit on success and propagate exit code on failure.
         run: |
           set +e
-          python src/monthly_plan_generator.py
+          PYTHONPATH=. python -m src.monthly_plan_generator
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
       - name: Commit draft (success only)
