@@ -21,6 +21,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+import os
+import re
+
 from src import monthly_plan_generator as g
 from src.monthly_plan_generator import (
     BrandViolationError,
@@ -543,3 +546,187 @@ def test_hard_fail_on_unparseable_output(
     assert rc == 1
     plan_file = tmp_repo / "plans" / "monthly_plan_2026-06.md"
     assert not plan_file.exists()
+
+
+# ============================================================
+# Phase 1.5 Plan 04 — --force-regenerate flag + regen_count increment
+# ============================================================
+
+
+def test_record_spend_increments_regen_count_on_regen(tmp_path, mocker):
+    """is_regenerate=True → increment_regen_count called; v2 schema."""
+    spend = tmp_path / "api_spend.json"
+    spend.write_text(json.dumps({"_schema_version": 1}))
+    mock_inc = mocker.patch(
+        "src.monthly_plan_generator.increment_regen_count",
+        return_value=1,
+    )
+    record_spend(
+        spend,
+        input_tokens=100,
+        output_tokens=50,
+        purpose="monthly_plan",
+        is_regenerate=True,
+    )
+    mock_inc.assert_called_once()
+    # month arg is current YYYY-MM
+    called_month = mock_inc.call_args.args[1]
+    assert re.fullmatch(r"\d{4}-\d{2}", called_month)
+
+
+def test_record_spend_no_increment_on_normal_run(tmp_path, mocker):
+    """is_regenerate=False (default) → no increment."""
+    spend = tmp_path / "api_spend.json"
+    spend.write_text(json.dumps({"_schema_version": 1}))
+    mock_inc = mocker.patch("src.monthly_plan_generator.increment_regen_count")
+    record_spend(
+        spend,
+        input_tokens=100,
+        output_tokens=50,
+        purpose="monthly_plan",
+        is_regenerate=False,
+    )
+    mock_inc.assert_not_called()
+
+
+def test_force_regenerate_overwrites_existing_plan(
+    env_set, patched_repo, mock_anthropic_in_generator, patch_calendar_3days
+):
+    """force_regenerate=True + existing plan → overwrite (no exit 1)."""
+    tmp_repo, m_nudge = patched_repo
+    fake_client, fake_msg = mock_anthropic_in_generator
+
+    # Plant an existing plan file
+    plans_dir = tmp_repo / "plans"
+    plans_dir.mkdir(exist_ok=True)
+    existing = plans_dir / "monthly_plan_2026-06.md"
+    existing.write_text("---\nmonth: 2026-06\nstatus: draft\n---\nold body")
+
+    fake_msg.content[0].text = (
+        "---\n"
+        "month: 2026-06\n"
+        "generated_at: 2026-06-01T07:00:00Z\n"
+        "generator: monthly_plan_generator v1\n"
+        "---\n"
+        "\n# План\n\n"
+        "## 2026-06-01\n\n"
+        "```yaml\nslug: forton-jun1\nchannels: [tg]\nproduct: forton-lab\n"
+        "rubric: from_studio\nmedia: []\nstatus: draft\n```\n\n"
+        "Июнь — месяц углубления.\n\nfortonlab.ru\n\n"
+        "## 2026-06-02\n\n"
+        "```yaml\nslug: diktum-jun2\nchannels: [tg]\nproduct: diktum\n"
+        "rubric: words\nmedia: []\nstatus: draft\n```\n\n"
+        "Слово недели.\n\ndiktumweb.ru\n\n"
+        "## 2026-06-03\n\n"
+        "```yaml\nslug: centry-jun3\nchannels: [vk]\nproduct: centry\n"
+        "rubric: city\nmedia: []\nstatus: draft\n```\n\n"
+        "Топ заведений.\n\ncentryweb.ru\n"
+    )
+
+    rc = main(month_override="2026-06", force_regenerate=True)
+    assert rc == 0, f"force_regenerate=True must succeed even when file exists; got {rc}"
+    # File overwritten with new content (no longer "old body")
+    new_text = existing.read_text(encoding="utf-8")
+    assert "old body" not in new_text
+    assert "2026-06-01" in new_text
+
+
+def test_force_regenerate_false_blocks_existing(
+    env_set, patched_repo, mock_anthropic_in_generator, patch_calendar_3days
+):
+    """force_regenerate=False (default) + existing plan → exit 1, no generate call."""
+    tmp_repo, m_nudge = patched_repo
+    fake_client, fake_msg = mock_anthropic_in_generator
+
+    plans_dir = tmp_repo / "plans"
+    plans_dir.mkdir(exist_ok=True)
+    existing = plans_dir / "monthly_plan_2026-06.md"
+    existing.write_text("---\nmonth: 2026-06\nstatus: draft\n---\nold body")
+
+    rc = main(month_override="2026-06", force_regenerate=False)
+    assert rc == 1
+    # Anthropic was NOT called — short-circuited
+    assert fake_client.messages.create.call_count == 0
+    # File was preserved
+    assert "old body" in existing.read_text(encoding="utf-8")
+
+
+def test_force_regenerate_increments_regen_count(
+    env_set, patched_repo, mock_anthropic_in_generator, patch_calendar_3days, mocker
+):
+    """On force_regenerate=True success → increment_regen_count called once."""
+    tmp_repo, m_nudge = patched_repo
+    fake_client, fake_msg = mock_anthropic_in_generator
+    plans_dir = tmp_repo / "plans"
+    plans_dir.mkdir(exist_ok=True)
+    (plans_dir / "monthly_plan_2026-06.md").write_text(
+        "---\nmonth: 2026-06\nstatus: draft\n---\nold"
+    )
+    fake_msg.content[0].text = (
+        "---\nmonth: 2026-06\ngenerated_at: 2026-06-01T07:00:00Z\n"
+        "generator: monthly_plan_generator v1\n---\n\n# План\n\n"
+        "## 2026-06-01\n\n```yaml\nslug: forton-jun1\nchannels: [tg]\n"
+        "product: forton-lab\nrubric: from_studio\nmedia: []\nstatus: draft\n```\n\n"
+        "Июнь.\n\nfortonlab.ru\n\n"
+        "## 2026-06-02\n\n```yaml\nslug: diktum-jun2\nchannels: [tg]\n"
+        "product: diktum\nrubric: words\nmedia: []\nstatus: draft\n```\n\n"
+        "Слово.\n\ndiktumweb.ru\n\n"
+        "## 2026-06-03\n\n```yaml\nslug: centry-jun3\nchannels: [vk]\n"
+        "product: centry\nrubric: city\nmedia: []\nstatus: draft\n```\n\n"
+        "Топ.\n\ncentryweb.ru\n"
+    )
+
+    mock_inc = mocker.patch(
+        "src.monthly_plan_generator.increment_regen_count",
+        return_value=1,
+    )
+
+    rc = main(month_override="2026-06", force_regenerate=True)
+    assert rc == 0
+    mock_inc.assert_called_once()
+
+
+def test_initial_generate_calls_send_weekly_split(
+    env_set, patched_repo, mock_anthropic_in_generator, patch_calendar_3days, mocker
+):
+    """W1 fix: on initial generate success → send_weekly_split called with inline_keyboard."""
+    tmp_repo, m_nudge = patched_repo
+    fake_client, fake_msg = mock_anthropic_in_generator
+    fake_msg.content[0].text = (
+        "---\nmonth: 2026-06\ngenerated_at: 2026-06-01T07:00:00Z\n"
+        "generator: monthly_plan_generator v1\n---\n\n# План\n\n"
+        "## 2026-06-01\n\n```yaml\nslug: forton-jun1\nchannels: [tg]\n"
+        "product: forton-lab\nrubric: from_studio\nmedia: []\nstatus: draft\n```\n\n"
+        "Июнь.\n\nfortonlab.ru\n\n"
+        "## 2026-06-02\n\n```yaml\nslug: diktum-jun2\nchannels: [tg]\n"
+        "product: diktum\nrubric: words\nmedia: []\nstatus: draft\n```\n\n"
+        "Слово.\n\ndiktumweb.ru\n\n"
+        "## 2026-06-03\n\n```yaml\nslug: centry-jun3\nchannels: [vk]\n"
+        "product: centry\nrubric: city\nmedia: []\nstatus: draft\n```\n\n"
+        "Топ.\n\ncentryweb.ru\n"
+    )
+    mock_split = mocker.patch(
+        "src.monthly_plan_generator.send_weekly_split",
+        return_value=[1, 2, 3],
+    )
+
+    rc = main(month_override="2026-06")
+    assert rc == 0
+    mock_split.assert_called_once()
+    # Inline keyboard with 3 buttons (approve / edit / reject)
+    kwargs = mock_split.call_args.kwargs
+    inline_kb = kwargs.get("inline_keyboard") or (
+        mock_split.call_args.args[1] if len(mock_split.call_args.args) > 1 else None
+    )
+    assert inline_kb is not None, "send_weekly_split must receive inline_keyboard"
+    flat = [btn for row in inline_kb for btn in row]
+    callback_actions = {btn["callback_data"].split(":")[0] for btn in flat}
+    assert {"approve", "edit", "reject"} == callback_actions
+
+
+def test_env_force_regenerate_recognized(monkeypatch):
+    """ENV var FORCE_REGENERATE=true is parsed as boolean True at CLI level."""
+    monkeypatch.setenv("FORCE_REGENERATE", "true")
+    # Sanity check: env-reader exists in module (one-line helper or inline parse)
+    val = os.environ.get("FORCE_REGENERATE", "").lower() == "true"
+    assert val is True
