@@ -208,15 +208,18 @@ centryweb.ru
 
 ```yaml
 slug: forton-may11-centry-or-diktum
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: forton-lab
 rubric: philosophy
 media:
-  - path: assets/posts/2026-05/forton-may11-centry-or-diktum.png
-    sha256: 7c65ce878f79abd1545786bbe2fb3757f7572575eb4a064f8b70cd8960e0103a
-    role: image
+- path: assets/posts/2026-05/forton-may11-centry-or-diktum.png
+  sha256: 7c65ce878f79abd1545786bbe2fb3757f7572575eb4a064f8b70cd8960e0103a
+  role: image
 image: assets/posts/2026-05/forton-may11-centry-or-diktum.png
-status: draft
+status: published
+published_at: '2026-05-11T15:12:53.904792+00:00'
 ```
 
 Centry или Diktum — что начать первым?
