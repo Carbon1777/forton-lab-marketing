@@ -14,5 +14,9 @@ PyYAML==6.0.3
 deepface==0.0.100
 tf-keras
 # Phase 10 — voice selection (ElevenLabs SDK, verified 2026-05-07 per 10-RESEARCH.md §Standard Stack).
-elevenlabs==2.46.0
+elevenlabs>=2.46.0,<3
+# Phase 11 — compositor frame ops (PIL.Image / ImageDraw / ImageFont primitives).
+# Upper bound <13 covers current venv (12.2.0) + future minor releases; Phase 11
+# production code uses only stable Image/ImageDraw API, safe across 10/11/12.
+pillow>=10.4,<13
 

@@ -291,3 +291,180 @@ def multi_entry_plan(fixtures_dir, tmp_path):
     plan_path.parent.mkdir(parents=True, exist_ok=True)
     plan_path.write_text(fixture_text, encoding="utf-8")
     return plan_path, fixture_text
+
+
+# ============================================================
+# Phase 11 fixtures — AI-talent pipeline (Plans 02-06)
+# ============================================================
+#
+# Naming convention: Phase 11 fixtures end in `_for_<consumer>` to avoid
+# clashing with the pre-existing Phase 1 `mock_anthropic_client` fixture
+# (which returns a (client, msg) tuple). Phase 11 fixtures return a
+# bare MagicMock client pre-wired with the expected response shape.
+
+
+@pytest.fixture
+def tmp_spend_file(tmp_path: Path) -> Path:
+    """Empty v3-schema spend file for BOOT-01 tests.
+
+    Schema mirrors the production file at .metrics/api_spend.json — same
+    `_schema_version: 3`, same `caps.by_provider_monthly_usd` keys.
+    """
+    p = tmp_path / "api_spend.json"
+    p.write_text(json.dumps({
+        "_schema_version": 3,
+        "_updated": "2026-05-11T00:00:00+00:00",
+        "regen_limit_per_month": 3,
+        "caps": {
+            "monthly_abort_usd": 15.0,
+            "daily_usd": 3.0,
+            "by_provider_monthly_usd": {
+                "anthropic": 5.0,
+                "replicate": 4.0,
+                "elevenlabs": 5.0,
+                "ltx": 6.0,
+            },
+        },
+    }, indent=2), encoding="utf-8")
+    return p
+
+
+@pytest.fixture
+def mock_character_yaml(tmp_path: Path) -> Path:
+    """Synthetic character.yaml with lora.status + voice.status both `ready`.
+
+    Mirrors the locked production layout after Phase 10-05 voice selection.
+    Plans 02-06 read this to gate stages — fixture lets them run in tests
+    without depending on the real ai_talent/character.yaml.
+    """
+    import yaml as _yaml
+    p = tmp_path / "character.yaml"
+    p.write_text(_yaml.safe_dump({
+        "schema_version": 1,
+        "character_id": "test-mascot",
+        "phase_8": {"status": "approved", "character_card": "A test character."},
+        "lora": {
+            "status": "ready",
+            "model": "carbon1777/forton-lab-character-v1",
+            "version_sha256": "5d950b9d" + "0" * 56,
+            "trigger_word": "OHWX_FORTONA",
+        },
+        "voice": {
+            "status": "ready",
+            "provider": "elevenlabs",
+            "voice_id": "GN4wbsbejSnGSa1AzjH5",
+            "model_id": "eleven_multilingual_v2",
+            "voice_settings": {
+                "centry": {"stability": 0.4, "similarity_boost": 0.75, "style": 0.0},
+                "diktum": {"stability": 0.7, "similarity_boost": 0.75, "style": 0.0},
+            },
+        },
+    }, sort_keys=False), encoding="utf-8")
+    return p
+
+
+@pytest.fixture
+def mock_anthropic_client_for_script():
+    """MagicMock matching anthropic.Anthropic for Plan 02 script_builder.
+
+    Default response is a `tool_use` content block whose `input` matches the
+    locked script.json shape (frames / voice_lines / cuts / hook / product /
+    series_flag). Tests can override before invoking the generator:
+
+        client.messages.create.return_value = my_custom_msg
+    """
+    client = MagicMock()
+    tool_use_block = MagicMock(type="tool_use", input={
+        "frames": [
+            {"prompt": "OHWX_FORTONA neutral pose, soft light",
+             "duration_sec": 4, "is_hero": False},
+            {"prompt": "OHWX_FORTONA gentle smile, warm cinematic",
+             "duration_sec": 5, "is_hero": True},
+        ],
+        "voice_lines": [{"text": "Привет.", "product": "centry"}],
+        "cuts": [],
+        "hook": {"text": "Хочешь жить?", "duration_sec": 3.0},
+        "product": "centry",
+        "series_flag": False,
+    })
+    msg = MagicMock(
+        content=[tool_use_block],
+        stop_reason="tool_use",
+        usage=MagicMock(input_tokens=2000, output_tokens=800),
+    )
+    client.messages.create.return_value = msg
+    return client
+
+
+# Minimal 1×1 PNG bytes — valid container, deterministic, used for fixtures
+# that need to return "PNG-shaped" bytes without depending on Pillow at
+# fixture-collection time.
+_PNG_1X1: bytes = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xfc"
+    b"\x0f\x00\x00\x01\x01\x00\x05\xfe\x02\xfe\xdc\xccY\xe7\x00\x00\x00"
+    b"\x00IEND\xaeB`\x82"
+)
+
+
+@pytest.fixture
+def mock_replicate_client_for_frames():
+    """MagicMock matching replicate.Client for Plan 03 frame_renderer.
+
+    `.run(...)` returns an iterable of file-like outputs (matches the real
+    replicate SDK ≥1.0 streaming API). Each item exposes `.read() -> bytes`
+    so the renderer can write the PNG directly to disk without a network
+    round-trip.
+    """
+    client = MagicMock()
+    output_item = MagicMock()
+    output_item.read.return_value = _PNG_1X1
+    client.run.return_value = [output_item]
+    return client
+
+
+@pytest.fixture
+def mock_elevenlabs_client_for_synthesis():
+    """MagicMock matching elevenlabs.client.ElevenLabs for Plan 05 voice_synth.
+
+    Returns a client with `.text_to_speech.convert(...)` yielding chunks of
+    audio bytes. Tests can patch in a `convert_with_timestamps` variant if
+    Q-ELEVEN-TS resolves to "Option A".
+    """
+    client = MagicMock()
+    # Default: convert() returns an iterator of mp3 byte chunks
+    client.text_to_speech.convert.return_value = iter([b"ID3" + b"\x00" * 64])
+    return client
+
+
+@pytest.fixture
+def mock_ltx_response():
+    """Synthetic MP4 byte payload (just header bytes, not playable) for LTX tests."""
+    # Minimal ftyp box header — recognised as MP4 by ffprobe for shape tests
+    return (
+        b"\x00\x00\x00\x18ftypisom\x00\x00\x00\x00isomiso2mp41"
+        + b"\x00" * 256
+    )
+
+
+@pytest.fixture
+def sample_brief_md(tmp_path: Path) -> Path:
+    """Materialise a minimal valid brief.md for Plan 02 + Plan 06 smoke tests."""
+    brief = tmp_path / "brief.md"
+    brief.write_text(
+        "---\n"
+        "product: centry\n"
+        "topic: \"Утренний кофе в выходной\"\n"
+        "hook: \"Подобрали кафе\"\n"
+        "cta: \"Ищи на centryweb.ru\"\n"
+        "series_flag: false\n"
+        "series: null\n"
+        "episode: null\n"
+        "ltx_density: B\n"
+        "duration_target_sec: 30\n"
+        "---\n"
+        "\n"
+        "Тёплый утренний свет, городские кафе, мягкая интонация.\n",
+        encoding="utf-8",
+    )
+    return brief
