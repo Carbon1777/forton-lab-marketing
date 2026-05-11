@@ -13,4 +13,6 @@ PyYAML==6.0.3
 # Also requires `tf-keras` (TF 2.16+ uses Keras 3, retina-face/deepface need legacy Keras shim).
 deepface==0.0.100
 tf-keras
+# Phase 10 — voice selection (ElevenLabs SDK, verified 2026-05-07 per 10-RESEARCH.md §Standard Stack).
+elevenlabs==2.46.0
 
