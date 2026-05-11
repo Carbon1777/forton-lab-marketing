@@ -2,10 +2,13 @@ name: preview_bot
 
 on:
   schedule:
-    # 12:00-22:00 МСК = 09:00-19:00 UTC (Россия не использует DST с 2014).
-    # 10-минутный шаг — стандартный для polling-в-окне (Phase 1.5 D-1.5-04).
-    # Worst-case 60 iter/день × 9.5 min = 570 min/день; typical с быстрым approve
-    # ≈ 30-60 min/день (RESEARCH §«Mitigations»).
+    # 12:00-22:00 МСК = 09:00-19:00 UTC. Окно 10 часов оставляем для
+    # late-approve (юзер может одобрить в любое время рабочего дня).
+    #
+    # Incident 2026-05-11 (back-fill в 21:03 UTC → preview ночью) фикшен
+    # на уровне кода: _today_msk() hack теперь работает только для
+    # workflow_dispatch, а run_polling использует drop_pending_updates=True
+    # → stale callbacks между cron-окнами игнорируются.
     - cron: "*/10 9-19 * * *"
   workflow_dispatch: {}
 
