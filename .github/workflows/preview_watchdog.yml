@@ -1,0 +1,63 @@
+name: preview_watchdog
+
+# Phase 2.5 GH cron throttling guard. Если scheduled preview_bot.yml тик
+# в 12:00 МСК (= 09:00 UTC) пропущен GitHub'ом — watchdog обнаруживает
+# отсутствие preview для today's plan entry и триггерит preview_bot.yml
+# вручную через workflow_dispatch.
+#
+# Два checkpoint:
+#   09:30 UTC = 12:30 МСК — через 30 мин после ожидаемого первого preview.
+#   11:30 UTC = 14:30 МСК — late safety net на случай если первый watchdog
+#   тоже пропустили (cron pile-up).
+
+on:
+  schedule:
+    - cron: "30 9 * * *"
+    - cron: "30 11 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-watchdog
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # drafts/ нужен чтобы определить «preview уже был отправлен»
+      # (entry.status=draft + drafts/<slug>.md exists → state=pending,
+      # alert не нужен). Без restore watchdog ложно сработает.
+      - name: Restore drafts/ cache (Phase 2 idempotency)
+        uses: actions/cache@v4
+        with:
+          path: drafts/
+          key: drafts-watchdog-${{ github.run_id }}
+          restore-keys: |
+            drafts-
+
+      - name: Run watchdog
+        env:
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+          BOT_DISPATCH_PAT: ${{ secrets.BOT_DISPATCH_PAT }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: PYTHONPATH=. python -m src.preview_watchdog

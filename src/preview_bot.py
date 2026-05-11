@@ -461,7 +461,18 @@ async def handle_publish_or_cancel(update: Update,
     Edit: pattern owned by separate CallbackQueryHandler(handle_edit_entry)
     зарегистрированным раньше — этот handler пропускает edit: action."""
     query = update.callback_query
-    await query.answer()
+    sys.stderr.write(
+        f"INFO: handle_publish_or_cancel fired data={query.data!r} "
+        f"from_user={getattr(query.from_user, 'id', None)}\n"
+    )
+    try:
+        await query.answer()
+    except BadRequest as exc:
+        # «query is too old» если callback пришёл во время длинного edit-flow
+        # и устарел в очереди (concurrent_updates=False). Не блокирует side-
+        # effect — кнопки и dispatch продолжают, но пользователь увидит, что
+        # кнопки уже не отвечают. Если такое часто — switch on concurrent_updates.
+        sys.stderr.write(f"WARN: query.answer failed: {exc!r}\n")
     if not await _check_owner(query, ctx):
         return
     m = _CALLBACK_DATA_RE.match(query.data or "")
@@ -471,6 +482,9 @@ async def handle_publish_or_cancel(update: Update,
     action, slug, sha8 = m.group(1), m.group(2), m.group(3)
     draft_path = _resolve_draft_path(ctx, slug)
     if not await _verify_draft_sha(query, draft_path, sha8):
+        sys.stderr.write(
+            f"WARN: sha mismatch action={action} slug={slug} sha8={sha8}\n"
+        )
         return
     try:
         if action == "publish":
