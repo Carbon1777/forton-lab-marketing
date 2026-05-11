@@ -137,27 +137,140 @@ def test_make_client_refuses_free_tier(monkeypatch) -> None:
 # ============================================================================
 
 
-@pytest.mark.skip(reason="Wave 1 Plan 03 will implement generate_reference_sample")
-def test_generate_reference_sample_happy_path() -> None:
+def test_generate_reference_sample_happy_path(tmp_path: Path, spend_file: Path) -> None:
     """Single text_to_speech.convert -> mp3 на диск + spend recorded (unit_field=characters)."""
-    pass
+    from src.ai_talent import voice_selector as vs
+
+    client = _make_fake_client()
+    out_path = tmp_path / "assets" / "voice-reference" / "abcd1234_sample1.mp3"
+    text = "Привет, мир. Это тестовое сообщение."  # 36 chars Unicode
+
+    result = vs.generate_reference_sample(
+        client=client,
+        voice_id="abcd1234567890XYZ",
+        text=text,
+        out_path=out_path,
+        spend_file=spend_file,
+    )
+
+    assert result == out_path
+    assert out_path.exists()
+    assert out_path.read_bytes() == MOCK_MP3_BYTES
+    assert client.text_to_speech.convert.call_count == 1
+
+    # Verify model_id and output_format passed correctly
+    call_kwargs = client.text_to_speech.convert.call_args.kwargs
+    assert call_kwargs["model_id"] == "eleven_multilingual_v2"
+    assert call_kwargs["output_format"] == "mp3_44100_128"
+    assert call_kwargs["voice_id"] == "abcd1234567890XYZ"
+    assert call_kwargs["text"] == text
+
+    # Verify spend recorded with unit_field="characters"
+    data = json.loads(spend_file.read_text(encoding="utf-8"))
+    months = [k for k in data.keys() if not k.startswith("_")]
+    assert len(months) == 1
+    entry = data[months[0]]["by_provider"]["elevenlabs"]
+    assert entry["calls"] == 1
+    assert entry["characters"] == len(text)
+    assert entry["usd"] > 0
 
 
-@pytest.mark.skip(reason="Wave 1 Plan 03 — Phase 9 W-001 carry-forward")
-def test_preflight_runs_before_api_call_and_blocks_on_cap() -> None:
-    """Pre-fill spend over $5 elevenlabs cap -> ProviderMonthlyCapExceededError;
-    convert() NEVER called, mp3 NOT written, spend NOT recorded after."""
-    pass
+def test_preflight_runs_before_api_call_and_blocks_on_cap(
+    tmp_path: Path, spend_file: Path
+) -> None:
+    """Phase 9 W-001 carry-forward: if preflight raises → no API call, no file, no record."""
+    from src.ai_talent import voice_selector as vs
+    from src.spend_tracker_v2 import ProviderMonthlyCapExceededError
+
+    # Pre-fill spend to push elevenlabs over $5 monthly cap
+    import datetime as dt
+    today = dt.date.today().isoformat()
+    month = today[:7]
+    sf_data = {
+        "_schema_version": 3,
+        "_updated": None,
+        month: {
+            "by_provider": {
+                "elevenlabs": {"usd": 4.99, "calls": 1, "characters": 25000}
+            },
+            "by_day": {
+                today: {"usd": 4.99, "by_provider": {"elevenlabs": 4.99}}
+            },
+        },
+    }
+    spend_file.write_text(json.dumps(sf_data), encoding="utf-8")
+
+    client = _make_fake_client()
+    out_path = tmp_path / "blocked.mp3"
+    long_text = "x" * 500  # est_cost = 500 * 0.0002 = $0.10 → pushes over $5 cap
+
+    with pytest.raises(ProviderMonthlyCapExceededError):
+        vs.generate_reference_sample(
+            client=client,
+            voice_id="anyvoice",
+            text=long_text,
+            out_path=out_path,
+            spend_file=spend_file,
+        )
+
+    # STEP 2/3/4 must NOT have run
+    assert client.text_to_speech.convert.call_count == 0
+    assert not out_path.exists()
+
+    # spend tracker untouched after the raise
+    data_after = json.loads(spend_file.read_text(encoding="utf-8"))
+    assert data_after[month]["by_provider"]["elevenlabs"]["calls"] == 1
+    assert data_after[month]["by_provider"]["elevenlabs"]["usd"] == 4.99
 
 
-@pytest.mark.skip(reason="Wave 1 Plan 03 — PIT-1 regression test")
-def test_iterator_joined_before_write() -> None:
-    """Iterator[bytes] from convert() must be joined via b''.join() — file must be
-    non-zero bytes, not the repr of an iterator."""
-    pass
+def test_iterator_joined_before_write(tmp_path: Path, spend_file: Path) -> None:
+    """PIT-1 regression: Iterator[bytes] must be joined before write_bytes."""
+    from src.ai_talent import voice_selector as vs
+
+    client = MagicMock()
+    chunks = [b"CHUNK_A_", b"CHUNK_B_", b"CHUNK_C"]
+
+    def fake_convert(**kwargs):
+        return iter(chunks)
+
+    client.text_to_speech.convert.side_effect = fake_convert
+    out_path = tmp_path / "joined.mp3"
+
+    vs.generate_reference_sample(
+        client=client,
+        voice_id="v",
+        text="hello",
+        out_path=out_path,
+        spend_file=spend_file,
+    )
+
+    assert out_path.read_bytes() == b"CHUNK_A_CHUNK_B_CHUNK_C"
 
 
-@pytest.mark.skip(reason="Wave 1 Plan 03 — batch generation per candidate")
-def test_generate_samples_for_candidate_writes_3_files() -> None:
+def test_generate_samples_for_candidate_writes_3_files(
+    tmp_path: Path, spend_file: Path
+) -> None:
     """generate_samples_for_candidate(voice_id, 3 texts) -> 3 mp3 files на диске."""
-    pass
+    from src.ai_talent import voice_selector as vs
+
+    client = _make_fake_client()
+    out_dir = tmp_path / "voice-reference"
+    voice_id = "EXAVITQu4vr4xnSDxMaL"
+
+    paths = vs.generate_samples_for_candidate(
+        voice_id=voice_id,
+        voice_name="Test",
+        texts=["Привет.", "Hello world.", "Test 3."],
+        out_dir=out_dir,
+        spend_file=spend_file,
+        client=client,
+    )
+
+    assert len(paths) == 3
+    assert all(p.exists() for p in paths)
+    assert client.text_to_speech.convert.call_count == 3
+
+    # Naming convention: {voice_id[:8]}_sampleN.mp3
+    expected_prefix = voice_id[:8]
+    for n, p in enumerate(paths, start=1):
+        assert p.name == f"{expected_prefix}_sample{n}.mp3"

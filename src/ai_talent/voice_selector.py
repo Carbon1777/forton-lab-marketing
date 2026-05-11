@@ -102,3 +102,90 @@ def search_ru_female_voices(
         if len(candidates) >= min_candidates:
             return candidates
     return last_result
+
+
+def generate_reference_sample(
+    client: Any,
+    voice_id: str,
+    text: str,
+    out_path: Path,
+    *,
+    spend_file: Path = DEFAULT_SPEND_FILE,
+    voice_settings: Any | None = None,
+) -> Path:
+    """Single ElevenLabs TTS call gated through BOOT-01.
+
+    Flow (order asserted by tests — Phase 9 W-001 carry-forward):
+      1. preflight_check("elevenlabs", est_cost_usd=len(text)*COST_PER_CHAR_USD)
+      2. client.text_to_speech.convert(voice_id, text, ...)
+      3. write joined Iterator[bytes] to disk (PIT-1 — b"".join)
+      4. record_provider_spend(..., units=len(text), unit_field="characters")
+
+    If preflight raises, no API call, no file write, no spend record — propagates.
+
+    voice_settings: optional VoiceSettings instance (Plan 04 passes Centry/Diktum
+    presets). When None, ElevenLabs falls back to voice default settings.
+    """
+    char_count = len(text)
+    est_cost_usd = char_count * COST_PER_CHAR_USD
+
+    # STEP 1: preflight (mandatory — BOOT-01)
+    preflight_check(spend_file, "elevenlabs", est_cost_usd)
+
+    # STEP 2: ElevenLabs API call — returns Iterator[bytes] (PIT-1)
+    convert_kwargs: dict[str, Any] = {
+        "voice_id": voice_id,
+        "text": text,
+        "model_id": MODEL_ID,
+        "output_format": OUTPUT_FORMAT,
+    }
+    if voice_settings is not None:
+        convert_kwargs["voice_settings"] = voice_settings
+    audio_iter = client.text_to_speech.convert(**convert_kwargs)
+
+    # STEP 3: persist (PIT-1 — Iterator joined before write)
+    audio_bytes = b"".join(audio_iter)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_bytes(audio_bytes)
+
+    # STEP 4: record spend (mandatory — BOOT-01, Phase 9 W-001 fix)
+    record_provider_spend(
+        spend_file,
+        "elevenlabs",
+        usd=est_cost_usd,
+        units=char_count,
+        unit_field="characters",
+    )
+    return out_path
+
+
+def generate_samples_for_candidate(
+    voice_id: str,
+    voice_name: str,
+    texts: list[str],
+    out_dir: Path = DEFAULT_REF_SAMPLES_DIR,
+    *,
+    spend_file: Path = DEFAULT_SPEND_FILE,
+    client: Any | None = None,
+    voice_settings: Any | None = None,
+) -> list[Path]:
+    """Generate N reference mp3 samples for one candidate voice.
+
+    Naming: {voice_id[:8]}_sample{N}.mp3 — matches Phase 8 compute_batch_sha8
+    8-char prefix convention for human-readable artifact names.
+    """
+    if client is None:
+        client = _make_client()
+    paths: list[Path] = []
+    for n, text in enumerate(texts, start=1):
+        out_path = out_dir / f"{voice_id[:8]}_sample{n}.mp3"
+        generate_reference_sample(
+            client,
+            voice_id,
+            text,
+            out_path,
+            spend_file=spend_file,
+            voice_settings=voice_settings,
+        )
+        paths.append(out_path)
+    return paths
