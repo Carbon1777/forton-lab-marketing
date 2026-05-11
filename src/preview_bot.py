@@ -1,4 +1,4 @@
-"""preview_bot — Phase 2 daily preview bot (PTB ConversationHandler).
+"""preview_bot — Phase 2 daily preview bot (global handlers, no ConversationHandler).
 
 Architecture (RESEARCH §«Daily Generator Architecture»):
     Cron */10 9-19 UTC (12-22 МСК) triggers preview_bot.yml. main() does:
@@ -7,26 +7,34 @@ Architecture (RESEARCH §«Daily Generator Architecture»):
     2. Если есть pending → build_application + run_polling 9-min window.
     3. Approve/Cancel callback → side-effect → stop_running() → workflow exits.
 
+Edit flow (Phase 2.5, без ConversationHandler):
+    PTB ConversationHandler.check_update требует update.effective_user, которого
+    нет у channel_post. Поэтому edit-сессия живёт в app.bot_data['pending_edits']
+    {chat_id: {slug, draft_path, expected_sha8, started_at,
+               preview_message_id, preview_chat_id}}; глобальные хендлеры
+    (CallbackQuery edit:, MessageHandler по channel_post, CommandHandler
+    /cancel_edit) читают/пишут этот dict, manual timeout check 600 сек.
+
 Threat-model anchors (T-2-01..05, T-2-08):
     T-2-01 — _check_owner is FIRST gate в каждом handler.
     T-2-02 — editMessageReplyMarkup(None) ДО любого side-effect; double-tap → BadRequest → bail.
     T-2-03 — sha8 в callback_data + _verify_draft_sha; TTL 24h pre-flight.
-    T-2-04 — brand-lint hard-fail catches от regen_one в handle_edit_text → stay в WAITING_EDIT.
+    T-2-04 — brand-lint hard-fail в handle_edit_text → state НЕ удаляется, юзер re-tries.
     T-2-05 — GenerationError catch в pre_flight → tg_nudge alert «Claude outage» → skip entry.
     T-2-08 — long caption (>1024) → _send_split_* fallback с warning.
 
 Public API:
-    main, build_application, build_edit_conversation,
+    main, build_application,
     pre_flight_generate, _classify_entry_state, _is_expired,
     _check_owner, _verify_draft_sha, _build_inline_kb, _draft_sha8,
     _send_preview_for_draft, _send_preview_text, _send_preview_photo,
     _send_preview_video, _send_preview_album, _send_split_photo, _send_split_video,
     _store_message_id, _alert_generation_failure,
     handle_publish_or_cancel, handle_edit_entry, handle_edit_text,
-    handle_edit_timeout, handle_edit_cancel,
+    handle_edit_cancel,
     _handle_publish, _handle_cancel, _handle_expired,
-    WAITING_EDIT, POLL_TIMEOUT_S, TTL_HOURS, MAX_TG_CAPTION, MAX_TG_VIDEO_BYTES,
-    MAX_CALLBACK_DATA_BYTES
+    POLL_TIMEOUT_S, TTL_HOURS, EDIT_TIMEOUT_S,
+    MAX_TG_CAPTION, MAX_TG_VIDEO_BYTES, MAX_CALLBACK_DATA_BYTES
 """
 from __future__ import annotations
 
@@ -35,6 +43,7 @@ import datetime as dt
 import os
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Final
 
@@ -51,9 +60,7 @@ from telegram.error import BadRequest
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
-    CommandHandler,
     ContextTypes,
-    ConversationHandler,
     Defaults,
     MessageHandler,
     filters,
@@ -82,9 +89,9 @@ from src.plan_writer import (
 
 POLL_TIMEOUT_S: Final[int] = 540   # 9 min; leaves 1-min headroom before GH 10-min cron tick
 TTL_HOURS: Final[int] = 24          # D-2-04 — draft auto-expire window
+EDIT_TIMEOUT_S: Final[int] = 600    # D-2-02 — 10-min edit window (manual timeout check)
 MAX_TG_CAPTION: Final[int] = 1024   # TG sendPhoto/sendVideo caption byte limit (chars approx)
 MAX_TG_VIDEO_BYTES: Final[int] = 50 * 1024 * 1024   # PUBLISHING_RULES §2 sendVideo
-WAITING_EDIT: Final[int] = 1        # ConversationHandler state for edit dialog
 MAX_CALLBACK_DATA_BYTES: Final[int] = 64   # TG hard limit
 PLANS_DIR_NAME: Final[str] = "plans"
 DRAFTS_DIR_NAME: Final[str] = "drafts"
@@ -451,7 +458,8 @@ def _resolve_draft_path(ctx, slug: str) -> Path:
 async def handle_publish_or_cancel(update: Update,
                                     ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Catch-all CallbackQueryHandler для publish: и cancel: patterns.
-    Edit: pattern owned by ConversationHandler entry_points (registered first)."""
+    Edit: pattern owned by separate CallbackQueryHandler(handle_edit_entry)
+    зарегистрированным раньше — этот handler пропускает edit: action."""
     query = update.callback_query
     await query.answer()
     if not await _check_owner(query, ctx):
@@ -470,7 +478,7 @@ async def handle_publish_or_cancel(update: Update,
         elif action == "cancel":
             await _handle_cancel(query, ctx, slug, draft_path)
         else:
-            return   # edit handled by ConversationHandler
+            return   # edit handled by separate CallbackQueryHandler
     except _SoftFail as exc:
         sys.stderr.write(f"INFO: soft-fail in {action}: {exc}\n")
         return
@@ -565,127 +573,138 @@ async def _handle_cancel(query, ctx, slug: str, draft_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# ConversationHandler — edit dialog (PREV-03, T-2-04)
+# Edit dialog — global handlers + bot_data state (PREV-03, T-2-04)
+#
+# Edit-сессия живёт в app.bot_data['pending_edits'][chat_id]:
+#     {slug, draft_path, expected_sha8, started_at,
+#      preview_message_id, preview_chat_id, original_kb}
+# Manual timeout check (now - started_at > EDIT_TIMEOUT_S) внутри handle_edit_text;
+# ConversationHandler не используется из-за PTB limit: check_update требует
+# update.effective_user, у channel_post он всегда None → handler не маршрутизируется.
 # ---------------------------------------------------------------------------
 
-def build_edit_conversation() -> ConversationHandler:
-    return ConversationHandler(
-        entry_points=[
-            CallbackQueryHandler(handle_edit_entry, pattern=r"^edit:"),
-        ],
-        states={
-            WAITING_EDIT: [
-                # TG различает message (личка/группа) и channel_post (канал).
-                # filters.UpdateType.MESSAGES = message + channel_post + business_*
-                # Без этого reply owner в канале «Планировщик» не доходит до handler.
-                MessageHandler(
-                    filters.UpdateType.MESSAGES & filters.TEXT & ~filters.COMMAND,
-                    handle_edit_text,
-                ),
-            ],
-            ConversationHandler.TIMEOUT: [
-                MessageHandler(filters.UpdateType.MESSAGES & filters.ALL,
-                               handle_edit_timeout),
-                CallbackQueryHandler(handle_edit_timeout, pattern=r".*"),
-            ],
-        },
-        fallbacks=[
-            CommandHandler("cancel_edit", handle_edit_cancel),
-        ],
-        conversation_timeout=600,   # 10 min per D-2-02 (requires JobQueue from Plan 01)
-        per_chat=True,
-        # per_user=False для канала: callback_query (от Правь) приносит real
-        # user_id (admin clicked button), а channel_post с правкой может
-        # прийти БЕЗ from_user (post as channel) → state mismatch если key
-        # включает user_id. На single-operator канале owner check в handler
-        # обеспечивает безопасность независимо.
-        per_user=False,
-        per_message=False,           # mixed entry types (CBQuery + MessageHandler)
-        allow_reentry=True,           # юзер может тапнуть «Правь» снова после timeout
-    )
+_EDIT_INVITE_TEXT: Final[str] = (
+    "✏️ <b>Что поправить?</b>\n"
+    "\n"
+    "Ответь на это сообщение текстом — Claude перепишет пост и пришлёт "
+    "новое preview с теми же кнопками.\n"
+    "\n"
+    "<b>Примеры правок:</b>\n"
+    "• <code>сделай короче</code>\n"
+    "• <code>убери эмодзи</code>\n"
+    "• <code>добавь акцент на бесплатность</code>\n"
+    "• <code>замени ссылку на diktumweb.ru</code>\n"
+    "• <code>убери последнее предложение</code>\n"
+    "\n"
+    "<i>Лимит 3 правки на пост · таймаут 10 мин · /cancel_edit чтобы вернуть кнопки</i>"
+)
+
+
+def _pending_edits(ctx: ContextTypes.DEFAULT_TYPE) -> dict:
+    """Lazy-init shared dict в bot_data."""
+    return ctx.application.bot_data.setdefault("pending_edits", {})
+
+
+def _edit_message(update: Update):
+    """Достать сообщение из update — channel_post или message. None если нет."""
+    return update.channel_post or update.message or update.effective_message
 
 
 async def handle_edit_entry(update: Update,
-                              ctx: ContextTypes.DEFAULT_TYPE) -> int:
-    """User tapped ✏️ Правь — strip buttons, prompt edit text, enter WAITING_EDIT."""
+                              ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """User tapped ✏️ Правь — strip buttons, prompt edit text, save state в bot_data."""
     query = update.callback_query
     await query.answer()
     if not await _check_owner(query, ctx):
-        return ConversationHandler.END
+        return
 
     m = _CALLBACK_DATA_RE.match(query.data or "")
     if not m or m.group(1) != "edit":
-        return ConversationHandler.END
+        return
     _, slug, sha8 = m.group(1), m.group(2), m.group(3)
 
     draft_path = _resolve_draft_path(ctx, slug)
     if not await _verify_draft_sha(query, draft_path, sha8):
-        return ConversationHandler.END
+        return
 
     try:
         await query.edit_message_reply_markup(reply_markup=None)
     except BadRequest:
-        return ConversationHandler.END   # already handled
+        return   # already handled
 
-    # Stash для timeout restore + edit text handling
-    ctx.user_data["edit_slug"] = slug
-    ctx.user_data["edit_draft_path"] = str(draft_path)
-    ctx.user_data["edit_preview_message_id"] = query.message.message_id
-    ctx.user_data["edit_preview_chat_id"] = query.message.chat_id
-    ctx.user_data["edit_original_kb"] = _build_inline_kb(slug, sha8)
+    preview_chat_id = query.message.chat_id
+    _pending_edits(ctx)[preview_chat_id] = {
+        "slug": slug,
+        "draft_path": str(draft_path),
+        "expected_sha8": sha8,
+        "started_at": time.time(),
+        "preview_message_id": query.message.message_id,
+        "preview_chat_id": preview_chat_id,
+    }
 
-    await query.message.reply_text(
-        "✏️ <b>Что поправить?</b>\n"
-        "\n"
-        "Ответь на это сообщение текстом — Claude перепишет пост и пришлёт "
-        "новое preview с теми же кнопками.\n"
-        "\n"
-        "<b>Примеры правок:</b>\n"
-        "• <code>сделай короче</code>\n"
-        "• <code>убери эмодзи</code>\n"
-        "• <code>добавь акцент на бесплатность</code>\n"
-        "• <code>замени ссылку на diktumweb.ru</code>\n"
-        "• <code>убери последнее предложение</code>\n"
-        "\n"
-        "<i>Лимит 3 правки на пост · таймаут 10 мин · /cancel_edit чтобы вернуть кнопки</i>",
-        parse_mode=ParseMode.HTML,
-    )
-    return WAITING_EDIT
+    await query.message.reply_text(_EDIT_INVITE_TEXT, parse_mode=ParseMode.HTML)
+
+
+async def _restore_buttons_for_state(ctx: ContextTypes.DEFAULT_TYPE,
+                                       state: dict, reason: str) -> None:
+    """Restore inline keyboard на старом preview + notify в чате."""
+    try:
+        await ctx.bot.edit_message_reply_markup(
+            chat_id=state["preview_chat_id"],
+            message_id=state["preview_message_id"],
+            reply_markup=_build_inline_kb(state["slug"], state["expected_sha8"]),
+        )
+    except Exception as exc:
+        sys.stderr.write(f"WARN: restore buttons failed: {exc!r}\n")
+    try:
+        await ctx.bot.send_message(
+            chat_id=state["preview_chat_id"],
+            text=reason,
+            parse_mode=ParseMode.HTML,
+        )
+    except Exception as exc:
+        sys.stderr.write(f"WARN: restore notify failed: {exc!r}\n")
 
 
 async def handle_edit_text(update: Update,
-                             ctx: ContextTypes.DEFAULT_TYPE) -> int:
-    """User sent edit instruction — call regen, validate, send new preview.
+                             ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Global handler — ловит все text сообщения в окне edit-сессии.
 
-    `effective_message` обрабатывает оба случая: личка/группа (Update.message)
-    и канал (Update.channel_post). В канале from_user может быть None если
-    юзер пишет «как канал», тогда фоллбэк на sender_chat.id (== owner_chat_id
-    для admin-постов).
+    Filter в build_application ограничивает до channel_post & TEXT & ~COMMAND,
+    но в тестах update.message тоже поддерживается (см. _edit_message).
     """
-    # update.message в личке/группе, update.channel_post в канале
-    msg = update.message or update.channel_post
-    sys.stderr.write(
-        f"DEBUG handle_edit_text: msg_type="
-        f"{'message' if update.message else ('channel_post' if update.channel_post else 'none')} "
-        f"text={(msg.text[:30] if msg and msg.text else None)!r}\n"
-    )
+    msg = _edit_message(update)
     if msg is None or not msg.text:
-        sys.stderr.write("DEBUG: msg empty → WAITING_EDIT\n")
-        return WAITING_EDIT
-    owner = ctx.application.bot_data["owner_chat_id"]
+        return
+
+    chat_id = msg.chat_id
+    pending = _pending_edits(ctx)
+    state = pending.get(chat_id)
+    if state is None:
+        return   # not in edit mode — silent ignore
+
+    # Manual timeout check (no JobQueue)
+    if time.time() - state["started_at"] > EDIT_TIMEOUT_S:
+        pending.pop(chat_id, None)
+        await _restore_buttons_for_state(
+            ctx, state,
+            "⏰ <b>Таймаут правок (10 мин)</b>. Кнопки возвращены.",
+        )
+        return
+
+    # Owner check: на single-operator канале запись приходит без from_user
+    # ("as channel"). state существует только для preview_chat_id (заведён
+    # после owner-prove callback от ✏️ Правь) → факт наличия state и
+    # совпадения chat_id уже доказывает что говорим с owner. Дополнительно
+    # принимаем личку от owner если sender_id == owner_user_id.
+    owner_user_id = ctx.application.bot_data["owner_chat_id"]
     preview_chat = ctx.application.bot_data.get("preview_chat_id")
     sender_id = msg.from_user.id if msg.from_user else None
-    chat_id = msg.chat_id
-    sys.stderr.write(
-        f"DEBUG owner check: sender_id={sender_id} owner={owner} "
-        f"chat_id={chat_id} preview_chat={preview_chat}\n"
-    )
-    if sender_id != owner and chat_id != preview_chat:
-        sys.stderr.write("DEBUG: owner check failed → WAITING_EDIT\n")
-        return WAITING_EDIT
+    if chat_id != preview_chat and sender_id != owner_user_id:
+        return   # foreign chat — leave state intact
 
-    instruction = msg.text or ""
-    draft_path = Path(ctx.user_data.get("edit_draft_path", ""))
+    instruction = msg.text
+    draft_path = Path(state["draft_path"])
     spend_file = ctx.application.bot_data["spend_file"]
     repo_root = ctx.application.bot_data["repo_root"]
 
@@ -711,7 +730,7 @@ async def handle_edit_text(update: Update,
             )
         except Exception:
             pass
-        return WAITING_EDIT   # T-2-04: stay в state, юзер re-tries
+        return   # T-2-04: state stays, юзер re-tries
     except GenerationError as exc:
         msg_str = str(exc)
         if "regen limit" in msg_str:
@@ -722,7 +741,8 @@ async def handle_edit_text(update: Update,
                 )
             except Exception:
                 pass
-            return ConversationHandler.END
+            pending.pop(chat_id, None)
+            return
         try:
             await progress.edit_text(
                 f"⚠️ Regen fail: <code>{msg_str[:200]}</code>",
@@ -730,7 +750,7 @@ async def handle_edit_text(update: Update,
             )
         except Exception:
             pass
-        return WAITING_EDIT
+        return   # state stays, юзер re-tries
     except BudgetExceededError as exc:
         try:
             await progress.edit_text(
@@ -739,9 +759,10 @@ async def handle_edit_text(update: Update,
             )
         except Exception:
             pass
-        return ConversationHandler.END
+        pending.pop(chat_id, None)
+        return
 
-    # Success — send new preview with updated sha8
+    # Success — send new preview with updated sha8, clear state
     new_sha8 = _draft_sha8(draft_path)
     try:
         await progress.delete()
@@ -750,39 +771,29 @@ async def handle_edit_text(update: Update,
 
     await _send_preview_for_draft(
         ctx.bot,
-        ctx.user_data["edit_preview_chat_id"],
+        state["preview_chat_id"],
         draft_path,
         new_sha8,
         repo_root,
     )
-    return ConversationHandler.END
-
-
-async def handle_edit_timeout(update: Update,
-                                ctx: ContextTypes.DEFAULT_TYPE) -> int:
-    """10-min timeout — restore original buttons на старый preview, exit dialog."""
-    chat_id = ctx.user_data.get("edit_preview_chat_id")
-    msg_id = ctx.user_data.get("edit_preview_message_id")
-    kb = ctx.user_data.get("edit_original_kb")
-    if chat_id and msg_id and kb:
-        try:
-            await ctx.bot.edit_message_reply_markup(
-                chat_id=chat_id, message_id=msg_id, reply_markup=kb,
-            )
-            await ctx.bot.send_message(
-                chat_id=chat_id,
-                text="⏰ <b>Таймаут правок (10 мин)</b>. Кнопки возвращены.",
-                parse_mode=ParseMode.HTML,
-            )
-        except Exception as exc:
-            sys.stderr.write(f"WARN: timeout restore failed: {exc!r}\n")
-    return ConversationHandler.END
+    pending.pop(chat_id, None)
 
 
 async def handle_edit_cancel(update: Update,
-                               ctx: ContextTypes.DEFAULT_TYPE) -> int:
-    """/cancel_edit — same as timeout but immediate."""
-    return await handle_edit_timeout(update, ctx)
+                               ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/cancel_edit — restore buttons на старом preview + exit edit-mode."""
+    msg = _edit_message(update)
+    if msg is None:
+        return
+    chat_id = msg.chat_id
+    pending = _pending_edits(ctx)
+    state = pending.pop(chat_id, None)
+    if state is None:
+        return   # not in edit mode — silent
+    await _restore_buttons_for_state(
+        ctx, state,
+        "↩️ <b>Правки отменены</b>. Кнопки возвращены.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -949,10 +960,14 @@ async def pre_flight_generate(app: Application | None, ctx_dict: dict) -> dict:
 
 
 def build_application(token: str) -> Application:
-    """Build PTB Application with ConversationHandler + catch-all CallbackQueryHandler.
+    """Build PTB Application с глобальными хендлерами (no ConversationHandler).
 
-    Order matters: ConversationHandler FIRST so its entry_points (pattern=^edit:)
-    catch edit callbacks; catch-all handler routes publish:/cancel:.
+    Порядок: (1) edit-CallbackQuery FIRST, чтобы edit: callback не съел catch-all;
+    (2) /cancel_edit как MessageHandler+Regex (CommandHandler по умолчанию не
+    срабатывает в каналах); (3) handle_edit_text по channel_post & TEXT;
+    (4) catch-all CallbackQuery для publish:/cancel:.
+
+    State edit-сессии живёт в app.bot_data['pending_edits'] dict (init на пустой).
     """
     defaults = Defaults(parse_mode=ParseMode.HTML, disable_web_page_preview=True)
     app = (
@@ -962,7 +977,24 @@ def build_application(token: str) -> Application:
         .concurrent_updates(False)   # single-operator — no need for parallel updates
         .build()
     )
-    app.add_handler(build_edit_conversation())
+    app.bot_data["pending_edits"] = {}
+
+    # 1. ✏️ Правь — entry в edit-сессию
+    app.add_handler(CallbackQueryHandler(handle_edit_entry, pattern=r"^edit:"))
+
+    # 2. /cancel_edit — работает и в личке, и в канале
+    app.add_handler(MessageHandler(
+        filters.UpdateType.MESSAGES & filters.Regex(r"^/cancel_edit(\s|$|@)"),
+        handle_edit_cancel,
+    ))
+
+    # 3. Текст правки — глобальный handler, ловит channel_post или message
+    app.add_handler(MessageHandler(
+        filters.UpdateType.MESSAGES & filters.TEXT & ~filters.COMMAND,
+        handle_edit_text,
+    ))
+
+    # 4. Catch-all для publish:/cancel: (registered last)
     app.add_handler(CallbackQueryHandler(handle_publish_or_cancel))
     return app
 
