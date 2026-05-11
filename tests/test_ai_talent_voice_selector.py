@@ -31,6 +31,38 @@ def _make_fake_client(captured: list | None = None) -> MagicMock:
     return client
 
 
+def _make_fake_voices_client(responses: list) -> MagicMock:
+    """Mimic ElevenLabs client.voices.get_shared returning preset responses sequentially.
+
+    responses: list of (n_voices, override_dict_for_each_voice).
+    """
+    client = MagicMock()
+    calls: list[dict] = []
+
+    def fake_get_shared(**kwargs):
+        calls.append(kwargs)
+        idx = min(len(calls) - 1, len(responses) - 1)
+        n_voices, override = responses[idx]
+        mock_response = MagicMock()
+        mock_response.voices = []
+        for i in range(n_voices):
+            v = MagicMock()
+            v.voice_id = f"vid_{idx}_{i}"
+            v.name = f"voice_{idx}_{i}"
+            v.accent = override.get("accent", "russian")
+            v.age = override.get("age", "young")
+            v.descriptive = override.get("descriptive", "warm")
+            v.labels = {}
+            v.public_owner_id = f"owner_{idx}"
+            v.preview_url = f"https://preview/{i}"
+            mock_response.voices.append(v)
+        return mock_response
+
+    client.voices.get_shared.side_effect = fake_get_shared
+    client._calls = calls
+    return client
+
+
 @pytest.fixture
 def spend_file(tmp_path: Path) -> Path:
     metrics = tmp_path / ".metrics"
@@ -48,22 +80,56 @@ def spend_file(tmp_path: Path) -> Path:
 # ============================================================================
 
 
-@pytest.mark.skip(reason="Wave 1 Plan 02 will implement voice_selector.search_ru_female_voices")
 def test_search_returns_ru_female_voices() -> None:
     """search_ru_female_voices() returns >=3 voices через get_shared fallback chain."""
-    pass
+    from src.ai_talent import voice_selector as vs
+
+    client = _make_fake_voices_client([(5, {})])
+    result = vs.search_ru_female_voices(client=client, min_candidates=3)
+
+    assert len(result) == 5
+    assert all("voice_id" in v for v in result)
+    assert all("public_owner_id" in v for v in result)
+    assert client.voices.get_shared.call_count == 1
 
 
-@pytest.mark.skip(reason="Wave 1 Plan 02 will implement voice_selector fallback chain")
 def test_search_fallback_when_filters_too_strict() -> None:
     """Если первая попытка <3 voices, fallback на менее строгие filters (PIT-4)."""
-    pass
+    from src.ai_talent import voice_selector as vs
+
+    client = _make_fake_voices_client([(1, {}), (2, {}), (5, {}), (0, {})])
+    result = vs.search_ru_female_voices(client=client, min_candidates=3)
+
+    assert len(result) == 5
+    assert client.voices.get_shared.call_count == 3
+    calls = client._calls
+    assert calls[0].get("category") == "professional"
+    assert "category" not in calls[1]
+    assert calls[2].get("locale") == "ru-RU"
 
 
-@pytest.mark.skip(reason="Wave 1 Plan 02 voice_selector should NOT call preflight (search free)")
-def test_search_does_not_call_preflight() -> None:
+def test_search_does_not_call_preflight(monkeypatch) -> None:
     """voices.get_shared() — free на Starter+ tier; не gated через spend tracker."""
-    pass
+    from src.ai_talent import voice_selector as vs
+
+    preflight_mock = MagicMock()
+    monkeypatch.setattr(vs, "preflight_check", preflight_mock)
+
+    client = _make_fake_voices_client([(3, {})])
+    vs.search_ru_female_voices(client=client)
+
+    assert preflight_mock.call_count == 0
+
+
+def test_make_client_refuses_free_tier(monkeypatch) -> None:
+    """_make_client must raise TierMissingError if ELEVENLABS_TIER != paid."""
+    from src.elevenlabs_tier import TierMissingError
+    from src.ai_talent import voice_selector as vs
+
+    monkeypatch.setenv("ELEVENLABS_TIER", "free")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "test")
+    with pytest.raises(TierMissingError):
+        vs._make_client()
 
 
 # ============================================================================
@@ -88,12 +154,6 @@ def test_preflight_runs_before_api_call_and_blocks_on_cap() -> None:
 def test_iterator_joined_before_write() -> None:
     """Iterator[bytes] from convert() must be joined via b''.join() — file must be
     non-zero bytes, not the repr of an iterator."""
-    pass
-
-
-@pytest.mark.skip(reason="Wave 1 Plan 03 — BOOT-02 tier gate")
-def test_make_client_refuses_free_tier(monkeypatch) -> None:
-    """_make_client must raise TierMissingError if ELEVENLABS_TIER != paid."""
     pass
 
 
