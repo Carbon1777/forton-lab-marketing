@@ -1,7 +1,7 @@
 schema_version: 1
 character_id: forton-lab-mascot-v1
 created_at: '2026-05-10'
-updated_at: '2026-05-10T22:55:18.900562+00:00'
+updated_at: '2026-05-11T15:57:53.292427+00:00'
 brief:
   gender: female
   age_range: 25-28
@@ -47,18 +47,34 @@ lora:
     rank: 16
     trainer_version: 26dce37af90b9d997eeb970d92e47de3064d46c300504ae376c75bef6a9022d2
 voice:
-  status: pending
+  status: ready
   provider: elevenlabs
-  voice_id: null
-  voice_settings:
-    stability: null
-    similarity_boost: null
-    style: null
+  voice_id: GN4wbsbejSnGSa1AzjH5
+  voice_name: Ekaterina - Soft, Silky and Tender
   language: ru
-  sample_url: null
-  splits:
-    centry: null
-    diktum: null
+  model_id: eleven_multilingual_v2
+  output_format: mp3_44100_128
+  reference_samples:
+  - assets/voice-reference/ekaterina_01_neutral.mp3
+  - assets/voice-reference/ekaterina_02_centry.mp3
+  - assets/voice-reference/ekaterina_03_diktum.mp3
+  voice_settings:
+    centry:
+      stability: 0.4
+      similarity_boost: 0.75
+      style: 0.0
+    diktum:
+      stability: 0.7
+      similarity_boost: 0.75
+      style: 0.0
+  text_cues_supported:
+  - ellipsis_pause
+  - exclamation_emphasis
+  - em_dash_emphasis
+  - question_uptick
+  - caps_emphasis
+  locked_at: '2026-05-11T15:57:53.292427+00:00'
+  locked_by: user@cowork-2026-05-11
 history:
 - phase: 8
   event: created
@@ -72,3 +88,7 @@ history:
   event: lora_trained
   at: '2026-05-10T22:55:18.900562+00:00'
   note: carbon1777/forton-lab-character-v1:5d950b9d38b55d13c5ebf1ed2a086f269a3663b9e9244b82b6984bf79ffb3ca1
+- phase: 10
+  event: voice_locked
+  at: '2026-05-11T15:57:53.292427+00:00'
+  note: elevenlabs:GN4wbsbejSnGSa1AzjH5 (Ekaterina - Soft, Silky and Tender)
