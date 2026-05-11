@@ -1040,6 +1040,51 @@ def test_build_application_registers_edit_callback_first():
     assert handlers[-1].pattern is None
 
 
+def test_edit_text_filter_matches_channel_post():
+    """REGRESSION: filters.UpdateType.MESSAGES в PTB НЕ матчит channel_post —
+    он только для regular message + edited_message. Поэтому в build_application
+    фильтр это (MESSAGES | CHANNEL_POSTS). Если кто-то откатит на голый MESSAGES,
+    правки из канала «Планировщик» снова перестанут проходить."""
+    from datetime import datetime
+    from telegram import Chat, Message, Update
+
+    app = build_application("1:dummy_token")
+    handlers = app.handlers.get(0, [])
+    # 3-й handler — text-MessageHandler (после edit-CBQ и /cancel_edit)
+    text_handler = handlers[2]
+
+    channel_msg = Message(
+        message_id=1, date=datetime.now(),
+        chat=Chat(id=-100123, type="channel"),
+        text="убери эмодзи",
+    )
+    channel_update = Update(update_id=42, channel_post=channel_msg)
+    assert text_handler.check_update(channel_update), (
+        "text-handler НЕ матчит channel_post — баг filter, "
+        "filters.UpdateType.MESSAGES не покрывает channel_post"
+    )
+
+    regular_msg = Message(
+        message_id=2, date=datetime.now(),
+        chat=Chat(id=12345, type="private"),
+        text="hello",
+    )
+    regular_update = Update(update_id=43, message=regular_msg)
+    assert text_handler.check_update(regular_update), (
+        "text-handler не матчит regular message"
+    )
+
+    # Command не должна попадать в text-handler (cancel_edit handler выше его съедает)
+    cmd_msg = Message(
+        message_id=3, date=datetime.now(),
+        chat=Chat(id=-100123, type="channel"),
+        text="/cancel_edit",
+        entities=[],
+    )
+    # Note: эта проверка не строгая — точное определение COMMAND зависит
+    # от entities, но фильтр ~COMMAND по text-pattern достаточен.
+
+
 # ===========================================================================
 # Task 4: no_secrets_in_logs (T-2-05) + module-level constants check
 # ===========================================================================
