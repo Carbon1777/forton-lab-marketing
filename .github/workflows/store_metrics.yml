@@ -1,0 +1,78 @@
+name: store_metrics
+
+# Phase 5 — Weekly store metrics digest.
+# Cron Пн 06:37 UTC = 09:37 МСК (defends MAJ-1 — cron drift mitigation:
+# на ровные часы у GH Actions cron throttling, sub-hour offset стабильнее).
+#
+# Self-heal: дополнительный cron Сб 12:00 UTC проверяет .metrics/store_snapshots.json
+# last update; если >9 дней — повторный trigger digest + alert.
+
+on:
+  schedule:
+    - cron: "37 6 * * 1"
+    - cron: "0 12 * * 6"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # commit snapshot JSON в repo
+
+concurrency:
+  group: store-metrics
+  cancel-in-progress: false
+
+jobs:
+  collect-and-send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.BOT_DISPATCH_PAT }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Collect + render + send digest
+        env:
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+          # Apple ASC (set when secrets ready)
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_APP_ID_CENTRY: ${{ secrets.ASC_APP_ID_CENTRY }}
+          ASC_APP_ID_DIKTUM: ${{ secrets.ASC_APP_ID_DIKTUM }}
+          # Google Play
+          GOOGLE_PLAY_SA_JSON: ${{ secrets.GOOGLE_PLAY_SA_JSON }}
+          PLAY_PACKAGE_CENTRY: ${{ secrets.PLAY_PACKAGE_CENTRY }}
+          PLAY_PACKAGE_DIKTUM: ${{ secrets.PLAY_PACKAGE_DIKTUM }}
+          # RuStore
+          RUSTORE_PRIVATE_KEY: ${{ secrets.RUSTORE_PRIVATE_KEY }}
+          RUSTORE_KEY_ID: ${{ secrets.RUSTORE_KEY_ID }}
+          RUSTORE_APP_ID_CENTRY: ${{ secrets.RUSTORE_APP_ID_CENTRY }}
+          RUSTORE_APP_ID_DIKTUM: ${{ secrets.RUSTORE_APP_ID_DIKTUM }}
+        run: PYTHONPATH=. python -m src.store_metrics.cli
+
+      - name: Commit updated snapshots
+        env:
+          GIT_AUTHOR_NAME: forton-metrics-bot
+          GIT_AUTHOR_EMAIL: forton-metrics-bot@users.noreply.github.com
+          GIT_COMMITTER_NAME: forton-metrics-bot
+          GIT_COMMITTER_EMAIL: forton-metrics-bot@users.noreply.github.com
+        run: |
+          if git diff --quiet .metrics/store_snapshots.json 2>/dev/null; then
+            echo "snapshot unchanged — no commit"
+            exit 0
+          fi
+          git add .metrics/store_snapshots.json
+          git commit -m "auto: weekly store metrics snapshot [skip ci]"
+          git pull --rebase
+          git push
