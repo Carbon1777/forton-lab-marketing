@@ -1002,19 +1002,26 @@ def build_application(token: str) -> Application:
     # 1. ✏️ Правь — entry в edit-сессию
     app.add_handler(CallbackQueryHandler(handle_edit_entry, pattern=r"^edit:"))
 
+    # КРИТИЧНО: в PTB filters.UpdateType.MESSAGES ИСКЛЮЧИТЕЛЬНО для
+    # update.message + update.edited_message (НЕ channel_post). Для каналов
+    # есть отдельный filters.UpdateType.CHANNEL_POSTS (channel_post +
+    # edited_channel_post). Без OR обоих фильтров правка в канале
+    # «Планировщик» не доходит до handler. Это была регрессия PR #40/#46.
+    _msg_or_channel = (
+        filters.UpdateType.MESSAGES | filters.UpdateType.CHANNEL_POSTS
+    )
+
     # 2. /cancel_edit — работает и в личке, и в канале
     app.add_handler(MessageHandler(
-        filters.UpdateType.MESSAGES & filters.Regex(r"^/cancel_edit(\s|$|@)"),
+        _msg_or_channel & filters.Regex(r"^/cancel_edit(\s|$|@)"),
         handle_edit_cancel,
     ))
 
     # 3. Текст правки — глобальный handler, ловит channel_post или message.
-    # ВАЖНО: filters.TEXT в PTB предназначен для регулярных messages и НЕ
-    # матчит channel_post — реальная регрессия PR #46. Поэтому фильтр без
-    # TEXT, а проверка text-payload делается внутри handle_edit_text.
-    # ~filters.COMMAND отсекает /cancel_edit обработанный выше.
+    # filters.TEXT тоже channel-post-blind, поэтому фильтра по TEXT нет —
+    # проверка msg.text делается внутри handle_edit_text.
     app.add_handler(MessageHandler(
-        filters.UpdateType.MESSAGES & ~filters.COMMAND,
+        _msg_or_channel & ~filters.COMMAND,
         handle_edit_text,
     ))
 
