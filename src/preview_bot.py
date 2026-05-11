@@ -106,15 +106,22 @@ def _today_msk() -> dt.date:
 
     На локальном маке (TZ=МСК) — `dt.date.today()` уже МСК.
     На GH Actions runner (TZ=UTC) — `dt.date.today()` показывает UTC; если
-    сейчас ≥21:00 UTC (= ≥00:00 МСК следующего дня), сдвигаем на +1 день
-    чтобы юзер увидел запись плана на «сегодня по МСК».
+    сейчас ≥21:00 UTC (= ≥00:00 МСК следующего дня) И это manual trigger,
+    сдвигаем на +1 день — нужно для workflow_dispatch в 03:00 МСК чтобы
+    юзер мог триггерить ночью на «сегодняшний» (МСК) пост.
 
-    Detect runner через GITHUB_ACTIONS env (set always на GH runners).
-    Это позволяет тестам patch'ить `dt.date.today` как раньше — их код
-    не отличает runner от локала.
+    КРИТИЧНО: для schedule events hack ВЫКЛЮЧЕН. Incident 2026-05-11
+    показал что GH Actions back-fills пропущенный cron-тик может прийти
+    в 21:03 UTC → hack сдвигал date → preview прилетал в полночь МСК
+    на завтрашнюю запись. Теперь back-fill schedule в 21:00+ UTC видит
+    UTC date и exit'ит т.к. вчерашняя запись уже published/skipped.
+
+    Detect runner через GITHUB_ACTIONS env; event type — GITHUB_EVENT_NAME.
+    Тесты patch'ат `dt.date.today` — env var-ы не выставляют, hack не сработает.
     """
     today = dt.date.today()
-    if os.environ.get("GITHUB_ACTIONS") == "true":
+    if (os.environ.get("GITHUB_ACTIONS") == "true"
+            and os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"):
         # tz-aware UTC now (Python 3.12+ deprecated utcnow())
         if dt.datetime.now(dt.timezone.utc).hour >= 21:
             today = today + dt.timedelta(days=1)
@@ -1118,10 +1125,17 @@ def main() -> None:
         f"entering polling for {POLL_TIMEOUT_S}s\n"
     )
     # PTB run_polling сам управляет loop: использует текущий (который мы set_event_loop).
+    # drop_pending_updates=True: callbacks queued между cron-окнами (бот спит
+    # 22:00 UTC - 09:00 UTC) НЕ обрабатываются на следующий тик. Incident
+    # 2026-05-11: юзер нажал Отмена ночью когда бот не запущен, callback
+    # сидел в TG-очереди до 12:00 МСК — следующий cron обработал бы и убил
+    # запись со skipped. drop_pending_updates=True исключает stale callbacks
+    # из out-of-window периода. Активные callbacks внутри текущего polling-
+    # окна (между .run_polling и stop_running) обрабатываются как раньше.
     app.run_polling(
         timeout=POLL_TIMEOUT_S,
         allowed_updates=["callback_query", "message", "channel_post"],
-        drop_pending_updates=False,
+        drop_pending_updates=True,
     )
 
 
