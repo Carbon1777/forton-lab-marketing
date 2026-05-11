@@ -16,7 +16,7 @@ import re
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 import yaml
 
@@ -27,6 +27,19 @@ CHARACTER_ID = "forton-lab-mascot-v1"
 TRIGGER_WORD_LOCKED = "OHWX_FORTONA"  # NEVER rename across phases
 VALID_VARIANTS = ("variant_1", "variant_2", "variant_3")
 EXPECTED_FRAME_COUNT = 12  # 3 variants × 4 frames
+
+# Phase 10 — voice block invariants
+VOICE_PROVIDER_LOCKED: Final[str] = "elevenlabs"
+VOICE_LANGUAGE_LOCKED: Final[str] = "ru"
+VOICE_MODEL_LOCKED: Final[str] = "eleven_multilingual_v2"
+# Whitelist of supported emotional text-cue patterns (VOICE-03)
+VOICE_TEXT_CUES_SUPPORTED: Final[tuple[str, ...]] = (
+    "ellipsis_pause",        # ... → pause + hesitation
+    "exclamation_emphasis",  # ! → energy / emphasis
+    "em_dash_emphasis",      # — → short pause
+    "question_uptick",       # ? → uptick intonation
+    "caps_emphasis",         # CAPS → word emphasis
+)
 
 DEFAULT_MANIFEST_PATH = Path("ai_talent/character.yaml")
 DEFAULT_FRAME_ROOT = Path(".cache/character_preview/v1")
@@ -44,6 +57,20 @@ class LoraTriggerMismatchError(RuntimeError):
     it would invalidate the model. Raised BEFORE any mutation, so manifest on
     disk is left untouched.
     """
+
+
+class VoiceLockedError(RuntimeError):
+    """voice.status already 'ready' — refuse re-lock.
+
+    Defense against accidental voice swap: once a voice_id is locked and
+    reference samples are committed, downstream pipeline relies on this exact
+    voice. Silently switching would invalidate studio-mascot consistency.
+    Raised BEFORE any mutation, so manifest on disk is left untouched.
+    """
+
+
+class VoiceProviderMismatchError(RuntimeError):
+    """provider != VOICE_PROVIDER_LOCKED ('elevenlabs'). Raised BEFORE write."""
 
 
 # SHA detector: accepts 12–64 hex chars at end of string (or bare).
@@ -286,13 +313,93 @@ def write_lora_ready(
     return data
 
 
+def write_voice_ready(
+    yaml_path: Path,
+    *,
+    voice_id: str,
+    voice_name: str,
+    language: str,
+    reference_samples: list[str],
+    settings_centry: dict[str, float],
+    settings_diktum: dict[str, float],
+    model_id: str = VOICE_MODEL_LOCKED,
+    provider: str = VOICE_PROVIDER_LOCKED,
+    locked_by: str | None = None,
+) -> dict[str, Any]:
+    """Phase 10 mutation: lock chosen voice into character.yaml.voice.
+
+    Pre-write invariants (raise BEFORE any disk mutation):
+      * provider != VOICE_PROVIDER_LOCKED → VoiceProviderMismatchError
+      * language != VOICE_LANGUAGE_LOCKED → ValueError
+      * len(reference_samples) ∉ [3..5] → ValueError (VOICE-01 spec)
+      * existing voice.status == "ready" → VoiceLockedError (re-lock prevention)
+
+    Post-write invariants (asserted by tests):
+      * phase_8, lora, brief blocks remain byte-equal after this call (additivity)
+      * Atomic write via _atomic_write_yaml (tempfile + os.replace)
+      * history entry {phase: 10, event: voice_locked, at: now, note: <voice_id>}
+
+    Returns the mutated manifest dict (post-write state).
+    """
+    if provider != VOICE_PROVIDER_LOCKED:
+        raise VoiceProviderMismatchError(
+            f"provider must remain {VOICE_PROVIDER_LOCKED!r}; got {provider!r}"
+        )
+    if language != VOICE_LANGUAGE_LOCKED:
+        raise ValueError(
+            f"language must be {VOICE_LANGUAGE_LOCKED!r}; got {language!r}"
+        )
+    if not (3 <= len(reference_samples) <= 5):
+        raise ValueError(
+            f"reference_samples count must be 3-5 (VOICE-01); "
+            f"got {len(reference_samples)}"
+        )
+
+    data = read_manifest(yaml_path)
+    if data.get("voice", {}).get("status") == "ready":
+        raise VoiceLockedError(
+            f"voice already locked (voice_id="
+            f"{data['voice'].get('voice_id')!r}); refuse re-lock"
+        )
+
+    now = dt.datetime.now(dt.timezone.utc).isoformat()
+    data["updated_at"] = now
+    data["voice"] = {
+        "status": "ready",
+        "provider": VOICE_PROVIDER_LOCKED,
+        "voice_id": voice_id,
+        "voice_name": voice_name,
+        "language": VOICE_LANGUAGE_LOCKED,
+        "model_id": model_id,
+        "output_format": "mp3_44100_128",
+        "reference_samples": list(reference_samples),
+        "voice_settings": {
+            "centry": dict(settings_centry),
+            "diktum": dict(settings_diktum),
+        },
+        "text_cues_supported": list(VOICE_TEXT_CUES_SUPPORTED),
+        "locked_at": now,
+        "locked_by": locked_by,
+    }
+    data.setdefault("history", []).append(
+        {
+            "phase": 10,
+            "event": "voice_locked",
+            "at": now,
+            "note": f"{VOICE_PROVIDER_LOCKED}:{voice_id} ({voice_name})",
+        }
+    )
+    _atomic_write_yaml(yaml_path, data)
+    return data
+
+
 def _cli(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="character.yaml writer (Phase 8 + Phase 9)")
+    ap = argparse.ArgumentParser(description="character.yaml writer (Phase 8 + 9 + 10)")
     ap.add_argument(
         "--mode",
-        choices=["selection", "lora-ready"],
+        choices=["selection", "lora-ready", "voice-ready"],
         default="selection",
-        help="selection (Phase 8) | lora-ready (Phase 9)",
+        help="selection (Phase 8) | lora-ready (Phase 9) | voice-ready (Phase 10)",
     )
     # Phase 8 (selection) args — backward compat
     ap.add_argument("--selected", choices=list(VALID_VARIANTS))
@@ -322,6 +429,24 @@ def _cli(argv: list[str] | None = None) -> int:
         default="ai_talent/dataset/v1",
         help="lora-ready: relative path to training dataset directory",
     )
+    # Phase 10 (voice-ready) args
+    ap.add_argument("--voice-id", help="voice-ready: ElevenLabs voice_id")
+    ap.add_argument("--voice-name", help="voice-ready: human-readable name")
+    ap.add_argument(
+        "--reference-samples",
+        nargs="+",
+        help="voice-ready: 3-5 relative mp3 paths",
+    )
+    ap.add_argument(
+        "--settings-centry",
+        help="voice-ready: JSON {stability, similarity_boost, style}",
+    )
+    ap.add_argument(
+        "--settings-diktum",
+        help="voice-ready: JSON {stability, similarity_boost, style}",
+    )
+    ap.add_argument("--language", default="ru", help="voice-ready: must equal 'ru'")
+    ap.add_argument("--locked-by", default=None, help="voice-ready: who locked")
     # Shared
     ap.add_argument("--yaml-path", default=str(DEFAULT_MANIFEST_PATH))
     args = ap.parse_args(argv)
@@ -368,47 +493,85 @@ def _cli(argv: list[str] | None = None) -> int:
         print(f"OK: {args.selected} written to {yaml_path}")
         return 0
 
-    # mode == "lora-ready"
+    if args.mode == "lora-ready":
+        missing = [
+            n
+            for n, v in [
+                ("--model", args.model),
+                ("--version-sha256", args.version_sha256),
+                ("--training-run-id", args.training_run_id),
+                ("--training-cost-usd", args.training_cost_usd),
+                ("--steps", args.steps),
+                ("--rank", args.rank),
+                ("--trainer-version", args.trainer_version),
+            ]
+            if v is None
+        ]
+        if missing:
+            sys.stderr.write(f"ERROR: lora-ready mode requires {missing}\n")
+            return 1
+
+        try:
+            write_lora_ready(
+                yaml_path,
+                model=args.model,
+                version_sha256=args.version_sha256,
+                training_run_id=args.training_run_id,
+                trigger_word=args.trigger_word,
+                training_dataset_size=args.dataset_size,
+                training_cost_usd=args.training_cost_usd,
+                dataset_path=args.dataset_path,
+                training_metadata={
+                    "steps": args.steps,
+                    "rank": args.rank,
+                    "trainer_version": args.trainer_version,
+                },
+            )
+        except LoraTriggerMismatchError as e:
+            sys.stderr.write(f"REJECTED: {e}\n")
+            return 2
+        except (ValueError, KeyError) as e:
+            sys.stderr.write(f"ERROR: {e}\n")
+            return 1
+        print(f"OK: lora-ready written to {yaml_path}")
+        return 0
+
+    # mode == "voice-ready"
     missing = [
         n
         for n, v in [
-            ("--model", args.model),
-            ("--version-sha256", args.version_sha256),
-            ("--training-run-id", args.training_run_id),
-            ("--training-cost-usd", args.training_cost_usd),
-            ("--steps", args.steps),
-            ("--rank", args.rank),
-            ("--trainer-version", args.trainer_version),
+            ("--voice-id", args.voice_id),
+            ("--voice-name", args.voice_name),
+            ("--reference-samples", args.reference_samples),
+            ("--settings-centry", args.settings_centry),
+            ("--settings-diktum", args.settings_diktum),
         ]
         if v is None
     ]
     if missing:
-        sys.stderr.write(f"ERROR: lora-ready mode requires {missing}\n")
+        sys.stderr.write(f"ERROR: voice-ready mode requires {missing}\n")
         return 1
 
     try:
-        write_lora_ready(
+        centry_cfg = json.loads(args.settings_centry)
+        diktum_cfg = json.loads(args.settings_diktum)
+        write_voice_ready(
             yaml_path,
-            model=args.model,
-            version_sha256=args.version_sha256,
-            training_run_id=args.training_run_id,
-            trigger_word=args.trigger_word,
-            training_dataset_size=args.dataset_size,
-            training_cost_usd=args.training_cost_usd,
-            dataset_path=args.dataset_path,
-            training_metadata={
-                "steps": args.steps,
-                "rank": args.rank,
-                "trainer_version": args.trainer_version,
-            },
+            voice_id=args.voice_id,
+            voice_name=args.voice_name,
+            language=args.language,
+            reference_samples=args.reference_samples,
+            settings_centry=centry_cfg,
+            settings_diktum=diktum_cfg,
+            locked_by=args.locked_by,
         )
-    except LoraTriggerMismatchError as e:
+    except (VoiceLockedError, VoiceProviderMismatchError) as e:
         sys.stderr.write(f"REJECTED: {e}\n")
         return 2
-    except (ValueError, KeyError) as e:
+    except (ValueError, KeyError, json.JSONDecodeError) as e:
         sys.stderr.write(f"ERROR: {e}\n")
         return 1
-    print(f"OK: lora-ready written to {yaml_path}")
+    print(f"OK: voice-ready written to {yaml_path}")
     return 0
 
 

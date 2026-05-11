@@ -343,36 +343,164 @@ def test_normalize_version_sha_helper() -> None:
 
 
 # ============================================================================
-# Phase 10 Wave 2 — write_voice_ready tests (Plan 04 will implement)
+# Phase 10 Wave 2 — write_voice_ready tests
 # ============================================================================
 
 
-@pytest.mark.skip(reason="Wave 2 Plan 04 will implement write_voice_ready")
+def _bootstrap_phase9_ready(tmp_path: Path) -> Path:
+    """Bootstrap manifest past Phase 8 + Phase 9 (lora.status=ready)."""
+    yaml_path = _bootstrap_phase8_approved(tmp_path)
+    write_lora_ready(
+        yaml_path,
+        model="x/forton-lab-character-v1",
+        version_sha256="a" * 64,
+        training_run_id="t_xyz",
+        trigger_word="OHWX_FORTONA",
+        training_dataset_size=30,
+        training_cost_usd=2.18,
+        dataset_path="ai_talent/dataset/v1",
+        training_metadata={"steps": 1000, "rank": 16, "trainer_version": "b" * 64},
+    )
+    return yaml_path
+
+
 def test_write_voice_ready_happy_path(tmp_path: Path) -> None:
-    """write_voice_ready sets voice.status='ready' + all required fields populated."""
-    pass
+    from src.ai_talent.character_selector import (
+        VOICE_TEXT_CUES_SUPPORTED,
+        write_voice_ready,
+    )
+
+    yaml_path = _bootstrap_phase9_ready(tmp_path)
+
+    result = write_voice_ready(
+        yaml_path,
+        voice_id="EXAVITQu4vr4xnSDxMaL",
+        voice_name="Татьяна",
+        language="ru",
+        reference_samples=[
+            "assets/voice-reference/EXAVITQu_sample1.mp3",
+            "assets/voice-reference/EXAVITQu_sample2.mp3",
+            "assets/voice-reference/EXAVITQu_sample3.mp3",
+        ],
+        settings_centry={"stability": 0.4, "similarity_boost": 0.75, "style": 0.0},
+        settings_diktum={"stability": 0.7, "similarity_boost": 0.75, "style": 0.0},
+        locked_by="aleksey",
+    )
+
+    assert result["voice"]["status"] == "ready"
+    assert result["voice"]["voice_id"] == "EXAVITQu4vr4xnSDxMaL"
+    assert result["voice"]["voice_name"] == "Татьяна"
+    assert result["voice"]["language"] == "ru"
+    assert result["voice"]["model_id"] == "eleven_multilingual_v2"
+    assert len(result["voice"]["reference_samples"]) == 3
+    assert result["voice"]["voice_settings"]["centry"]["stability"] == 0.4
+    assert result["voice"]["voice_settings"]["diktum"]["stability"] == 0.7
+    assert list(result["voice"]["text_cues_supported"]) == list(VOICE_TEXT_CUES_SUPPORTED)
+    history = result["history"]
+    assert history[-1]["phase"] == 10
+    assert history[-1]["event"] == "voice_locked"
+
+    on_disk = read_manifest(yaml_path)
+    assert on_disk["voice"]["status"] == "ready"
 
 
-@pytest.mark.skip(reason="Wave 2 Plan 04 — provider mismatch invariant")
 def test_write_voice_ready_provider_mismatch(tmp_path: Path) -> None:
-    """provider != 'elevenlabs' -> VoiceProviderMismatchError BEFORE any write."""
-    pass
+    from src.ai_talent.character_selector import (
+        VoiceProviderMismatchError,
+        write_voice_ready,
+    )
+
+    yaml_path = _bootstrap_phase9_ready(tmp_path)
+    before = read_manifest(yaml_path)
+
+    with pytest.raises(VoiceProviderMismatchError):
+        write_voice_ready(
+            yaml_path,
+            voice_id="V1",
+            voice_name="A",
+            language="ru",
+            reference_samples=["a.mp3", "b.mp3", "c.mp3"],
+            settings_centry={"stability": 0.4, "similarity_boost": 0.75, "style": 0.0},
+            settings_diktum={"stability": 0.7, "similarity_boost": 0.75, "style": 0.0},
+            provider="aws_polly",
+        )
+
+    after = read_manifest(yaml_path)
+    assert after["voice"]["status"] == before["voice"]["status"]
 
 
-@pytest.mark.skip(reason="Wave 2 Plan 04 — re-lock prevention invariant")
 def test_write_voice_ready_refuses_relock(tmp_path: Path) -> None:
-    """Second write_voice_ready on already-ready manifest -> VoiceLockedError;
-    manifest unchanged after rejected write."""
-    pass
+    from src.ai_talent.character_selector import VoiceLockedError, write_voice_ready
+
+    yaml_path = _bootstrap_phase9_ready(tmp_path)
+    valid = dict(
+        voice_id="V1",
+        voice_name="A",
+        language="ru",
+        reference_samples=["a.mp3", "b.mp3", "c.mp3"],
+        settings_centry={"stability": 0.4, "similarity_boost": 0.75, "style": 0.0},
+        settings_diktum={"stability": 0.7, "similarity_boost": 0.75, "style": 0.0},
+    )
+    write_voice_ready(yaml_path, **valid)
+
+    with pytest.raises(VoiceLockedError):
+        write_voice_ready(yaml_path, **{**valid, "voice_id": "V2", "voice_name": "B"})
+
+    after = read_manifest(yaml_path)
+    assert after["voice"]["voice_id"] == "V1"
 
 
-@pytest.mark.skip(reason="Wave 2 Plan 04 — additivity invariant (Phase 9 Test 8 mirror)")
 def test_write_voice_ready_phase8_lora_additivity(tmp_path: Path) -> None:
-    """phase_8, lora, brief blocks remain byte-equal yaml.safe_dump после voice write."""
-    pass
+    """Phase 9 Test 8 mirror: phase_8 + lora + brief blocks remain byte-equal."""
+    from src.ai_talent.character_selector import write_voice_ready
+
+    yaml_path = _bootstrap_phase9_ready(tmp_path)
+    before = read_manifest(yaml_path)
+    p8_before = yaml.safe_dump(before["phase_8"], sort_keys=False, allow_unicode=True)
+    lora_before = yaml.safe_dump(before["lora"], sort_keys=False, allow_unicode=True)
+    brief_before = yaml.safe_dump(before["brief"], sort_keys=False, allow_unicode=True)
+
+    write_voice_ready(
+        yaml_path,
+        voice_id="V1",
+        voice_name="A",
+        language="ru",
+        reference_samples=["a.mp3", "b.mp3", "c.mp3"],
+        settings_centry={"stability": 0.4, "similarity_boost": 0.75, "style": 0.0},
+        settings_diktum={"stability": 0.7, "similarity_boost": 0.75, "style": 0.0},
+    )
+
+    after = read_manifest(yaml_path)
+    p8_after = yaml.safe_dump(after["phase_8"], sort_keys=False, allow_unicode=True)
+    lora_after = yaml.safe_dump(after["lora"], sort_keys=False, allow_unicode=True)
+    brief_after = yaml.safe_dump(after["brief"], sort_keys=False, allow_unicode=True)
+
+    assert p8_after == p8_before, "phase_8 block must remain byte-equal"
+    assert lora_after == lora_before, "lora block must remain byte-equal"
+    assert brief_after == brief_before, "brief block must remain byte-equal"
+    assert after["voice"]["status"] == "ready"
 
 
-@pytest.mark.skip(reason="Wave 2 Plan 04 — reference_samples count validation")
 def test_write_voice_ready_rejects_wrong_sample_count(tmp_path: Path) -> None:
-    """len(reference_samples) MUST be in [3, 5]; иначе ValueError BEFORE write."""
-    pass
+    from src.ai_talent.character_selector import write_voice_ready
+
+    yaml_path = _bootstrap_phase9_ready(tmp_path)
+    before = read_manifest(yaml_path)
+
+    base = dict(
+        voice_id="V1",
+        voice_name="A",
+        language="ru",
+        settings_centry={"stability": 0.4, "similarity_boost": 0.75, "style": 0.0},
+        settings_diktum={"stability": 0.7, "similarity_boost": 0.75, "style": 0.0},
+    )
+
+    with pytest.raises(ValueError):
+        write_voice_ready(yaml_path, reference_samples=["a.mp3", "b.mp3"], **base)
+    with pytest.raises(ValueError):
+        write_voice_ready(
+            yaml_path, reference_samples=[f"{i}.mp3" for i in range(6)], **base
+        )
+
+    after = read_manifest(yaml_path)
+    assert after["voice"]["status"] == before["voice"]["status"]
