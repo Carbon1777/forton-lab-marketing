@@ -2,7 +2,7 @@
 
 Tests grouped by Plan task:
     Task 1 — send_preview_* variants + helpers (constants, kb, sha, classify)
-    Task 2 — callback handlers (publish, cancel, edit ConversationHandler)
+    Task 2 — callback handlers (publish, cancel, edit global dispatch)
     Task 3 — pre_flight + main + lifecycle
     Task 4 — coverage gate + no_secrets_in_logs (T-2-05 invariant)
 """
@@ -11,22 +11,23 @@ from __future__ import annotations
 import datetime as dt
 import io
 import re
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import frontmatter
 import pytest
 from telegram import User
 from telegram.error import BadRequest
-from telegram.ext import Application, CallbackQueryHandler, ConversationHandler
+from telegram.ext import Application, CallbackQueryHandler
 
 from src.daily_post_generator import BrandViolationError, GenerationError
 from src.preview_bot import (
+    EDIT_TIMEOUT_S,
     MAX_CALLBACK_DATA_BYTES,
     MAX_TG_CAPTION,
     MAX_TG_VIDEO_BYTES,
     POLL_TIMEOUT_S,
     TTL_HOURS,
-    WAITING_EDIT,
     _alert_generation_failure,
     _build_inline_kb,
     _check_owner,
@@ -46,11 +47,9 @@ from src.preview_bot import (
     _store_message_id,
     _verify_draft_sha,
     build_application,
-    build_edit_conversation,
     handle_edit_cancel,
     handle_edit_entry,
     handle_edit_text,
-    handle_edit_timeout,
     handle_publish_or_cancel,
     pre_flight_generate,
 )
@@ -363,9 +362,9 @@ async def test_verify_draft_sha_missing_file_returns_false(mock_query, tmp_path)
 def test_constants_match_research_spec():
     assert POLL_TIMEOUT_S == 540
     assert TTL_HOURS == 24
+    assert EDIT_TIMEOUT_S == 600
     assert MAX_TG_CAPTION == 1024
     assert MAX_TG_VIDEO_BYTES == 50 * 1024 * 1024
-    assert WAITING_EDIT == 1
     assert MAX_CALLBACK_DATA_BYTES == 64
 
 
@@ -520,75 +519,149 @@ async def test_handle_cancel_replies_with_confirmation(mock_query, mock_ctx, tmp
     assert "centry-jun15" in reply
 
 
-# ---- ConversationHandler — edit -----------------------------------------
+# ---- Edit dialog — global handlers + bot_data state ---------------------
+
+def _make_text_update(chat_id: int, text: str, sender_id: int | None = None):
+    """Fake Update с message (для unit tests; production filter ловит channel_post)."""
+    msg = MagicMock()
+    msg.chat_id = chat_id
+    msg.text = text
+    if sender_id is None:
+        msg.from_user = None
+    else:
+        msg.from_user = MagicMock()
+        msg.from_user.id = sender_id
+    progress = MagicMock()
+    progress.edit_text = AsyncMock()
+    progress.delete = AsyncMock()
+    msg.reply_text = AsyncMock(return_value=progress)
+    update = MagicMock()
+    update.message = msg
+    update.channel_post = None
+    update.effective_message = msg
+    return update, msg, progress
+
+
+def _seed_pending_edit(mock_ctx, tmp_path, slug="centry-jun15",
+                        chat_id=12345, age_seconds=0):
+    """Helper: write draft + seed bot_data['pending_edits'][chat_id]. Returns state."""
+    draft_path, sha8 = _make_draft_with_sha(tmp_path, slug=slug)
+    state = {
+        "slug": slug,
+        "draft_path": str(draft_path),
+        "expected_sha8": sha8,
+        "started_at": time.time() - age_seconds,
+        "preview_message_id": 999,
+        "preview_chat_id": chat_id,
+    }
+    mock_ctx.application.bot_data.setdefault("pending_edits", {})[chat_id] = state
+    return state, draft_path, sha8
+
 
 @pytest.mark.asyncio
-async def test_handle_edit_entry_strips_buttons_and_enters_WAITING_EDIT(mock_query, mock_ctx, tmp_path):
+async def test_handle_edit_entry_strips_buttons_and_seeds_pending_edit(mock_query, mock_ctx, tmp_path):
+    """✏️ Правь callback — strip buttons + write state в bot_data['pending_edits']."""
     _setup_bot_data(mock_ctx, tmp_path)
-    mock_ctx.user_data = {}
     _, sha8 = _make_draft_with_sha(tmp_path)
     mock_query.data = f"edit:centry-jun15:{sha8}"
-    # Set chat_id on the message mock
     mock_query.message.chat_id = 12345
-    result = await handle_edit_entry(_make_update(mock_query), mock_ctx)
-    assert result == WAITING_EDIT
+    mock_query.message.message_id = 7777
+
+    await handle_edit_entry(_make_update(mock_query), mock_ctx)
+
     mock_query.edit_message_reply_markup.assert_called_once()
-    assert mock_ctx.user_data["edit_slug"] == "centry-jun15"
-    assert "edit_original_kb" in mock_ctx.user_data
+    pending = mock_ctx.application.bot_data["pending_edits"]
+    assert 12345 in pending
+    state = pending[12345]
+    assert state["slug"] == "centry-jun15"
+    assert state["expected_sha8"] == sha8
+    assert state["preview_message_id"] == 7777
+    assert state["preview_chat_id"] == 12345
+    assert isinstance(state["started_at"], float)
 
 
 @pytest.mark.asyncio
-async def test_handle_edit_text_calls_regen_and_sends_new_preview(mock_ctx, tmp_path, monkeypatch):
+async def test_handle_edit_entry_reply_text_contains_invite(mock_query, mock_ctx, tmp_path):
+    """invite text шлётся в чат и упоминает /cancel_edit."""
+    _setup_bot_data(mock_ctx, tmp_path)
+    _, sha8 = _make_draft_with_sha(tmp_path)
+    mock_query.data = f"edit:centry-jun15:{sha8}"
+    mock_query.message.chat_id = 12345
+
+    await handle_edit_entry(_make_update(mock_query), mock_ctx)
+
+    mock_query.message.reply_text.assert_called_once()
+    invite = mock_query.message.reply_text.call_args.args[0]
+    assert "поправить" in invite.lower()
+    assert "/cancel_edit" in invite
+
+
+@pytest.mark.asyncio
+async def test_handle_edit_entry_non_owner_no_state(mock_query, mock_ctx, tmp_path):
+    """Не-owner кликает ✏️ — state НЕ записывается."""
+    _setup_bot_data(mock_ctx, tmp_path)
+    mock_query.from_user = User(id=99999, first_name="Imposter", is_bot=False)
+    _, sha8 = _make_draft_with_sha(tmp_path)
+    mock_query.data = f"edit:centry-jun15:{sha8}"
+
+    await handle_edit_entry(_make_update(mock_query), mock_ctx)
+
+    assert "pending_edits" not in mock_ctx.application.bot_data or \
+           not mock_ctx.application.bot_data.get("pending_edits")
+
+
+@pytest.mark.asyncio
+async def test_handle_edit_text_calls_regen_and_sends_new_preview(mock_ctx, tmp_path, monkeypatch, mock_owner_id):
+    """Success path: regen + send new preview + clear state."""
     monkeypatch.setenv("BOT_DISPATCH_PAT", "ghp_test")
     _setup_bot_data(mock_ctx, tmp_path)
-    draft_path, _ = _make_draft_with_sha(tmp_path)
-    mock_ctx.user_data = {
-        "edit_draft_path": str(draft_path),
-        "edit_slug": "centry-jun15",
-        "edit_preview_chat_id": 12345,
-        "edit_preview_message_id": 999,
-    }
+    mock_ctx.application.bot_data["preview_chat_id"] = 12345
+    state, draft_path, _ = _seed_pending_edit(mock_ctx, tmp_path, chat_id=12345)
     mock_ctx.bot = MagicMock()
 
-    message = MagicMock()
-    message.from_user.id = mock_ctx.application.bot_data["owner_chat_id"]
-    message.text = "убери последнее предложение"
-    progress_msg = MagicMock()
-    progress_msg.edit_text = AsyncMock()
-    progress_msg.delete = AsyncMock()
-    message.reply_text = AsyncMock(return_value=progress_msg)
-    update = MagicMock()
-    update.message = message
+    update, msg, progress = _make_text_update(
+        chat_id=12345, text="убери последнее предложение", sender_id=mock_owner_id,
+    )
 
     with patch("src.preview_bot.regen_one") as mock_regen, \
          patch("src.preview_bot._send_preview_for_draft",
                 new_callable=AsyncMock, return_value=2010) as mock_send:
-        result = await handle_edit_text(update, mock_ctx)
-        assert result == ConversationHandler.END
-        mock_regen.assert_called_once()
-        mock_send.assert_called_once()
+        await handle_edit_text(update, mock_ctx)
+
+    mock_regen.assert_called_once()
+    mock_send.assert_called_once()
+    assert 12345 not in mock_ctx.application.bot_data["pending_edits"]
 
 
 @pytest.mark.asyncio
-async def test_handle_edit_text_brand_violation_keeps_state(mock_ctx, tmp_path, monkeypatch):
-    """T-2-04: brand violation → reply + return WAITING_EDIT (state stays)."""
-    monkeypatch.setenv("BOT_DISPATCH_PAT", "ghp_test")
+async def test_handle_edit_text_no_state_silent(mock_ctx, tmp_path, mock_owner_id):
+    """Текст без активной edit-сессии для этого chat_id — silently ignored."""
     _setup_bot_data(mock_ctx, tmp_path)
-    draft_path, _ = _make_draft_with_sha(tmp_path)
-    mock_ctx.user_data = {
-        "edit_draft_path": str(draft_path),
-        "edit_slug": "centry-jun15",
-    }
+    mock_ctx.application.bot_data["pending_edits"] = {}
     mock_ctx.bot = MagicMock()
 
-    message = MagicMock()
-    message.from_user.id = mock_ctx.application.bot_data["owner_chat_id"]
-    message.text = "добавь Алексея"
-    progress_msg = MagicMock()
-    progress_msg.edit_text = AsyncMock()
-    message.reply_text = AsyncMock(return_value=progress_msg)
-    update = MagicMock()
-    update.message = message
+    update, msg, _ = _make_text_update(
+        chat_id=12345, text="случайное сообщение", sender_id=mock_owner_id,
+    )
+    with patch("src.preview_bot.regen_one") as mock_regen:
+        await handle_edit_text(update, mock_ctx)
+
+    mock_regen.assert_not_called()
+    msg.reply_text.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_handle_edit_text_brand_violation_keeps_state(mock_ctx, tmp_path, monkeypatch, mock_owner_id):
+    """T-2-04: brand violation → reply + state НЕ удаляется (юзер re-tries)."""
+    monkeypatch.setenv("BOT_DISPATCH_PAT", "ghp_test")
+    _setup_bot_data(mock_ctx, tmp_path)
+    mock_ctx.application.bot_data["preview_chat_id"] = 12345
+    _seed_pending_edit(mock_ctx, tmp_path, chat_id=12345)
+    mock_ctx.bot = MagicMock()
+
+    update, _, progress = _make_text_update(
+        chat_id=12345, text="добавь Алексея", sender_id=mock_owner_id,
+    )
 
     violation_word = MagicMock()
     violation_word.word = "Алексей"
@@ -596,88 +669,149 @@ async def test_handle_edit_text_brand_violation_keeps_state(mock_ctx, tmp_path, 
 
     with patch("src.preview_bot.regen_one",
                 side_effect=BrandViolationError(violations)):
-        result = await handle_edit_text(update, mock_ctx)
-        assert result == WAITING_EDIT
+        await handle_edit_text(update, mock_ctx)
+
+    progress.edit_text.assert_called_once()
+    assert 12345 in mock_ctx.application.bot_data["pending_edits"]   # state stays
 
 
 @pytest.mark.asyncio
-async def test_handle_edit_text_after_3_regens_rejects(mock_ctx, tmp_path, monkeypatch):
-    """D-2-02 cap: GenerationError(regen limit) → END с reply."""
+async def test_handle_edit_text_after_3_regens_clears_state(mock_ctx, tmp_path, monkeypatch, mock_owner_id):
+    """D-2-02 cap: GenerationError(regen limit) → reply + state удаляется."""
     monkeypatch.setenv("BOT_DISPATCH_PAT", "ghp_test")
     _setup_bot_data(mock_ctx, tmp_path)
-    draft_path, _ = _make_draft_with_sha(tmp_path)
-    mock_ctx.user_data = {
-        "edit_draft_path": str(draft_path),
-        "edit_slug": "centry-jun15",
-    }
+    mock_ctx.application.bot_data["preview_chat_id"] = 12345
+    _seed_pending_edit(mock_ctx, tmp_path, chat_id=12345)
     mock_ctx.bot = MagicMock()
 
-    message = MagicMock()
-    message.from_user.id = mock_ctx.application.bot_data["owner_chat_id"]
-    message.text = "ещё одна правка"
-    progress_msg = MagicMock()
-    progress_msg.edit_text = AsyncMock()
-    message.reply_text = AsyncMock(return_value=progress_msg)
-    update = MagicMock()
-    update.message = message
+    update, _, progress = _make_text_update(
+        chat_id=12345, text="ещё одна правка", sender_id=mock_owner_id,
+    )
 
     with patch("src.preview_bot.regen_one",
                 side_effect=GenerationError("regen limit (3) reached for ...")):
-        result = await handle_edit_text(update, mock_ctx)
-        assert result == ConversationHandler.END
+        await handle_edit_text(update, mock_ctx)
+
+    progress.edit_text.assert_called_once()
+    assert 12345 not in mock_ctx.application.bot_data["pending_edits"]
 
 
 @pytest.mark.asyncio
-async def test_handle_edit_text_non_owner_silent(mock_ctx, tmp_path):
-    """Non-owner sending text in WAITING_EDIT — return WAITING_EDIT silently (no regen)."""
+async def test_handle_edit_text_non_owner_keeps_state(mock_ctx, tmp_path):
+    """Foreign sender в chat где есть state → leave state intact (no regen)."""
     _setup_bot_data(mock_ctx, tmp_path)
-    mock_ctx.user_data = {"edit_draft_path": "x", "edit_slug": "y"}
+    mock_ctx.application.bot_data["preview_chat_id"] = 12345
+    _seed_pending_edit(mock_ctx, tmp_path, chat_id=12345)
     mock_ctx.bot = MagicMock()
 
-    message = MagicMock()
-    message.from_user.id = 99999  # not owner
-    message.text = "imposter edit"
-    update = MagicMock()
-    update.message = message
+    # Foreign chat_id 99999 — state for 12345 untouched
+    update, _, _ = _make_text_update(chat_id=99999, text="imposter", sender_id=88888)
 
     with patch("src.preview_bot.regen_one") as mock_regen:
-        result = await handle_edit_text(update, mock_ctx)
-        assert result == WAITING_EDIT
-        mock_regen.assert_not_called()
+        await handle_edit_text(update, mock_ctx)
+
+    mock_regen.assert_not_called()
+    assert 12345 in mock_ctx.application.bot_data["pending_edits"]
 
 
 @pytest.mark.asyncio
-async def test_handle_edit_timeout_restores_original_buttons(mock_ctx):
-    kb_marker = _build_inline_kb("centry-jun15", "abc12345")
-    mock_ctx.user_data = {
-        "edit_preview_chat_id": 12345,
-        "edit_preview_message_id": 999,
-        "edit_original_kb": kb_marker,
-    }
+async def test_handle_edit_text_timeout_restores_buttons(mock_ctx, tmp_path, mock_owner_id):
+    """Manual timeout (now - started_at > 600s) → restore buttons + clear state."""
+    _setup_bot_data(mock_ctx, tmp_path)
+    mock_ctx.application.bot_data["preview_chat_id"] = 12345
+    state, _, _ = _seed_pending_edit(mock_ctx, tmp_path, chat_id=12345,
+                                       age_seconds=EDIT_TIMEOUT_S + 10)
     mock_ctx.bot = MagicMock()
     mock_ctx.bot.edit_message_reply_markup = AsyncMock()
     mock_ctx.bot.send_message = AsyncMock()
-    result = await handle_edit_timeout(MagicMock(), mock_ctx)
-    assert result == ConversationHandler.END
+
+    update, _, _ = _make_text_update(
+        chat_id=12345, text="поздно", sender_id=mock_owner_id,
+    )
+
+    with patch("src.preview_bot.regen_one") as mock_regen:
+        await handle_edit_text(update, mock_ctx)
+
+    mock_regen.assert_not_called()
     mock_ctx.bot.edit_message_reply_markup.assert_called_once()
-    call_kwargs = mock_ctx.bot.edit_message_reply_markup.call_args.kwargs
-    assert call_kwargs["chat_id"] == 12345
-    assert call_kwargs["message_id"] == 999
-    assert call_kwargs["reply_markup"] == kb_marker
+    kwargs = mock_ctx.bot.edit_message_reply_markup.call_args.kwargs
+    assert kwargs["message_id"] == 999
+    assert kwargs["reply_markup"] is not None   # buttons restored
+    assert 12345 not in mock_ctx.application.bot_data["pending_edits"]
 
 
 @pytest.mark.asyncio
-async def test_handle_edit_cancel_delegates_to_timeout(mock_ctx):
-    """/cancel_edit ведёт себя как timeout."""
-    mock_ctx.user_data = {}   # empty — handler should skip restore
+async def test_handle_edit_text_reads_channel_post(mock_ctx, tmp_path, monkeypatch, mock_owner_id):
+    """Production filter ловит channel_post — handler должен использовать его."""
+    monkeypatch.setenv("BOT_DISPATCH_PAT", "ghp_test")
+    _setup_bot_data(mock_ctx, tmp_path)
+    mock_ctx.application.bot_data["preview_chat_id"] = -100123
+    _seed_pending_edit(mock_ctx, tmp_path, chat_id=-100123)
     mock_ctx.bot = MagicMock()
-    result = await handle_edit_cancel(MagicMock(), mock_ctx)
-    assert result == ConversationHandler.END
+
+    channel_post = MagicMock()
+    channel_post.chat_id = -100123
+    channel_post.text = "сделай короче"
+    channel_post.from_user = None   # post «as channel» — no user
+    progress = MagicMock()
+    progress.edit_text = AsyncMock()
+    progress.delete = AsyncMock()
+    channel_post.reply_text = AsyncMock(return_value=progress)
+    update = MagicMock()
+    update.message = None
+    update.channel_post = channel_post
+    update.effective_message = channel_post
+
+    with patch("src.preview_bot.regen_one") as mock_regen, \
+         patch("src.preview_bot._send_preview_for_draft",
+                new_callable=AsyncMock, return_value=2010):
+        await handle_edit_text(update, mock_ctx)
+
+    mock_regen.assert_called_once()
 
 
-def test_build_edit_conversation_returns_ConversationHandler():
-    ch = build_edit_conversation()
-    assert isinstance(ch, ConversationHandler)
+@pytest.mark.asyncio
+async def test_handle_edit_cancel_restores_buttons_and_clears_state(mock_ctx, tmp_path):
+    """/cancel_edit → restore buttons + remove state."""
+    _setup_bot_data(mock_ctx, tmp_path)
+    _seed_pending_edit(mock_ctx, tmp_path, chat_id=12345)
+    mock_ctx.bot = MagicMock()
+    mock_ctx.bot.edit_message_reply_markup = AsyncMock()
+    mock_ctx.bot.send_message = AsyncMock()
+
+    update, _, _ = _make_text_update(chat_id=12345, text="/cancel_edit", sender_id=12345)
+    await handle_edit_cancel(update, mock_ctx)
+
+    mock_ctx.bot.edit_message_reply_markup.assert_called_once()
+    assert 12345 not in mock_ctx.application.bot_data["pending_edits"]
+
+
+@pytest.mark.asyncio
+async def test_handle_edit_cancel_no_state_silent(mock_ctx, tmp_path):
+    """/cancel_edit без active state — silent no-op."""
+    _setup_bot_data(mock_ctx, tmp_path)
+    mock_ctx.application.bot_data["pending_edits"] = {}
+    mock_ctx.bot = MagicMock()
+    mock_ctx.bot.edit_message_reply_markup = AsyncMock()
+
+    update, _, _ = _make_text_update(chat_id=12345, text="/cancel_edit", sender_id=12345)
+    await handle_edit_cancel(update, mock_ctx)
+
+    mock_ctx.bot.edit_message_reply_markup.assert_not_called()
+
+
+def test_build_application_registers_global_edit_handlers():
+    """build_application даёт PTB-app со всеми 4-мя хендлерами в правильном порядке."""
+    app = build_application("12345:fake-token")
+    handlers = app.handlers[0]
+    # Order: edit-CBQ, /cancel_edit MsgHandler, text MsgHandler, catch-all CBQ
+    assert isinstance(handlers[0], CallbackQueryHandler)
+    assert handlers[0].pattern.pattern == r"^edit:"
+    # Last handler — catch-all CallbackQueryHandler (no pattern)
+    assert isinstance(handlers[-1], CallbackQueryHandler)
+    assert handlers[-1].pattern is None
+    # bot_data['pending_edits'] inited
+    assert app.bot_data["pending_edits"] == {}
 
 
 # ===========================================================================
@@ -885,22 +1019,25 @@ async def test_pre_flight_multi_entry_creates_three_previews(multi_entry_plan, t
         assert "forton-jun15-evening" in result["pending_slugs"]
 
 
-def test_build_application_returns_application_with_jobqueue():
-    """T-2-04 prereq (Plan 01 Task 1): JobQueue must exist for ConversationHandler timeout."""
+def test_build_application_returns_application():
+    """build_application returns PTB Application с инициализированным bot_data."""
     app = build_application("1:dummy_token")
     assert isinstance(app, Application)
-    assert app.job_queue is not None, (
-        "JobQueue missing — ConversationHandler.conversation_timeout will silent-fail"
-    )
+    assert app.bot_data["pending_edits"] == {}
 
 
-def test_build_application_registers_conversation_handler_first():
-    """ConversationHandler must register BEFORE catch-all (PTB iterates in order)."""
+def test_build_application_registers_edit_callback_first():
+    """edit-CallbackQueryHandler должен идти ПЕРЕД catch-all, иначе catch-all
+    съедает edit: callback. Catch-all без pattern — последний."""
     app = build_application("1:dummy_token")
     handlers = app.handlers.get(0, [])
-    assert len(handlers) >= 2
-    assert isinstance(handlers[0], ConversationHandler)
-    assert isinstance(handlers[1], CallbackQueryHandler)
+    assert len(handlers) >= 4   # edit-CBQ, /cancel_edit, text-Msg, catch-all CBQ
+    # First — edit-only CallbackQueryHandler
+    assert isinstance(handlers[0], CallbackQueryHandler)
+    assert handlers[0].pattern.pattern == r"^edit:"
+    # Last — catch-all CallbackQueryHandler (no pattern)
+    assert isinstance(handlers[-1], CallbackQueryHandler)
+    assert handlers[-1].pattern is None
 
 
 # ===========================================================================
