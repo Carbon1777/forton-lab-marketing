@@ -41,13 +41,27 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # drafts/ в .gitignore — живёт только в GH Actions cache, который
+      # сохраняет preview_bot.yml между cron-тиками. Без restore тут шаг
+      # "Promote draft → queue" не найдёт drafts/<slug>.md после approve.
+      - name: Restore drafts/ cache (Phase 2 idempotency между preview_bot и publish)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.slug != '' }}
+        uses: actions/cache@v4
+        with:
+          path: drafts/
+          key: drafts-publish-${{ github.run_id }}
+          restore-keys: |
+            drafts-
+
       - name: Promote draft → queue (workflow_dispatch path)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.slug != '' }}
         env:
           SLUG: ${{ inputs.slug }}
         run: |
           if [[ ! -f "drafts/${SLUG}.md" ]]; then
-            echo "ERROR: drafts/${SLUG}.md not found"
+            echo "ERROR: drafts/${SLUG}.md not found in cache"
+            echo "Cached drafts:"
+            ls -la drafts/ 2>/dev/null || echo "(no drafts/ dir)"
             exit 1
           fi
           mkdir -p queue
