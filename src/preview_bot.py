@@ -641,6 +641,10 @@ async def handle_edit_entry(update: Update,
         "preview_message_id": query.message.message_id,
         "preview_chat_id": preview_chat_id,
     }
+    sys.stderr.write(
+        f"INFO: handle_edit_entry seeded pending_edits chat_id={preview_chat_id} "
+        f"slug={slug} sha8={sha8}\n"
+    )
 
     await query.message.reply_text(_EDIT_INVITE_TEXT, parse_mode=ParseMode.HTML)
 
@@ -668,18 +672,34 @@ async def _restore_buttons_for_state(ctx: ContextTypes.DEFAULT_TYPE,
 
 async def handle_edit_text(update: Update,
                              ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Global handler — ловит все text сообщения в окне edit-сессии.
+    """Global handler — ловит все non-command messages (regular + channel_post).
 
-    Filter в build_application ограничивает до channel_post & TEXT & ~COMMAND,
-    но в тестах update.message тоже поддерживается (см. _edit_message).
+    Filter в build_application = filters.UpdateType.MESSAGES & ~filters.COMMAND.
+    filters.TEXT в PTB НЕ матчит channel_post, поэтому проверка text-payload
+    делается здесь. Если text отсутствует — silent return.
     """
     msg = _edit_message(update)
+    msg_kind = (
+        "channel_post" if update.channel_post else
+        "message" if update.message else
+        "effective" if update.effective_message else
+        "none"
+    )
+    sys.stderr.write(
+        f"INFO: handle_edit_text fired msg_kind={msg_kind} "
+        f"chat_id={msg.chat_id if msg else None} "
+        f"has_text={bool(msg and msg.text)}\n"
+    )
     if msg is None or not msg.text:
         return
 
     chat_id = msg.chat_id
     pending = _pending_edits(ctx)
     state = pending.get(chat_id)
+    sys.stderr.write(
+        f"INFO: handle_edit_text state={'present' if state else 'absent'} "
+        f"pending_keys={list(pending.keys())}\n"
+    )
     if state is None:
         return   # not in edit mode — silent ignore
 
@@ -988,9 +1008,13 @@ def build_application(token: str) -> Application:
         handle_edit_cancel,
     ))
 
-    # 3. Текст правки — глобальный handler, ловит channel_post или message
+    # 3. Текст правки — глобальный handler, ловит channel_post или message.
+    # ВАЖНО: filters.TEXT в PTB предназначен для регулярных messages и НЕ
+    # матчит channel_post — реальная регрессия PR #46. Поэтому фильтр без
+    # TEXT, а проверка text-payload делается внутри handle_edit_text.
+    # ~filters.COMMAND отсекает /cancel_edit обработанный выше.
     app.add_handler(MessageHandler(
-        filters.UpdateType.MESSAGES & filters.TEXT & ~filters.COMMAND,
+        filters.UpdateType.MESSAGES & ~filters.COMMAND,
         handle_edit_text,
     ))
 
