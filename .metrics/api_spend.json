@@ -1,6 +1,6 @@
 {
   "_schema_version": 3,
-  "_updated": "2026-05-10T22:10:09.943657+00:00",
+  "_updated": "2026-05-11T17:16:37.735401+00:00",
   "2026-05": {
     "input_tokens": 17031,
     "output_tokens": 15025,
@@ -22,13 +22,19 @@
         "usd": 1.05,
         "calls": 42,
         "predict_seconds": 408
+      },
+      "ltx": {
+        "usd": 0.8,
+        "calls": 1,
+        "seconds": 10
       }
     },
     "by_day": {
       "2026-05-11": {
-        "usd": 1.05,
+        "usd": 1.85,
         "by_provider": {
-          "replicate": 1.05
+          "replicate": 1.05,
+          "ltx": 0.8
         }
       }
     }
