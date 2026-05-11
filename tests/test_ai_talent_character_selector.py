@@ -340,3 +340,39 @@ def test_normalize_version_sha_helper() -> None:
         _normalize_version_sha("not-a-sha")
     with pytest.raises(ValueError):
         _normalize_version_sha("owner/name:zzz")  # not hex
+
+
+# ============================================================================
+# Phase 10 Wave 2 — write_voice_ready tests (Plan 04 will implement)
+# ============================================================================
+
+
+@pytest.mark.skip(reason="Wave 2 Plan 04 will implement write_voice_ready")
+def test_write_voice_ready_happy_path(tmp_path: Path) -> None:
+    """write_voice_ready sets voice.status='ready' + all required fields populated."""
+    pass
+
+
+@pytest.mark.skip(reason="Wave 2 Plan 04 — provider mismatch invariant")
+def test_write_voice_ready_provider_mismatch(tmp_path: Path) -> None:
+    """provider != 'elevenlabs' -> VoiceProviderMismatchError BEFORE any write."""
+    pass
+
+
+@pytest.mark.skip(reason="Wave 2 Plan 04 — re-lock prevention invariant")
+def test_write_voice_ready_refuses_relock(tmp_path: Path) -> None:
+    """Second write_voice_ready on already-ready manifest -> VoiceLockedError;
+    manifest unchanged after rejected write."""
+    pass
+
+
+@pytest.mark.skip(reason="Wave 2 Plan 04 — additivity invariant (Phase 9 Test 8 mirror)")
+def test_write_voice_ready_phase8_lora_additivity(tmp_path: Path) -> None:
+    """phase_8, lora, brief blocks remain byte-equal yaml.safe_dump после voice write."""
+    pass
+
+
+@pytest.mark.skip(reason="Wave 2 Plan 04 — reference_samples count validation")
+def test_write_voice_ready_rejects_wrong_sample_count(tmp_path: Path) -> None:
+    """len(reference_samples) MUST be in [3, 5]; иначе ValueError BEFORE write."""
+    pass
