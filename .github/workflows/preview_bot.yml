@@ -2,13 +2,23 @@ name: preview_bot
 
 on:
   schedule:
-    # 12:00-22:00 МСК = 09:00-19:00 UTC. Окно 10 часов оставляем для
-    # late-approve (юзер может одобрить в любое время рабочего дня).
+    # CRITICAL: GH Actions scheduled cron throttles тики на ровные часы
+    # (00, 10, 30) часто. Incidents 2026-05-11 (пропущены 09:00-12:14 UTC)
+    # и 2026-05-12 (пропущены 09:00-10:03 UTC) — оба ждали preview в 12:00
+    # МСК, оба не получили без manual trigger.
     #
-    # Incident 2026-05-11 (back-fill в 21:03 UTC → preview ночью) фикшен
-    # на уровне кода: _today_msk() hack теперь работает только для
-    # workflow_dispatch, а run_polling использует drop_pending_updates=True
-    # → stale callbacks между cron-окнами игнорируются.
+    # Multi-cron mitigation: 5 параллельных expressions на разные минуты
+    # первого часа окна (09:00, 09:03, 09:07, 09:15, 09:22 UTC). GH
+    # throttling редко бьёт сразу все смещения. Concurrency group preview-bot
+    # + cancel-in-progress: false → first успешный run grabs, остальные
+    # queue (быстро exit'нут потому что entry уже pending).
+    #
+    # Плюс `*/10 9-19` сохраняем для late-approve и continuous polling.
+    - cron: "0 9 * * *"
+    - cron: "3 9 * * *"
+    - cron: "7 9 * * *"
+    - cron: "15 9 * * *"
+    - cron: "22 9 * * *"
     - cron: "*/10 9-19 * * *"
   workflow_dispatch: {}
 

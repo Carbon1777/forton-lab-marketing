@@ -5,15 +5,19 @@ name: preview_watchdog
 # отсутствие preview для today's plan entry и триггерит preview_bot.yml
 # вручную через workflow_dispatch.
 #
-# Два checkpoint:
-#   09:30 UTC = 12:30 МСК — через 30 мин после ожидаемого первого preview.
-#   11:30 UTC = 14:30 МСК — late safety net на случай если первый watchdog
-#   тоже пропустили (cron pile-up).
+# Multi-checkpoint (incident 2026-05-12 показал что watchdog САМ может быть
+# throttled GH cron): 4 checkpoint'a на разные смещения минут.
+#   09:33 UTC = 12:33 МСК — через 33 мин после ожидаемого первого preview.
+#   09:47 UTC = 12:47 МСК — late страховка первого окна.
+#   11:33 UTC = 14:33 МСК — middle-day backup.
+#   13:33 UTC = 16:33 МСК — last-resort вечерний.
 
 on:
   schedule:
-    - cron: "30 9 * * *"
-    - cron: "30 11 * * *"
+    - cron: "33 9 * * *"
+    - cron: "47 9 * * *"
+    - cron: "33 11 * * *"
+    - cron: "33 13 * * *"
   workflow_dispatch: {}
 
 permissions:
