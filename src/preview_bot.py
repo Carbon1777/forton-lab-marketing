@@ -341,6 +341,36 @@ async def _send_split_photo(bot, chat_id: int, image_path: Path,
     return msg.message_id
 
 
+def _video_meta(video_path: Path) -> dict:
+    """ffprobe → {width, height, duration} или пустой dict если ffprobe нет.
+
+    БЕЗ этого Telegram iOS не знает реальные пропорции видео и рендерит
+    9:16 как растянутые/обрезанные. Workflow YAML должен apt-install ffmpeg.
+    """
+    import shutil
+    import subprocess
+    if shutil.which("ffprobe") is None:
+        sys.stderr.write("WARN: ffprobe not found; video meta omitted (iOS will stretch)\n")
+        return {}
+    try:
+        import json as _json
+        out = subprocess.run([
+            "ffprobe", "-v", "error", "-select_streams", "v:0",
+            "-show_entries", "stream=width,height:format=duration",
+            "-of", "json", str(video_path),
+        ], capture_output=True, timeout=20, check=True, text=True)
+        data = _json.loads(out.stdout)
+        s = data["streams"][0]
+        return {
+            "width": int(s["width"]),
+            "height": int(s["height"]),
+            "duration": int(float(data["format"]["duration"])),
+        }
+    except Exception as exc:
+        sys.stderr.write(f"WARN: ffprobe failed: {exc!r}\n")
+        return {}
+
+
 async def _send_preview_video(bot, chat_id: int, draft: frontmatter.Post,
                                sha8: str, repo_root: Path) -> int:
     """single video: pre-flight 50MB cap, send_video с caption или split."""
@@ -353,6 +383,7 @@ async def _send_preview_video(bot, chat_id: int, draft: frontmatter.Post,
     body = draft.content
     badge = _LINT_BADGE_TPL.format(sha8=sha8)
     full_caption = body + badge
+    meta = _video_meta(video_path)
 
     if len(full_caption) <= MAX_TG_CAPTION:
         with video_path.open("rb") as f:
@@ -363,6 +394,7 @@ async def _send_preview_video(bot, chat_id: int, draft: frontmatter.Post,
                 parse_mode=ParseMode.HTML,
                 supports_streaming=True,
                 reply_markup=_build_inline_kb(draft.metadata["slug"], sha8),
+                **meta,
             )
         return msg.message_id
     return await _send_split_video(bot, chat_id, video_path, body, badge,
@@ -381,6 +413,7 @@ async def _send_split_video(bot, chat_id: int, video_path: Path,
         f"<i>⚠️ caption truncated в production (preview split в 2 сообщения)</i>"
         f"\n{badge.strip()}"
     )
+    meta = _video_meta(video_path)
     with video_path.open("rb") as f:
         msg = await bot.send_video(
             chat_id=chat_id,
@@ -389,6 +422,7 @@ async def _send_split_video(bot, chat_id: int, video_path: Path,
             parse_mode=ParseMode.HTML,
             supports_streaming=True,
             reply_markup=_build_inline_kb(slug, sha8),
+            **meta,
         )
     return msg.message_id
 
