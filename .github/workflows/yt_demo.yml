@@ -1,0 +1,59 @@
+name: yt_demo
+
+# One-shot Google verification demo. Manual trigger only — sends preview видео
+# в TG-канал «Планировщик» с кнопкой ✅ Опубликовать на YouTube. На approve →
+# uploads video на YouTube как unlisted. Не пишет в plan/drafts/published.
+#
+# После Google review — удалить video из YouTube Studio + этот workflow +
+# src/yt_demo.py отдельным PR.
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_path:
+        description: "Path to demo video (relative to repo root)"
+        required: false
+        default: "assets/demo/forton-lab-verification-demo.mp4"
+      title:
+        description: "YouTube video title"
+        required: false
+        default: "Forton Lab — OAuth verification demo (youtube.upload scope)"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: yt-demo
+  cancel-in-progress: false
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          lfs: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run yt_demo (preview + YouTube upload on approve)
+        env:
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_USER_ID: ${{ secrets.TG_OWNER_USER_ID }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          DEMO_VIDEO_PATH: ${{ inputs.video_path }}
+          DEMO_TITLE: ${{ inputs.title }}
+        run: PYTHONPATH=. python -m src.yt_demo
