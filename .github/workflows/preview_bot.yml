@@ -48,6 +48,11 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      - name: Install ffmpeg (для video width/height в preview)
+        # Без ffprobe _video_meta() возвращает {} → iOS TG client рендерит
+        # видео в неправильном aspect ratio (incident 2026-05-12).
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
       - name: Install dependencies
         run: pip install -r requirements.txt
 
