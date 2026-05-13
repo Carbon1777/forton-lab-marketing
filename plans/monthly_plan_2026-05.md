@@ -263,15 +263,18 @@ diktumweb.ru
 
 ```yaml
 slug: centry-may13-no-spam
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: centry
 rubric: principle
 media:
-  - path: assets/posts/2026-05/centry-may13-no-spam.png
-    sha256: e8ca8c8e5fa8eff122d58f416a6952fcb1eabc20cf16efd1869a92d96103e30d
-    role: image
+- path: assets/posts/2026-05/centry-may13-no-spam.png
+  sha256: e8ca8c8e5fa8eff122d58f416a6952fcb1eabc20cf16efd1869a92d96103e30d
+  role: image
 image: assets/posts/2026-05/centry-may13-no-spam.png
-status: draft
+status: published
+published_at: '2026-05-13T10:58:13.333609+00:00'
 ```
 
 В Centry нет рекламы.
