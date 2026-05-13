@@ -38,14 +38,12 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Install ffmpeg (для video metadata + thumbnail)
-        # Без ffmpeg/ffprobe tg_post.py _probe_video возвращает None →
-        # width/height/duration не передаются в sendVideo → iOS Telegram
-        # рендерит видео в неправильных пропорциях (растянуто).
-        # Incident 2026-05-12: видео diktum-may12-interview-prep в канале
-        # «Forton Lab» отобразилось обрезанным сверху/снизу даже после
-        # тапа на fullscreen.
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Setup ffmpeg (для video metadata + thumbnail)
+        # Incident 2026-05-13: apt-get install висит 11 мин до timeout.
+        # Pre-built setup-ffmpeg action — 5-10 секунд.
+        uses: FedericoCarboni/setup-ffmpeg@v3
+        with:
+          ffmpeg-version: release
 
       - name: Install dependencies
         run: pip install -r requirements.txt
