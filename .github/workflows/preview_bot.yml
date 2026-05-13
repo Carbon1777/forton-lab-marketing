@@ -48,10 +48,15 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Install ffmpeg (для video width/height в preview)
+      - name: Setup ffmpeg (для video width/height в preview)
         # Без ffprobe _video_meta() возвращает {} → iOS TG client рендерит
         # видео в неправильном aspect ratio (incident 2026-05-12).
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+        # Incident 2026-05-13: apt-get install ffmpeg висит на 11 мин до
+        # timeout → ВСЕ scheduled cron сегодня дропнулись. Переключаемся
+        # на pre-built setup-ffmpeg action — 5-10 секунд вместо apt.
+        uses: FedericoCarboni/setup-ffmpeg@v3
+        with:
+          ffmpeg-version: release
 
       - name: Install dependencies
         run: pip install -r requirements.txt
