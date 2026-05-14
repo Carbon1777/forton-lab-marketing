@@ -252,10 +252,14 @@ def _authenticate() -> str:
         json_body=body,
     )
     if resp.status_code >= 400:
-        # HOTFIX: response body already included in error message (no token
-        # leak — body is RuStore's error response, doesn't contain our creds).
+        # HOTFIX 2026-05-15 #2: smoke run 25891726581 still showed HTTP 400
+        # after .strip(). Surface key_id repr + timestamp + signature length
+        # so we can see exact body sent (no secret leak — key_id is public
+        # identifier, signature truncated).
         raise RuntimeError(
-            f"RuStore auth HTTP {resp.status_code}: {resp.text[:300]}"
+            f"RuStore auth HTTP {resp.status_code}: {resp.text[:300]} "
+            f"| sent keyId={key_id!r} timestamp={timestamp!r} "
+            f"signature_len={len(signature)}"
         )
     try:
         payload = resp.json()

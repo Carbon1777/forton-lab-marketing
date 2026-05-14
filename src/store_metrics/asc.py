@@ -120,7 +120,11 @@ def _fetch_sales_tsv(vendor: str, token: str, target_sunday: dt.date) -> bytes:
     """
     date_str = target_sunday.strftime("%Y%m%d")
     query_input = (
-        f"[p=Reports.getReport, {vendor}, Sales, Summary, Weekly, {date_str}]"
+        # HOTFIX 2026-05-15 (smoke run 25891726581): Apple returned
+        # 403 + XML Error Code=101 "Invalid method is specified". Apple
+        # Reporter spec uses `Sales.getReport`, not `Reports.getReport`
+        # (the latter was a researcher transcription error).
+        f"[p=Sales.getReport, {vendor}, Sales, Summary, Weekly, {date_str}]"
     )
     # HOTFIX 2026-05-15 (smoke test run 25890122345 returned 401):
     # Apple Reporter Legacy API expects the access token INSIDE the
