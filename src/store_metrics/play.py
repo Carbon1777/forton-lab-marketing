@@ -175,10 +175,20 @@ def _fetch_installs_csv(
     # include trailing whitespace/newline. GCS bucket validation rejected
     # "pubsite_prod_rev_<id>\n" because the trailing \n means the name
     # "doesn't end with a number or letter". Strip on read.
-    bucket_name = f"pubsite_prod_rev_{developer_id.strip()}"
+    # HOTFIX 2026-05-15 #2: even with .strip(), smoke run 25891726581 still
+    # failed bucket validation. Surface repr() of the actual developer_id so
+    # we can see invisible chars (zero-width spaces, BOMs, etc.) in next run.
+    dev_id_clean = developer_id.strip()
+    bucket_name = f"pubsite_prod_rev_{dev_id_clean}"
     blob_path = f"stats/installs/installs_{package.strip()}_{yyyymm}_country.csv"
     client = storage.Client(credentials=credentials)
-    bucket = client.bucket(bucket_name)
+    try:
+        bucket = client.bucket(bucket_name)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"GCS bucket name invalid: {bucket_name!r} "
+            f"(developer_id raw={developer_id!r} cleaned={dev_id_clean!r}) — {exc}"
+        ) from exc
     blob = bucket.blob(blob_path)
     if not blob.exists():
         sys.stderr.write(
