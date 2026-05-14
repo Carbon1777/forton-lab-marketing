@@ -803,3 +803,59 @@ def test_fetch_previous_shifts_week_by_7_days(monkeypatch, rsa_keypair, tmp_path
     assert snap.installs is None
     assert snap.error is not None
     assert "RuStore CSV не положен" in snap.error
+
+
+# HOTFIX regression tests (smoke run 25890122345)
+
+
+def test_package_for_strips_whitespace(monkeypatch):
+    """GH Secret storage may add trailing newline. _package_for must strip it
+    so URL paths like /public/v1/application/<package>/comment don't break.
+    """
+    monkeypatch.setenv("RUSTORE_PACKAGE_CENTRY", "website.centry.app\n")
+    monkeypatch.setenv("RUSTORE_PACKAGE_DIKTUM", "  ru.diktumweb.diktum  ")
+    assert rustore._package_for("centry") == "website.centry.app"
+    assert rustore._package_for("diktum") == "ru.diktumweb.diktum"
+
+
+def test_authenticate_strips_key_id_for_signing(monkeypatch, tmp_path):
+    """GH Secret RUSTORE_KEY_ID may have trailing whitespace which breaks JWS
+    signature (smoke run 25890122345: HTTP 400 'Invalid request format').
+    _authenticate must strip key_id before signing & sending."""
+    # Generate test RSA key
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    pk = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    pem_bytes = pk.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+
+    monkeypatch.setenv("RUSTORE_PRIVATE_KEY", pem_bytes.decode())
+    monkeypatch.setenv("RUSTORE_KEY_ID", "  2351028465\n")   # trailing \n
+    monkeypatch.setenv("RUSTORE_COMPANY_ID", "2351526569")
+    monkeypatch.setenv("RUSTORE_PACKAGE_CENTRY", "website.centry.app")
+    monkeypatch.setenv("RUSTORE_PACKAGE_DIKTUM", "ru.diktumweb.diktum")
+
+    # Clear cache to force fresh auth
+    rustore._TOKEN_CACHE.clear()
+
+    captured = {}
+
+    def fake_fetch(url, method="POST", **kwargs):
+        captured["body"] = kwargs.get("json_body")
+        m = MagicMock()
+        m.status_code = 200
+        m.json.return_value = {"code": "OK", "body": {"jwe": "bearer-xyz"}}
+        return m
+
+    with patch.object(rustore._http, "fetch_with_retry", side_effect=fake_fetch):
+        token = rustore._authenticate()
+
+    assert token == "bearer-xyz"
+    # keyId in request body MUST be stripped
+    assert captured["body"]["keyId"] == "2351028465"
+    assert "\n" not in captured["body"]["keyId"]
+    assert " " not in captured["body"]["keyId"]

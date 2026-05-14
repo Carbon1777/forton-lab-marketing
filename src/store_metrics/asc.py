@@ -2,8 +2,9 @@
 
 Pipeline (real-mode, all 4 envs set):
     1. _fetch_sales_tsv: POST https://reportingitc-reporter.apple.com/reportservice/sales/v1
-       form body `jsonRequest=<urlencoded JSON>`, bearer token in Authorization
-       header. Response body is gzipped TSV (Sales Summary Weekly).
+       form body `jsonRequest=<urlencoded JSON>` with `accesstoken` field
+       INSIDE the JSON body (NOT as Authorization header — Apple Reporter
+       Legacy spec). Response body is gzipped TSV (Sales Summary Weekly).
     2. _parse_installs_from_tsv: filter rows where Product Type Identifier == "1F"
        (paid/free download — installs) AND Apple Identifier == app_id; sum Units,
        group by Country Code → top_country.
@@ -121,17 +122,21 @@ def _fetch_sales_tsv(vendor: str, token: str, target_sunday: dt.date) -> bytes:
     query_input = (
         f"[p=Reports.getReport, {vendor}, Sales, Summary, Weekly, {date_str}]"
     )
+    # HOTFIX 2026-05-15 (smoke test run 25890122345 returned 401):
+    # Apple Reporter Legacy API expects the access token INSIDE the
+    # jsonRequest body as `accesstoken` field, NOT as Authorization HTTP
+    # header. Original RESEARCH.md misidentified the auth path as Bearer.
     json_request = {
         "userid": "",
         "password": "",
-        "account": vendor,
-        "mode": "Robot.XML",
+        "account": vendor.strip(),
         "version": "1.0",
+        "mode": "Robot.XML",
         "queryInput": query_input,
+        "accesstoken": token.strip(),
     }
     body = "jsonRequest=" + urllib.parse.quote(json.dumps(json_request))
     headers = {
-        "Authorization": f"Bearer {token}",
         "Content-Type": "application/x-www-form-urlencoded",
         "Accept": "application/octet-stream",
     }
@@ -150,8 +155,12 @@ def _fetch_sales_tsv(vendor: str, token: str, target_sunday: dt.date) -> bytes:
         )
         return b""
     if status in (401, 403):
+        # HOTFIX: include response excerpt (without secrets — only API's
+        # error message) so digest shows actionable error instead of
+        # generic "check token".
+        snippet = (resp.text or "")[:200].replace("\n", " ")
         raise RuntimeError(
-            "Apple Reporter auth failed — check ASC_REPORTER_ACCESS_TOKEN"
+            f"Apple Reporter auth failed (HTTP {status}): {snippet}"
         )
     if status >= 400:
         # 4xx≠401/403/404 — surface as generic failure (no retry by _http).
