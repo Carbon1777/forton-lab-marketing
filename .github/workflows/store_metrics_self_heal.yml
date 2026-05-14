@@ -30,7 +30,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          # fetch-depth: 0 нужен чтобы git log -1 --format=%ct мог найти
+          # commit, изменивший .metrics/store_snapshots.json (CR-01 fix).
+          # При shallow clone (depth=1) git видит только HEAD — если HEAD
+          # не трогал snapshot, git log возвращает пусто.
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -46,9 +50,15 @@ jobs:
           TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
           TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
         run: |
+          # CR-01 fix: actions/checkout@v4 сбрасывает file mtime ко времени
+          # запуска runner — `stat().st_mtime` бесполезен. Используем git log
+          # commit time последнего изменения файла как ground truth: это
+          # commit от `store_metrics.yml` (auto: update snapshot…) последнего
+          # успешного run'а.
           PYTHONPATH=. python <<'PY'
           import datetime as dt
           import os
+          import subprocess
           import sys
           from pathlib import Path
 
@@ -62,10 +72,29 @@ jobs:
               print("No snapshot file yet — bootstrap mode, nothing to check.")
               sys.exit(0)
 
-          mtime = dt.datetime.fromtimestamp(
-              snapshots.stat().st_mtime, dt.timezone.utc
+          # git log -1 --format=%ct <file> — committer timestamp последнего
+          # коммита, изменившего файл. Это commit «auto: update snapshot…»
+          # от prev successful run store_metrics.yml.
+          try:
+              git_ts_raw = subprocess.check_output(
+                  ["git", "log", "-1", "--format=%ct", "--", str(snapshots)],
+                  text=True,
+              ).strip()
+          except subprocess.CalledProcessError as exc:
+              print(f"ALERT skipped: git log failed: {exc!r}")
+              sys.exit(0)
+
+          if not git_ts_raw:
+              # Файл существует в worktree но не в git history (новый,
+              # ещё не закоммичен после bootstrap). Это норма на первой
+              # неделе — пропускаем.
+              print("No git commit history for snapshot — skipping check.")
+              sys.exit(0)
+
+          last_commit_dt = dt.datetime.fromtimestamp(
+              int(git_ts_raw), dt.timezone.utc
           )
-          age_days = (dt.datetime.now(dt.timezone.utc) - mtime).days
+          age_days = (dt.datetime.now(dt.timezone.utc) - last_commit_dt).days
 
           # 8 дней = 1 пропущенный пн + grace 1 день. На 7 днях digest мог
           # просто не успеть к моменту watchdog-check (cron drift), на 8 —

@@ -253,3 +253,115 @@ def test_render_digest_hypotheses_section_works_without_alerts():
     assert "• only insight" in out
     # Still rendered before footer
     assert out.index("💡 Гипотезы недели") < out.index("<i>Собрано")
+
+
+# === Code-review regression tests (HR-01, HR-02) ===
+
+
+def test_render_digest_zero_prev_with_has_prev_uses_emoji_not_dash():
+    """HR-01 regression: when prev_installs is a real 0 (not None), arrow MUST
+    be 📈 (current > 0 from baseline of 0), NOT — (which would indicate missing
+    data). Before fix: `overall_prev if overall_prev else None` treated 0 as
+    falsy → passed None to WeekDelta.compute → returned arrow='—'."""
+    # Zero prev for everyone — but it IS a real zero (we recorded it), not missing data.
+    report = _make_report(
+        centry_curr=(10, 8, 3), centry_prev=(0, 0, 0),
+        diktum_curr=(7, 5, 2), diktum_prev=(0, 0, 0),
+    )
+    out = render_digest(report)
+    # Total: 21+14=35 installs vs prev 0 → 📈 (growth from zero baseline)
+    assert "📈" in out, "Zero baseline → 📈 expected, got — (HR-01 regression)"
+    # Sanity: ИТОГО header rendered
+    assert "🎯 ИТОГО" in out
+
+
+def test_render_digest_snap_error_html_escaped():
+    """HR-02 regression: snap.error may contain raw API response with `<`/`>`
+    chars; without html.escape, parse_mode=HTML in Telegram rejects message."""
+    week = dt.date(2026, 5, 5)
+    centry = ProductReport(
+        product="centry",
+        snapshots=[
+            _snap("centry", "app_store", None,
+                  error='HTTP 500: <error>auth failed</error> & timeout'),
+            _snap("centry", "google_play", 5, 4.6),
+            _snap("centry", "rustore", 3, 4.8),
+        ],
+        prev_snapshots=[],
+        trend_4w=[],
+    )
+    diktum = ProductReport(
+        product="diktum", snapshots=[
+            _snap("diktum", "app_store", 2, 4.6),
+            _snap("diktum", "google_play", 1, 4.5),
+            _snap("diktum", "rustore", 1, 4.7),
+        ],
+        prev_snapshots=[], trend_4w=[],
+    )
+    report = WeeklyReport(week_start=week, products=[centry, diktum])
+    out = render_digest(report)
+    # Escaped form should appear; raw should NOT
+    assert "&lt;error&gt;auth failed&lt;/error&gt;" in out
+    assert "&amp; timeout" in out
+    assert "<error>auth failed</error>" not in out
+    assert "& timeout" not in out
+
+
+def test_render_digest_hypothesis_html_escaped():
+    """HR-02 regression: hypothesis insights may contain `<`/`>`/`&` from
+    Claude Haiku output; brand_lint filters word violations but doesn't
+    HTML-sanitize. Must escape before rendering."""
+    import dataclasses as _dc
+    report = _make_report()
+    insights = [
+        "Centry GP вырос 2x — есть < threshold 30%, но рост значимый",
+        "Diktum AS Q&A: drop проверь reviews & analytics",
+    ]
+    report = _dc.replace(report, hypotheses=insights)
+    out = render_digest(report)
+    # Escaped form present
+    assert "&lt; threshold" in out
+    assert "Q&amp;A" in out
+    assert "reviews &amp; analytics" in out
+    # Raw form absent
+    assert "< threshold" not in out
+    assert "Q&A" not in out
+
+
+def test_render_digest_alerts_error_html_escaped():
+    """HR-02 regression: alert section also embeds snap.error — must escape."""
+    week = dt.date(2026, 5, 5)
+    prev = week - dt.timedelta(days=7)
+    centry = ProductReport(
+        product="centry",
+        snapshots=[
+            _snap("centry", "app_store", None,
+                  error='RuStore API returned <html>500</html>'),
+            _snap("centry", "google_play", 5),
+            _snap("centry", "rustore", 3),
+        ],
+        prev_snapshots=[
+            StoreSnapshot(product="centry", store="app_store",
+                          week_start=prev, installs=20),
+            StoreSnapshot(product="centry", store="google_play",
+                          week_start=prev, installs=4),
+            StoreSnapshot(product="centry", store="rustore",
+                          week_start=prev, installs=3),
+        ],
+        trend_4w=[],
+    )
+    diktum = ProductReport(
+        product="diktum",
+        snapshots=[
+            _snap("diktum", "app_store", 2),
+            _snap("diktum", "google_play", 1),
+            _snap("diktum", "rustore", 1),
+        ],
+        prev_snapshots=[], trend_4w=[],
+    )
+    report = WeeklyReport(week_start=week, products=[centry, diktum])
+    out = render_digest(report)
+    # Error appears in both per-store row (italic) AND alerts section
+    # Both must be HTML-escaped
+    assert "&lt;html&gt;500&lt;/html&gt;" in out
+    assert "<html>500</html>" not in out
