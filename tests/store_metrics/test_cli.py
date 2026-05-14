@@ -10,7 +10,13 @@ from src.store_metrics.models import StoreSnapshot
 
 def test_collect_all_returns_snapshots_in_mock_mode(monkeypatch):
     """Без secrets все 3 adapter'a возвращают mocks → 6 снапшотов."""
-    for v in ("ASC_KEY_ID", "GOOGLE_PLAY_SA_JSON", "RUSTORE_PRIVATE_KEY"):
+    for v in (
+        # New Apple Reporter envs (wired 2026-05-14, replaces ASC_KEY_ID etc.)
+        "ASC_REPORTER_ACCESS_TOKEN", "ASC_VENDOR_NUMBER",
+        "ASC_APP_ID_CENTRY", "ASC_APP_ID_DIKTUM",
+        # Legacy / other-store
+        "ASC_KEY_ID", "GOOGLE_PLAY_SA_JSON", "RUSTORE_PRIVATE_KEY",
+    ):
         monkeypatch.delenv(v, raising=False)
     snaps = cli.collect_all(dt.date(2026, 5, 5))
     assert len(snaps) == 6   # 2 products × 3 stores
@@ -48,8 +54,12 @@ def test_build_report_attaches_prev_snapshots():
 
 def test_main_in_mock_mode_writes_snapshot(tmp_path, monkeypatch):
     """main() runs end-to-end with mocks: produces digest, saves snapshot."""
-    for v in ("ASC_KEY_ID", "GOOGLE_PLAY_SA_JSON", "RUSTORE_PRIVATE_KEY",
-                "TG_PLANNER_BOT_TOKEN", "TG_OWNER_CHAT_ID"):
+    for v in (
+        "ASC_REPORTER_ACCESS_TOKEN", "ASC_VENDOR_NUMBER",
+        "ASC_APP_ID_CENTRY", "ASC_APP_ID_DIKTUM",
+        "ASC_KEY_ID", "GOOGLE_PLAY_SA_JSON", "RUSTORE_PRIVATE_KEY",
+        "TG_PLANNER_BOT_TOKEN", "TG_OWNER_CHAT_ID",
+    ):
         monkeypatch.delenv(v, raising=False)
     snap_path = tmp_path / "snap.json"
     today = dt.date(2026, 5, 12)   # Tuesday — last week = May 4-10
