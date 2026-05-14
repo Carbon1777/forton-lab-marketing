@@ -79,10 +79,19 @@ class ProductReport:
 
 @dataclass(frozen=True)
 class WeeklyReport:
-    """Полный недельный отчёт — все продукты + общие алерты."""
+    """Полный недельный отчёт — все продукты + общие алерты.
+
+    ``hypotheses`` — Claude Haiku 4.5 insights (METRICS-09 / D-5-06). Optional
+    additive field added in Phase 5 Plan 06: when ANTHROPIC_API_KEY is absent
+    OR Haiku call fails OR all insights are dropped by brand_lint, this stays
+    empty and the digest renders without the «💡 Гипотезы недели» section.
+    Defaults to empty list — existing call-sites that build WeeklyReport
+    without ``hypotheses=`` keep working unchanged.
+    """
     week_start: dt.date
     products: list[ProductReport]
     overall_alerts: list[str] = field(default_factory=list)
+    hypotheses: list[str] = field(default_factory=list)   # METRICS-09
     generated_at: dt.datetime = field(default_factory=lambda: dt.datetime.now(dt.timezone.utc))
 
 
