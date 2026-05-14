@@ -1,0 +1,7 @@
+Provider	Provider Country	SKU	Developer	Title	Version	Product Type Identifier	Units	Developer Proceeds (per unit)	Begin Date	End Date	Customer Currency	Country Code	Currency of Proceeds	Apple Identifier	Customer Price
+APPLE	US	centry.sku	Forton Lab	Centry	1.0	1F	5	0.00	05/12/2026	05/18/2026	RUB	RU	RUB	1000000000	0.00
+APPLE	US	centry.sku	Forton Lab	Centry	1.0	1F	2	0.00	05/12/2026	05/18/2026	KZT	KZ	KZT	1000000000	0.00
+APPLE	US	centry.sku	Forton Lab	Centry	1.0	3F	1	0.00	05/12/2026	05/18/2026	RUB	RU	RUB	1000000000	0.00
+APPLE	US	diktum.sku	Forton Lab	Diktum	1.0	1F	3	0.00	05/12/2026	05/18/2026	RUB	RU	RUB	2000000000	0.00
+APPLE	US	diktum.sku	Forton Lab	Diktum	1.0	1	1	0.00	05/12/2026	05/18/2026	BYN	BY	BYN	2000000000	0.00
+APPLE	US	diktum.sku	Forton Lab	Diktum	1.0	IA1	0	0.00	05/12/2026	05/18/2026	RUB	RU	RUB	2000000000	0.00

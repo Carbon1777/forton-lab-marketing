@@ -468,3 +468,73 @@ def sample_brief_md(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     return brief
+
+
+# ============================================================
+# Phase 5 fixtures — store_metrics test infrastructure
+# ============================================================
+
+from unittest.mock import patch as _patch_p5
+
+
+@pytest.fixture
+def fixture_store_metrics_dir() -> Path:
+    """Path to tests/fixtures/store_metrics/ (23 files for Phase 5)."""
+    p = FIXTURES_DIR / "store_metrics"
+    assert p.exists(), f"missing Phase 5 fixtures dir: {p}"
+    return p
+
+
+@pytest.fixture
+def mock_anthropic_haiku():
+    """MagicMock for anthropic.Anthropic() returning canned Haiku output.
+
+    Returns: (fake_client, fake_msg). Tests mutate fake_msg.content[0].text
+    to test different scenarios.
+    """
+    fake_msg = MagicMock()
+    fake_msg.content = [MagicMock(type="text", text='{"insights":["test insight 1","test insight 2"]}')]
+    fake_msg.stop_reason = "end_turn"
+    fake_msg.usage = MagicMock(input_tokens=300, output_tokens=80)
+    fake_client = MagicMock()
+    fake_client.messages.create.return_value = fake_msg
+    return fake_client, fake_msg
+
+
+@pytest.fixture
+def mock_gcs_bucket():
+    """Patch google.cloud.storage.Client for GPlay GCS installs CSV.
+
+    Returns: the patched mock. Use mock.return_value.bucket().blob().download_as_bytes
+    to inject test data. Default blob.exists() = True, default content = UTF-16 BOM + header.
+    """
+    with _patch_p5("src.store_metrics._play.storage.Client", create=True) as m:
+        client = MagicMock()
+        bucket = MagicMock()
+        blob = MagicMock()
+        blob.exists.return_value = True
+        blob.download_as_bytes.return_value = b'\xff\xfeDate,Package Name,Country,Daily Device Installs\n'
+        bucket.blob.return_value = blob
+        client.bucket.return_value = bucket
+        m.return_value = client
+        yield m
+
+
+@pytest.fixture
+def mock_play_service():
+    """Patch googleapiclient.discovery.build('androidpublisher', ...).
+
+    Returns: the patched mock; default response has 2 reviews.
+    """
+    with _patch_p5("src.store_metrics._play.build", create=True) as m:
+        service = MagicMock()
+        reviews_list = MagicMock()
+        reviews_list.execute.return_value = {
+            "reviews": [
+                {"comments": [{"userComment": {"starRating": 5, "text": "Хорошо", "reviewerLanguage": "ru"}}]},
+                {"comments": [{"userComment": {"starRating": 4, "text": "Норм", "reviewerLanguage": "ru"}}]},
+            ],
+        }
+        service.reviews().list.return_value = reviews_list
+        m.return_value = service
+        yield m

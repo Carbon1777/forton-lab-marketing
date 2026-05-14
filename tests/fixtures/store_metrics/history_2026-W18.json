@@ -1,0 +1,21 @@
+{
+  "_schema_version": 1,
+  "week": "2026-W18",
+  "week_range": ["2026-04-28", "2026-05-04"],
+  "generated_at_utc": "2026-05-05T06:37:00Z",
+  "products": {
+    "centry": {
+      "as": {"installs": 12, "uninstalls": null, "rating": 4.7, "rating_count": 240, "countries": {"RU": 0.80, "KZ": 0.20}, "source": "reporter+rss", "fetched_at": "2026-05-05T06:37:00Z", "fetch_status": "ok"},
+      "gp": {"installs": 10, "uninstalls": 2, "rating": 4.6, "rating_count": 80, "countries": {"RU": 0.85}, "source": "gcs_csv+androidpublisher_v3", "fetched_at": "2026-05-05T06:37:00Z", "fetch_status": "ok"},
+      "rs": {"installs": 3, "uninstalls": null, "rating": 4.8, "rating_count": 10, "countries": null, "source": "rustore_api+manual_csv", "fetched_at": "2026-05-05T06:37:00Z", "fetch_status": "ok"}
+    },
+    "diktum": {
+      "as": {"installs": 5, "uninstalls": null, "rating": null, "rating_count": 0, "countries": null, "source": "reporter+rss", "fetched_at": "2026-05-05T06:37:00Z", "fetch_status": "ok"},
+      "gp": {"installs": 3, "uninstalls": 0, "rating": 4.5, "rating_count": 6, "countries": {"RU": 1.0}, "source": "gcs_csv+androidpublisher_v3", "fetched_at": "2026-05-05T06:37:00Z", "fetch_status": "ok"},
+      "rs": {"installs": 1, "uninstalls": null, "rating": null, "rating_count": 0, "countries": null, "source": "rustore_api+manual_csv", "fetched_at": "2026-05-05T06:37:00Z", "fetch_status": "ok"}
+    }
+  },
+  "alerts": [],
+  "hypothesis": [],
+  "self_heal_status": "ok"
+}

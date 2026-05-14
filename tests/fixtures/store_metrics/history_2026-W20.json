@@ -1,0 +1,25 @@
+{
+  "_schema_version": 1,
+  "week": "2026-W20",
+  "week_range": ["2026-05-12", "2026-05-18"],
+  "generated_at_utc": "2026-05-19T06:37:00Z",
+  "products": {
+    "centry": {
+      "as": {"installs": 12, "uninstalls": null, "rating": 4.7, "rating_count": 250, "countries": {"RU": 0.78, "KZ": 0.15, "other": 0.07}, "source": "reporter+rss", "fetched_at": "2026-05-19T06:37:00Z", "fetch_status": "ok"},
+      "gp": {"installs": 8, "uninstalls": 3, "rating": 4.6, "rating_count": 89, "countries": {"RU": 0.85, "BY": 0.10, "other": 0.05}, "source": "gcs_csv+androidpublisher_v3", "fetched_at": "2026-05-19T06:37:00Z", "fetch_status": "ok"},
+      "rs": {"installs": 3, "uninstalls": null, "rating": 4.8, "rating_count": 12, "countries": null, "source": "rustore_api+manual_csv", "fetched_at": "2026-05-19T06:37:00Z", "fetch_status": "ok"}
+    },
+    "diktum": {
+      "as": {"installs": 9, "uninstalls": null, "rating": null, "rating_count": 0, "countries": null, "source": "reporter+rss", "fetched_at": "2026-05-19T06:37:00Z", "fetch_status": "ok"},
+      "gp": {"installs": 30, "uninstalls": 5, "rating": 4.5, "rating_count": 10, "countries": {"RU": 1.0}, "source": "gcs_csv+androidpublisher_v3", "fetched_at": "2026-05-19T06:37:00Z", "fetch_status": "ok"},
+      "rs": {"installs": 2, "uninstalls": null, "rating": null, "rating_count": 0, "countries": null, "source": "rustore_api+manual_csv", "fetched_at": "2026-05-19T06:37:00Z", "fetch_status": "ok"}
+    }
+  },
+  "alerts": [
+    {"product": "diktum", "store": "gp", "metric": "installs", "delta_pct": 650, "action_hint": "проверь органический трафик"}
+  ],
+  "hypothesis": [
+    {"text": "Diktum резко вырос в GP — что-то залетело?", "model": "haiku-4-5", "usd": 0.0005}
+  ],
+  "self_heal_status": "ok"
+}
