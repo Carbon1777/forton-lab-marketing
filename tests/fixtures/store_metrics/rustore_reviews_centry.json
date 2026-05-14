@@ -1,0 +1,31 @@
+{
+  "code": "OK",
+  "body": {
+    "content": [
+      {
+        "commentId": 1001,
+        "userName": "Иван",
+        "appRating": 5,
+        "commentText": "Хорошее приложение",
+        "commentStatus": "PUBLISHED",
+        "commentDate": "2026-05-12T08:11:00+03:00",
+        "packageName": "website.centry.app"
+      },
+      {
+        "commentId": 1002,
+        "userName": "Пётр",
+        "appRating": 4,
+        "commentText": "Неплохо",
+        "commentStatus": "PUBLISHED",
+        "commentDate": "2026-05-13T16:30:00+03:00",
+        "packageName": "website.centry.app"
+      }
+    ],
+    "totalElements": 2,
+    "totalPages": 1,
+    "size": 100,
+    "number": 0,
+    "first": true,
+    "last": true
+  }
+}

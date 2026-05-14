@@ -1,0 +1,31 @@
+{
+  "feed": {
+    "author": {"name": {"label": "iTunes Store"}, "uri": {"label": "http://www.apple.com/itunes/"}},
+    "updated": {"label": "2026-05-14T10:59:16-07:00"},
+    "title": {"label": "iTunes Store: Customer Reviews"},
+    "id": {"label": "https://itunes.apple.com/ru/rss/customerreviews/id=1000000000/sortBy=mostRecent/page=1/json"},
+    "entry": [
+      {
+        "im:rating": {"label": "5"},
+        "title": {"label": "Хорошо"},
+        "content": [{"label": "Отличное приложение", "attributes": {"type": "text"}}],
+        "author": {"name": {"label": "Иван"}},
+        "updated": {"label": "2026-05-13T08:11:00-07:00"}
+      },
+      {
+        "im:rating": {"label": "4"},
+        "title": {"label": "Норм"},
+        "content": [{"label": "Неплохо", "attributes": {"type": "text"}}],
+        "author": {"name": {"label": "Пётр"}},
+        "updated": {"label": "2026-05-12T16:30:00-07:00"}
+      },
+      {
+        "im:rating": {"label": "5"},
+        "title": {"label": "Удобно"},
+        "content": [{"label": "Удобно пользоваться", "attributes": {"type": "text"}}],
+        "author": {"name": {"label": "Анна"}},
+        "updated": {"label": "2026-05-11T09:45:00-07:00"}
+      }
+    ]
+  }
+}

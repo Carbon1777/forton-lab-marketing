@@ -1,0 +1,8 @@
+{
+  "code": "OK",
+  "body": {
+    "jwe": "fake.bearer.token.string.eyJhbGciOiJSUzUxMiJ9.eyJrZXlJZCI6IjIzNTEwMjg0NjUifQ.fake_signature",
+    "ttl": 900
+  },
+  "timestamp": "2026-05-14T19:31:17.580+03:00"
+}

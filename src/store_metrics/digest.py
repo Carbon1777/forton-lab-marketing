@@ -24,6 +24,8 @@
 """
 from __future__ import annotations
 
+import html
+
 from .models import ALERT_PCT, ProductReport, StoreSnapshot, WeeklyReport, WeekDelta
 
 _STORE_NAME: dict[str, str] = {
@@ -89,7 +91,10 @@ def _render_product_block(report: ProductReport) -> list[str]:
             f"{_fmt_rating(snap)}"
         )
         if snap.error:
-            line = f"   {_STORE_NAME[snap.store]:<12}  <i>{snap.error}</i>"
+            # HR-02 fix: snap.error может содержать сырой response.text от API
+            # с символами `<`/`>`/`&` — без html.escape Telegram отклоняет
+            # сообщение как невалидный HTML (parse_mode=HTML).
+            line = f"   {_STORE_NAME[snap.store]:<12}  <i>{html.escape(snap.error)}</i>"
         out.append(line)
 
     # Geo line — top country if any
@@ -120,6 +125,8 @@ def _render_trend(report: ProductReport) -> str | None:
 
 def _gather_alerts(report: WeeklyReport) -> list[str]:
     """Build alert lines: any per-store delta >= ALERT_PCT triggers."""
+    # HR-02 fix: snap.error contains raw API response — html.escape before
+    # embedding into HTML-mode TG message.
     alerts: list[str] = list(report.overall_alerts)
     for prod in report.products:
         prev_by_store = {s.store: s for s in prod.prev_snapshots}
@@ -127,7 +134,7 @@ def _gather_alerts(report: WeeklyReport) -> list[str]:
             if snap.error:
                 alerts.append(
                     f"• {_STORE_NAME[snap.store]} {prod.product.upper()} "
-                    f"— {snap.error}"
+                    f"— {html.escape(snap.error)}"
                 )
                 continue
             prev_snap = prev_by_store.get(snap.store)
@@ -169,7 +176,18 @@ def render_digest(report: WeeklyReport) -> str:
         if p is not None:
             overall_prev += p
     if has_any:
-        d = WeekDelta.compute(overall_curr, overall_prev if overall_prev else None)
+        # HR-01 fix: bare `overall_prev if overall_prev else None` converts a
+        # legit zero (нулевая прошлая неделя) → None → arrow "—" вместо
+        # "📈". Use explicit has_prev flag tracking whether ANY product had
+        # non-None prev installs.
+        has_prev = any(
+            _product_total_installs(prod.prev_snapshots) is not None
+            for prod in report.products
+        )
+        d = WeekDelta.compute(
+            overall_curr,
+            overall_prev if has_prev else None,
+        )
         lines.append("<b>🎯 ИТОГО</b>")
         lines.append(
             f"   {_fmt_int(overall_curr)} установок "
@@ -190,6 +208,18 @@ def render_digest(report: WeeklyReport) -> str:
     if alerts:
         lines.append("<b>🚨 Алерты</b>")
         lines.extend(alerts)
+        lines.append("")
+
+    # Hypotheses (METRICS-09 / D-5-06) — Claude Haiku 4.5 insights.
+    # Section rendered ONLY when non-empty; soft-fail in hypothesis.generate()
+    # yields empty list → header is omitted entirely so the digest stays clean.
+    if report.hypotheses:
+        # HR-02 fix: hypothesis insights come from Claude Haiku LLM output —
+        # brand_lint filters but doesn't sanitize HTML. Escape `<`/`>`/`&`
+        # before embedding into parse_mode=HTML TG message.
+        lines.append("<b>💡 Гипотезы недели</b>")
+        for insight in report.hypotheses:
+            lines.append(f"• {html.escape(insight)}")
         lines.append("")
 
     # Footer

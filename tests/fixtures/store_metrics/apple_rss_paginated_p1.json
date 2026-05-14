@@ -1,0 +1,1223 @@
+{
+  "feed": {
+    "author": {
+      "name": {
+        "label": "iTunes Store"
+      },
+      "uri": {
+        "label": "http://www.apple.com/itunes/"
+      }
+    },
+    "updated": {
+      "label": "2026-05-14T11:00:00-07:00"
+    },
+    "title": {
+      "label": "iTunes Store: Customer Reviews"
+    },
+    "id": {
+      "label": "https://itunes.apple.com/ru/rss/customerreviews/id=1000000000/sortBy=mostRecent/page=1/json"
+    },
+    "entry": [
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 1"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 1",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User1"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 2"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 2",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User2"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 3"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 3",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User3"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 4"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 4",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User4"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 5"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 5",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User5"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 6"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 6",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User6"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 7"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 7",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User7"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 8"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 8",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User8"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 9"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 9",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User9"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 10"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 10",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User10"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 11"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 11",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User11"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 12"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 12",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User12"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 13"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 13",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User13"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 14"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 14",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User14"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 15"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 15",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User15"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 16"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 16",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User16"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 17"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 17",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User17"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 18"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 18",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User18"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 19"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 19",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User19"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 20"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 20",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User20"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 21"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 21",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User21"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 22"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 22",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User22"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 23"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 23",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User23"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 24"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 24",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User24"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 25"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 25",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User25"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 26"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 26",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User26"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 27"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 27",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User27"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 28"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 28",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User28"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 29"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 29",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User29"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 30"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 30",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User30"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 31"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 31",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User31"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 32"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 32",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User32"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 33"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 33",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User33"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 34"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 34",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User34"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 35"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 35",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User35"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 36"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 36",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User36"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 37"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 37",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User37"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 38"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 38",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User38"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 39"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 39",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User39"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 40"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 40",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User40"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 41"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 41",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User41"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 42"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 42",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User42"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 43"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 43",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User43"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 44"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 44",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User44"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 45"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 45",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User45"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 46"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 46",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User46"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 47"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 47",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User47"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 48"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 48",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User48"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 49"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 49",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User49"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      },
+      {
+        "im:rating": {
+          "label": "5"
+        },
+        "title": {
+          "label": "Отзыв 50"
+        },
+        "content": [
+          {
+            "label": "Хороший продукт 50",
+            "attributes": {
+              "type": "text"
+            }
+          }
+        ],
+        "author": {
+          "name": {
+            "label": "User50"
+          }
+        },
+        "updated": {
+          "label": "2026-05-10T10:00:00-07:00"
+        }
+      }
+    ]
+  }
+}

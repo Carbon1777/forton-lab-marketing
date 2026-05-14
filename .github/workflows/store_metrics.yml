@@ -1,16 +1,25 @@
 name: store_metrics
 
-# Phase 5 — Weekly store metrics digest.
-# Cron Пн 06:37 UTC = 09:37 МСК (defends MAJ-1 — cron drift mitigation:
-# на ровные часы у GH Actions cron throttling, sub-hour offset стабильнее).
+# Phase 5 — Weekly store metrics digest (METRICS-01, D-5-09).
 #
-# Self-heal: дополнительный cron Сб 12:00 UTC проверяет .metrics/store_snapshots.json
-# last update; если >9 дней — повторный trigger digest + alert.
-
+# Cron Пн 06:37 UTC = 09:37 МСК.
+#  - Sub-hour offset (37 мин) — митигация MAJ-1 cron-drift: на ровные часы у
+#    GH Actions throttling под пиковую нагрузку, на 37-й минуте час планируется
+#    стабильнее (verified Phase 0).
+#  - Concurrency group=store-metrics + cancel-in-progress=false — две
+#    параллельные сборки никогда не пересекаются (T-MAJ-1 mitigation); если
+#    предыдущий запуск завис, новый стартует только после его завершения.
+#
+# Self-heal: см. отдельный workflow `store_metrics_self_heal.yml` —
+# проверка `last_successful_run_utc` каждые 6 часов (D-5-09, METRICS-06).
+#
+# Snapshot commit: digest сохраняет `.metrics/store_snapshots.json` для WoW
+# и 4w-trend (D-5-04). Снапшот коммитится обратно в repo через
+# `BOT_DISPATCH_PAT` (тот же fine-grained PAT что Phase 1.5 — Contents:write,
+# single-repo binding).
 on:
   schedule:
     - cron: "37 6 * * 1"
-    - cron: "0 12 * * 6"
   workflow_dispatch: {}
 
 permissions:
@@ -42,23 +51,41 @@ jobs:
 
       - name: Collect + render + send digest
         env:
+          # ------------ TG (planner bot, Phase 1.5 inheritance) ------------
           TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
           TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
-          # Apple ASC (set when secrets ready)
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+
+          # ------------ Apple App Store — Reporter API (TTL 180d) ----------
+          # Reporter Token (ASC_REPORTER_ACCESS_TOKEN) — UUID, expires
+          # 2026-11-10. Rotation reminder через secrets_metadata.json
+          # (см. weekly_planner extension в Phase 5.x).
+          ASC_REPORTER_ACCESS_TOKEN: ${{ secrets.ASC_REPORTER_ACCESS_TOKEN }}
+          ASC_VENDOR_NUMBER: ${{ secrets.ASC_VENDOR_NUMBER }}
           ASC_APP_ID_CENTRY: ${{ secrets.ASC_APP_ID_CENTRY }}
           ASC_APP_ID_DIKTUM: ${{ secrets.ASC_APP_ID_DIKTUM }}
-          # Google Play
+
+          # ------------ Google Play — Service Account (no TTL) -------------
+          # JSON весь содержимым в Secret value (multi-line). Reads
+          # androidpublisher (reviews) + GCS bucket reports (installs).
           GOOGLE_PLAY_SA_JSON: ${{ secrets.GOOGLE_PLAY_SA_JSON }}
-          PLAY_PACKAGE_CENTRY: ${{ secrets.PLAY_PACKAGE_CENTRY }}
-          PLAY_PACKAGE_DIKTUM: ${{ secrets.PLAY_PACKAGE_DIKTUM }}
-          # RuStore
+          GPLAY_DEVELOPER_ID: ${{ secrets.GPLAY_DEVELOPER_ID }}
+          GPLAY_PACKAGE_CENTRY: ${{ secrets.GPLAY_PACKAGE_CENTRY }}
+          GPLAY_PACKAGE_DIKTUM: ${{ secrets.GPLAY_PACKAGE_DIKTUM }}
+
+          # ------------ RuStore — JWS RSA-SHA512 (manual rotation) ---------
+          # Private key в multi-line PEM. Public key зарегистрирован в
+          # Console под `RUSTORE_KEY_ID`. Installs читаются из ручного
+          # CSV `.metrics/rustore_weekly/<YYYY-Www>.csv` (D-5 2026-05-14).
           RUSTORE_PRIVATE_KEY: ${{ secrets.RUSTORE_PRIVATE_KEY }}
           RUSTORE_KEY_ID: ${{ secrets.RUSTORE_KEY_ID }}
-          RUSTORE_APP_ID_CENTRY: ${{ secrets.RUSTORE_APP_ID_CENTRY }}
-          RUSTORE_APP_ID_DIKTUM: ${{ secrets.RUSTORE_APP_ID_DIKTUM }}
+          RUSTORE_COMPANY_ID: ${{ secrets.RUSTORE_COMPANY_ID }}
+          RUSTORE_PACKAGE_CENTRY: ${{ secrets.RUSTORE_PACKAGE_CENTRY }}
+          RUSTORE_PACKAGE_DIKTUM: ${{ secrets.RUSTORE_PACKAGE_DIKTUM }}
+
+          # ------------ Anthropic Haiku 4.5 — hypothesis injection ---------
+          # METRICS-09 / D-5-06. Если ключа нет — digest идёт без секции
+          # «💡 Гипотезы недели» (graceful fallback в `hypothesis.py`).
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: PYTHONPATH=. python -m src.store_metrics.cli
 
       - name: Commit updated snapshots

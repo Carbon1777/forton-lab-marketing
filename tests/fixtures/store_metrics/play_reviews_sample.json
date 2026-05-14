@@ -1,0 +1,40 @@
+{
+  "reviews": [
+    {
+      "reviewId": "gp:AOq1abcdef1234567890",
+      "authorName": "Иван",
+      "comments": [
+        {
+          "userComment": {
+            "starRating": 5,
+            "text": "Отличное приложение!",
+            "reviewerLanguage": "ru",
+            "device": "Pixel 7",
+            "androidOsVersion": 34,
+            "appVersionCode": 100,
+            "appVersionName": "1.0.0"
+          }
+        }
+      ]
+    },
+    {
+      "reviewId": "gp:AOq2abcdef1234567891",
+      "authorName": "Пётр",
+      "comments": [
+        {
+          "userComment": {
+            "starRating": 4,
+            "text": "Норм, можно лучше",
+            "reviewerLanguage": "ru",
+            "device": "Samsung A52",
+            "androidOsVersion": 33,
+            "appVersionCode": 100,
+            "appVersionName": "1.0.0"
+          }
+        }
+      ]
+    }
+  ],
+  "tokenPagination": {},
+  "pageInfo": {"totalResults": 2, "resultPerPage": 100, "startIndex": 0}
+}

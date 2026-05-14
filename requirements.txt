@@ -19,4 +19,11 @@ elevenlabs>=2.46.0,<3
 # Upper bound <13 covers current venv (12.2.0) + future minor releases; Phase 11
 # production code uses only stable Image/ImageDraw API, safe across 10/11/12.
 pillow>=10.4,<13
+# Phase 5 — store metrics (added 2026-05-14)
+# google-cloud-storage: GCS bucket reader для GPlay installs CSV (Wave 1 Plan 05-03).
+# cryptography: RSA private-key signing для RuStore JWS auth (Wave 1 Plan 05-04).
+# PyJWT[crypto]: explicit pin для Apple Reporter + RuStore (вместо транзитивной зависимости).
+google-cloud-storage>=2.18,<3.0
+cryptography>=43,<45
+PyJWT[crypto]>=2.10,<3.0
 

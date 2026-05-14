@@ -1,0 +1,8 @@
+{
+  "feed": {
+    "author": {"name": {"label": "iTunes Store"}, "uri": {"label": "http://www.apple.com/itunes/"}},
+    "updated": {"label": "2026-05-14T11:00:00-07:00"},
+    "title": {"label": "iTunes Store: Customer Reviews"},
+    "id": {"label": "https://itunes.apple.com/ru/rss/customerreviews/id=2000000000/sortBy=mostRecent/page=1/json"}
+  }
+}

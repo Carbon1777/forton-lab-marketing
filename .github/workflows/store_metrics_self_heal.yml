@@ -1,0 +1,138 @@
+name: store_metrics_self_heal
+
+# Phase 5 — Self-heal watchdog для store_metrics (METRICS-06, D-5-09).
+#
+# Каждые 6 часов проверяет mtime файла `.metrics/store_snapshots.json`.
+# Если последний снапшот старше 8 дней — значит `store_metrics.yml` не
+# запускался два понедельника подряд (cron miss, GH Actions outage, etc.).
+# Шлёт ALERT в TG-канал «Планировщик» со ссылкой на Actions UI для ручной
+# перезаливки.
+#
+# Lightweight: не тянет данные из стора, только проверяет state-файл.
+# Workflow завершается за ~30 сек.
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: store-metrics-self-heal
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 нужен чтобы git log -1 --format=%ct мог найти
+          # commit, изменивший .metrics/store_snapshots.json (CR-01 fix).
+          # При shallow clone (depth=1) git видит только HEAD — если HEAD
+          # не трогал snapshot, git log возвращает пусто.
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install minimal deps
+        run: pip install "requests==2.32.3"
+
+      - name: Check last snapshot freshness
+        env:
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+        run: |
+          # CR-01 fix: actions/checkout@v4 сбрасывает file mtime ко времени
+          # запуска runner — `stat().st_mtime` бесполезен. Используем git log
+          # commit time последнего изменения файла как ground truth: это
+          # commit от `store_metrics.yml` (auto: update snapshot…) последнего
+          # успешного run'а.
+          PYTHONPATH=. python <<'PY'
+          import datetime as dt
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          import requests
+
+          snapshots = Path(".metrics/store_snapshots.json")
+          if not snapshots.exists():
+              # До первого успешного запуска `store_metrics.yml` файла нет —
+              # это норма на bootstrap-стадии. Watchdog только следит за
+              # уже-существующим состоянием, не за инициализацией.
+              print("No snapshot file yet — bootstrap mode, nothing to check.")
+              sys.exit(0)
+
+          # git log -1 --format=%ct <file> — committer timestamp последнего
+          # коммита, изменившего файл. Это commit «auto: update snapshot…»
+          # от prev successful run store_metrics.yml.
+          try:
+              git_ts_raw = subprocess.check_output(
+                  ["git", "log", "-1", "--format=%ct", "--", str(snapshots)],
+                  text=True,
+              ).strip()
+          except subprocess.CalledProcessError as exc:
+              print(f"ALERT skipped: git log failed: {exc!r}")
+              sys.exit(0)
+
+          if not git_ts_raw:
+              # Файл существует в worktree но не в git history (новый,
+              # ещё не закоммичен после bootstrap). Это норма на первой
+              # неделе — пропускаем.
+              print("No git commit history for snapshot — skipping check.")
+              sys.exit(0)
+
+          last_commit_dt = dt.datetime.fromtimestamp(
+              int(git_ts_raw), dt.timezone.utc
+          )
+          age_days = (dt.datetime.now(dt.timezone.utc) - last_commit_dt).days
+
+          # 8 дней = 1 пропущенный пн + grace 1 день. На 7 днях digest мог
+          # просто не успеть к моменту watchdog-check (cron drift), на 8 —
+          # это уже точно пропуск двух подряд.
+          if age_days <= 8:
+              print(f"OK: last snapshot {age_days} days ago.")
+              sys.exit(0)
+
+          token = os.environ.get("TG_PLANNER_BOT_TOKEN")
+          chat = os.environ.get("TG_OWNER_CHAT_ID")
+          if not token or not chat:
+              print("ALERT skipped: TG secrets not configured.")
+              sys.exit(0)
+
+          url = (
+              "https://github.com/Carbon1777/forton-lab-marketing/"
+              "actions/workflows/store_metrics.yml"
+          )
+          text = (
+              "⏰ <b>store_metrics не запускался "
+              f"{age_days} дней</b>\n\n"
+              "Возможные причины:\n"
+              "• cron miss (GH Actions outage)\n"
+              "• сломанный credential (ASC_REPORTER_ACCESS_TOKEN expired?)\n"
+              "• последний run упал с ошибкой\n\n"
+              f"Проверь Actions: <a href=\"{url}\">store_metrics.yml</a>\n"
+              "Workflow можно дёрнуть руками через <code>Run workflow</code>."
+          )
+          resp = requests.post(
+              f"https://api.telegram.org/bot{token}/sendMessage",
+              json={
+                  "chat_id": chat,
+                  "text": text,
+                  "parse_mode": "HTML",
+                  "disable_web_page_preview": True,
+              },
+              timeout=15,
+          )
+          resp.raise_for_status()
+          print(f"ALERT sent: snapshot stale by {age_days} days.")
+          PY
