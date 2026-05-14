@@ -291,15 +291,19 @@ centryweb.ru
 
 ```yaml
 slug: centry-may14-nickname-not-number
-channels: [tg, vk, yt]
+channels:
+- tg
+- vk
+- yt
 product: centry
 rubric: feature_demo
 media:
-  - path: assets/posts/2026-05/centry-may14-nickname-not-number.mp4
-    sha256: 2684290cf4a66a63307a2c953528b5e3c1c4b1162ec84902d6b8ab7296eef65d
-    role: video
+- path: assets/posts/2026-05/centry-may14-nickname-not-number.mp4
+  sha256: 2684290cf4a66a63307a2c953528b5e3c1c4b1162ec84902d6b8ab7296eef65d
+  role: video
 video: assets/posts/2026-05/centry-may14-nickname-not-number.mp4
-status: draft
+status: published
+published_at: '2026-05-14T11:15:43.535291+00:00'
 ```
 
 Дала номер? Жди спама.
