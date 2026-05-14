@@ -122,10 +122,15 @@ def test_fetch_sales_tsv_returns_decompressed_bytes():
     assert call.kwargs["url"] == asc._REPORTER_URL
     assert call.kwargs["method"] == "POST"
     headers = call.kwargs["headers"]
-    assert headers["Authorization"] == "Bearer tok"
+    # HOTFIX 2026-05-15: token goes in jsonRequest body as accesstoken field,
+    # NOT in Authorization HTTP header (Apple Reporter Legacy spec).
+    assert "Authorization" not in headers
     assert headers["Content-Type"] == "application/x-www-form-urlencoded"
     body = call.kwargs["data"]
     assert body.startswith("jsonRequest=")
+    # Token must be inside jsonRequest body
+    assert "accesstoken" in body
+    assert "tok" in body
     # Verify queryInput contains the expected Sunday in YYYYMMDD
     assert "20260517" in body
     # Vendor encoded
@@ -146,12 +151,11 @@ def test_fetch_sales_tsv_404_returns_empty_bytes():
 
 
 def test_fetch_sales_tsv_401_raises_runtimeerror():
-    with patch.object(
-        asc._http,
-        "fetch_with_retry",
-        return_value=_mock_response(401, b""),
-    ):
-        with pytest.raises(RuntimeError, match="ASC_REPORTER_ACCESS_TOKEN"):
+    # HOTFIX: error message now includes HTTP status + response excerpt.
+    resp = _mock_response(401, b"")
+    resp.text = '{"error":"invalid_token"}'
+    with patch.object(asc._http, "fetch_with_retry", return_value=resp):
+        with pytest.raises(RuntimeError, match=r"Apple Reporter auth failed \(HTTP 401\)"):
             asc._fetch_sales_tsv(
                 vendor="94183271", token="tok",
                 target_sunday=dt.date(2026, 5, 17),
@@ -159,16 +163,64 @@ def test_fetch_sales_tsv_401_raises_runtimeerror():
 
 
 def test_fetch_sales_tsv_403_raises_runtimeerror():
-    with patch.object(
-        asc._http,
-        "fetch_with_retry",
-        return_value=_mock_response(403, b""),
-    ):
-        with pytest.raises(RuntimeError, match="ASC_REPORTER_ACCESS_TOKEN"):
+    resp = _mock_response(403, b"")
+    resp.text = "Forbidden"
+    with patch.object(asc._http, "fetch_with_retry", return_value=resp):
+        with pytest.raises(RuntimeError, match=r"Apple Reporter auth failed \(HTTP 403\)"):
             asc._fetch_sales_tsv(
                 vendor="94183271", token="tok",
                 target_sunday=dt.date(2026, 5, 17),
             )
+
+
+# HOTFIX regression tests (smoke run 25890122345)
+
+
+def test_fetch_sales_tsv_token_in_body_not_header():
+    """Apple Reporter Legacy: token MUST be in jsonRequest body, NOT header."""
+    import json as _json
+    import urllib.parse as _up
+    gz = gzip.compress(SAMPLE_TSV)
+    with patch.object(
+        asc._http,
+        "fetch_with_retry",
+        return_value=_mock_response(200, gz),
+    ) as mock_http:
+        asc._fetch_sales_tsv(
+            vendor="94183271", token="secret-token-xyz",
+            target_sunday=dt.date(2026, 5, 17),
+        )
+    body = mock_http.call_args.kwargs["data"]
+    headers = mock_http.call_args.kwargs["headers"]
+    # NO Authorization header
+    assert "Authorization" not in headers
+    # Parse jsonRequest body
+    encoded = body.replace("jsonRequest=", "", 1)
+    parsed = _json.loads(_up.unquote(encoded))
+    assert parsed["accesstoken"] == "secret-token-xyz"
+    assert parsed["account"] == "94183271"
+    assert parsed["mode"] == "Robot.XML"
+
+
+def test_fetch_sales_tsv_strips_whitespace_in_vendor_and_token():
+    """GH Secret storage may add trailing newline — strip before signing."""
+    import json as _json
+    import urllib.parse as _up
+    gz = gzip.compress(SAMPLE_TSV)
+    with patch.object(
+        asc._http,
+        "fetch_with_retry",
+        return_value=_mock_response(200, gz),
+    ) as mock_http:
+        asc._fetch_sales_tsv(
+            vendor="94183271\n", token="  token-xyz \n ",
+            target_sunday=dt.date(2026, 5, 17),
+        )
+    body = mock_http.call_args.kwargs["data"]
+    encoded = body.replace("jsonRequest=", "", 1)
+    parsed = _json.loads(_up.unquote(encoded))
+    assert parsed["accesstoken"] == "token-xyz"
+    assert parsed["account"] == "94183271"
 
 
 def test_fetch_sales_tsv_gzip_corruption_raises_runtimeerror():

@@ -81,9 +81,13 @@ def _is_configured() -> bool:
 
 
 def _package_for(product: Product) -> str:
-    """Resolve Play package name per product."""
+    """Resolve Play package name per product.
+
+    HOTFIX 2026-05-15: strip env values — GH Secret storage may include
+    trailing whitespace that breaks GCS blob path matching.
+    """
     key = "GPLAY_PACKAGE_CENTRY" if product == "centry" else "GPLAY_PACKAGE_DIKTUM"
-    val = os.environ.get(key, "")
+    val = os.environ.get(key, "").strip()
     if not val:
         raise RuntimeError(f"{key} not set")
     return val
@@ -167,8 +171,12 @@ def _fetch_installs_csv(
     # Lazy import — keeps mock-mode cold-start light.
     from google.cloud import storage
 
-    bucket_name = f"pubsite_prod_rev_{developer_id}"
-    blob_path = f"stats/installs/installs_{package}_{yyyymm}_country.csv"
+    # HOTFIX 2026-05-15 (smoke test run 25890122345): GH Secret values may
+    # include trailing whitespace/newline. GCS bucket validation rejected
+    # "pubsite_prod_rev_<id>\n" because the trailing \n means the name
+    # "doesn't end with a number or letter". Strip on read.
+    bucket_name = f"pubsite_prod_rev_{developer_id.strip()}"
+    blob_path = f"stats/installs/installs_{package.strip()}_{yyyymm}_country.csv"
     client = storage.Client(credentials=credentials)
     bucket = client.bucket(bucket_name)
     blob = bucket.blob(blob_path)
@@ -374,7 +382,7 @@ def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
             top_country_share=0.72,
         )
 
-    developer_id = os.environ["GPLAY_DEVELOPER_ID"]
+    developer_id = os.environ["GPLAY_DEVELOPER_ID"].strip()
     package = _package_for(product)
     week_start_d, week_end_d = _iso_week_range(week_start)
     months = _target_months(week_start_d, week_end_d)

@@ -134,9 +134,13 @@ def _is_configured() -> bool:
 
 
 def _package_for(product: Product) -> str:
-    """Resolve RuStore packageName per product (same identifiers as GPlay)."""
+    """Resolve RuStore packageName per product (same identifiers as GPlay).
+
+    HOTFIX 2026-05-15: strip env values — GH Secret storage may include
+    trailing whitespace that breaks URL path matching at the reviews endpoint.
+    """
     key = "RUSTORE_PACKAGE_CENTRY" if product == "centry" else "RUSTORE_PACKAGE_DIKTUM"
-    val = os.environ.get(key, "")
+    val = os.environ.get(key, "").strip()
     if not val:
         raise RuntimeError(f"{key} not set")
     return val
@@ -223,7 +227,12 @@ def _authenticate() -> str:
         requests.HTTPError on 5xx after retries.
     """
     private_key = _load_private_key()
-    key_id = os.environ["RUSTORE_KEY_ID"]
+    # HOTFIX 2026-05-15 (smoke test run 25890122345): RuStore auth returned
+    # HTTP 400 "Invalid request format. Unexpected value". Likely cause:
+    # GH Secret values include trailing whitespace/newline which breaks
+    # signature (signed message becomes "<key_id>\n<timestamp>" while server
+    # signs over "<key_id><timestamp>" → mismatch). Strip on read.
+    key_id = os.environ["RUSTORE_KEY_ID"].strip()
     timestamp = dt.datetime.now(tz=_RUSTORE_TZ).isoformat(timespec="milliseconds")
     signature = _sign_jws(key_id, timestamp, private_key)
 
@@ -243,8 +252,10 @@ def _authenticate() -> str:
         json_body=body,
     )
     if resp.status_code >= 400:
+        # HOTFIX: response body already included in error message (no token
+        # leak — body is RuStore's error response, doesn't contain our creds).
         raise RuntimeError(
-            f"RuStore auth HTTP {resp.status_code}: {resp.text[:200]}"
+            f"RuStore auth HTTP {resp.status_code}: {resp.text[:300]}"
         )
     try:
         payload = resp.json()

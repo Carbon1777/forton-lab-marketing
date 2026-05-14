@@ -656,3 +656,52 @@ def test_get_credentials_no_env_raises(monkeypatch):
     monkeypatch.delenv("GOOGLE_PLAY_SA_JSON_PATH", raising=False)
     with pytest.raises(RuntimeError, match="Neither GOOGLE_PLAY_SA_JSON"):
         play._get_credentials()
+
+
+# HOTFIX regression tests (smoke run 25890122345)
+
+
+def test_package_for_strips_whitespace(monkeypatch):
+    """GH Secret storage may add trailing newline. _package_for must strip it
+    so blob paths like installs_<package>_YYYYMM_country.csv don't include \\n.
+    """
+    monkeypatch.setenv("GPLAY_PACKAGE_CENTRY", "website.centry.app\n")
+    monkeypatch.setenv("GPLAY_PACKAGE_DIKTUM", "  ru.diktumweb.diktum  ")
+    assert play._package_for("centry") == "website.centry.app"
+    assert play._package_for("diktum") == "ru.diktumweb.diktum"
+
+
+def test_fetch_installs_csv_strips_developer_id_for_bucket_name(monkeypatch):
+    """GH Secret value with trailing newline broke GCS bucket validation
+    (smoke run 25890122345 error: 'Bucket names must start and end with a
+    number or letter'). Fix: strip developer_id before formatting."""
+    captured = {}
+
+    fake_blob = MagicMock()
+    fake_blob.exists.return_value = False
+    fake_bucket = MagicMock()
+    fake_bucket.blob.return_value = fake_blob
+    fake_client = MagicMock()
+
+    def capture_bucket(name):
+        captured["bucket"] = name
+        return fake_bucket
+
+    fake_client.bucket.side_effect = capture_bucket
+
+    with patch("google.cloud.storage.Client", return_value=fake_client):
+        play._fetch_installs_csv(
+            credentials=MagicMock(),
+            developer_id="6224792403622982347\n",   # trailing \n
+            package="website.centry.app\n",         # trailing \n
+            yyyymm="202605",
+        )
+
+    # Bucket name must end with digit, not \n
+    assert captured["bucket"] == "pubsite_prod_rev_6224792403622982347"
+    assert "\n" not in captured["bucket"]
+    # Blob path must use stripped package
+    fake_bucket.blob.assert_called_once()
+    blob_path = fake_bucket.blob.call_args[0][0]
+    assert "\n" not in blob_path
+    assert "website.centry.app" in blob_path
