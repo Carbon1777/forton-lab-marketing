@@ -181,3 +181,75 @@ def test_render_header_has_week_range():
     # week_start=2026-05-05 (Mon) → ends 11.05.2026
     assert "05.05" in out
     assert "11.05" in out
+
+
+# ---------------- Hypotheses section (METRICS-09 / D-5-06) ----------------
+
+def _make_report_with_hypotheses(hypotheses: list[str]):
+    """Build minimal WeeklyReport carrying given hypotheses.
+
+    Re-uses _make_report() but injects hypotheses via dataclasses.replace
+    (WeeklyReport is frozen).
+    """
+    import dataclasses as _dc
+    base = _make_report()
+    return _dc.replace(base, hypotheses=hypotheses)
+
+
+def test_render_digest_with_hypotheses_includes_section():
+    """When hypotheses non-empty → «💡 Гипотезы недели» header + all bullets."""
+    out = render_digest(_make_report_with_hypotheses([
+        "test insight 1",
+        "test insight 2",
+    ]))
+    assert "💡 Гипотезы недели" in out
+    assert "test insight 1" in out
+    assert "test insight 2" in out
+
+
+def test_render_digest_empty_hypotheses_omits_section():
+    """Default hypotheses=[] → no '💡' header in digest (existing behaviour)."""
+    # _make_report() does not pass hypotheses → defaults to []
+    out = render_digest(_make_report())
+    assert "💡" not in out
+    assert "Гипотезы недели" not in out
+
+
+def test_render_digest_hypotheses_section_placement():
+    """Section sits BETWEEN alerts (🚨) and footer (<i>Собрано ...).
+
+    Uses _make_report() default — Centry GP -31.8% generates an alert, so
+    alerts section is present and we can verify ordering.
+    """
+    out = render_digest(_make_report_with_hypotheses(["sandwich insight"]))
+    alerts_idx = out.index("🚨 Алерты")
+    hypo_idx = out.index("💡 Гипотезы недели")
+    footer_idx = out.index("<i>Собрано")
+    assert alerts_idx < hypo_idx < footer_idx
+
+
+def test_render_digest_hypotheses_bullet_format():
+    """Each insight prefixed with «• » (bullet + space)."""
+    out = render_digest(_make_report_with_hypotheses([
+        "alpha",
+        "beta gamma",
+    ]))
+    assert "• alpha" in out
+    assert "• beta gamma" in out
+
+
+def test_render_digest_hypotheses_section_works_without_alerts():
+    """If no alerts but hypotheses present → section still rendered, no crash."""
+    # Use flat-delta variant — no alerts fire
+    report = _make_report(
+        centry_curr=(22, 21, 5), centry_prev=(20, 22, 5),
+        diktum_curr=(20, 9, 2), diktum_prev=(22, 9, 2),
+    )
+    import dataclasses as _dc
+    report = _dc.replace(report, hypotheses=["only insight"])
+    out = render_digest(report)
+    assert "🚨" not in out
+    assert "💡 Гипотезы недели" in out
+    assert "• only insight" in out
+    # Still rendered before footer
+    assert out.index("💡 Гипотезы недели") < out.index("<i>Собрано")

@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 import os
 import sys
@@ -13,7 +14,7 @@ from typing import Final
 
 import requests
 
-from . import asc, play, rustore
+from . import asc, hypothesis, play, rustore
 from .digest import render_digest
 from .models import Product, ProductReport, StoreSnapshot, WeeklyReport
 from .snapshot import (
@@ -27,6 +28,12 @@ from .snapshot import (
 
 PRODUCTS: Final[list[Product]] = ["centry", "diktum"]
 SNAPSHOTS_PATH: Final[Path] = Path(".metrics/store_snapshots.json")
+# Default spend tracker location for hypothesis budget pre-flight
+# (METRICS-09 / D-5-06). Resolved against marketing-v3 repo root at call time:
+# this file lives at marketing-v3/src/store_metrics/cli.py → repo root = parents[2].
+SPEND_FILE: Final[Path] = (
+    Path(__file__).resolve().parent.parent.parent / ".metrics" / "api_spend.json"
+)
 
 
 def collect_all(week_start: dt.date) -> list[StoreSnapshot]:
@@ -127,6 +134,15 @@ def main(today: dt.date | None = None,
     data = load(snapshots_path)
     current_snaps = collect_all(last_week_monday)
     report = build_report(last_week_monday, data, current_snaps)
+
+    # METRICS-09 (D-5-06): Claude Haiku 4.5 weekly insights.
+    # hypothesis.generate() is a HARD-NEVER-RAISES contract — returns [] when
+    # ANTHROPIC_API_KEY is absent or any error path fires. Inject results into
+    # the (frozen) WeeklyReport via dataclasses.replace so the digest renderer
+    # can append the «💡 Гипотезы недели» section.
+    insights = hypothesis.generate(report, spend_file=SPEND_FILE)
+    report = dataclasses.replace(report, hypotheses=insights)
+
     digest = render_digest(report)
 
     print(digest)   # для GH Actions log

@@ -192,6 +192,15 @@ def render_digest(report: WeeklyReport) -> str:
         lines.extend(alerts)
         lines.append("")
 
+    # Hypotheses (METRICS-09 / D-5-06) — Claude Haiku 4.5 insights.
+    # Section rendered ONLY when non-empty; soft-fail in hypothesis.generate()
+    # yields empty list → header is omitted entirely so the digest stays clean.
+    if report.hypotheses:
+        lines.append("<b>💡 Гипотезы недели</b>")
+        for insight in report.hypotheses:
+            lines.append(f"• {insight}")
+        lines.append("")
+
     # Footer
     ts_msk = (report.generated_at + __import__("datetime").timedelta(hours=3)).strftime("%H:%M")
     lines.append(f"<i>Собрано {ts_msk} МСК автоматически. Алерт при |Δ| ≥ {ALERT_PCT:.0f}%</i>")
