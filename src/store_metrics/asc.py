@@ -1,10 +1,12 @@
 """Apple App Store metrics adapter — Apple Reporter API + iTunes RSS.
 
 Pipeline (real-mode, all 4 envs set):
-    1. _fetch_sales_tsv: POST https://reportingitc-reporter.apple.com/reportservice/sales/v1
-       form body `jsonRequest=<urlencoded JSON>` with `accesstoken` field
-       INSIDE the JSON body (NOT as Authorization header — Apple Reporter
-       Legacy spec). Response body is gzipped TSV (Sales Summary Weekly).
+    1. _fetch_sales_tsv: GET https://api.appstoreconnect.apple.com/v1/salesReports
+       with query filters (frequency=WEEKLY, reportSubType=SUMMARY,
+       reportType=SALES, vendorNumber, reportDate=YYYY-MM-DD) + Bearer
+       Authorization header. Response is gzipped TSV (Sales Summary Weekly).
+       Modern ASC Sales Reports API — replaces deprecated legacy
+       itc-reporter endpoint.
     2. _parse_installs_from_tsv: filter rows where Product Type Identifier == "1F"
        (paid/free download — installs) AND Apple Identifier == app_id; sum Units,
        group by Country Code → top_country.
@@ -44,7 +46,7 @@ from . import _http
 from .models import Product, StoreSnapshot
 
 _REPORTER_URL: Final[str] = (
-    "https://reportingitc-reporter.apple.com/reportservice/sales/v1"
+    "https://api.appstoreconnect.apple.com/v1/salesReports"
 )
 _RSS_URL_TEMPLATE: Final[str] = (
     "https://itunes.apple.com/{cc}/rss/customerreviews/id={app_id}"
@@ -118,43 +120,38 @@ def _fetch_sales_tsv(vendor: str, token: str, target_sunday: dt.date) -> bytes:
         RuntimeError on 401/403 (token problem).
         requests.HTTPError on 5xx after retries.
     """
-    date_str = target_sunday.strftime("%Y%m%d")
-    query_input = (
-        # HOTFIX 2026-05-15 (smoke run 25891726581): Apple returned
-        # 403 + XML Error Code=101 "Invalid method is specified". Apple
-        # Reporter spec uses `Sales.getReport`, not `Reports.getReport`
-        # (the latter was a researcher transcription error).
-        f"[p=Sales.getReport, {vendor}, Sales, Summary, Weekly, {date_str}]"
-    )
-    # HOTFIX 2026-05-15 (smoke test run 25890122345 returned 401):
-    # Apple Reporter Legacy API expects the access token INSIDE the
-    # jsonRequest body as `accesstoken` field, NOT as Authorization HTTP
-    # header. Original RESEARCH.md misidentified the auth path as Bearer.
-    json_request = {
-        "userid": "",
-        "password": "",
-        "account": vendor.strip(),
-        "version": "1.0",
-        "mode": "Robot.XML",
-        "queryInput": query_input,
-        "accesstoken": token.strip(),
+    # HOTFIX 2026-05-15 #3 (smoke runs 25890122345, 25891726581, 25891966494):
+    # Previous wires hit deprecated legacy itc-reporter endpoint with
+    # jsonRequest body. Apple returns 403 / Code=101 "Invalid method" on
+    # that endpoint regardless of method name we send — endpoint is dead.
+    #
+    # Fix: use modern App Store Connect Sales Reports API endpoint with
+    # GET + query filter params + Bearer header. Token is the same
+    # (ASC → Sales and Trends → About Reports → Generate Reporter Token).
+    # Response is still gzipped TSV with identical 28-column schema.
+    date_iso = target_sunday.strftime("%Y-%m-%d")
+    params = {
+        "filter[frequency]": "WEEKLY",
+        "filter[reportSubType]": "SUMMARY",
+        "filter[reportType]": "SALES",
+        "filter[vendorNumber]": vendor.strip(),
+        "filter[reportDate]": date_iso,
     }
-    body = "jsonRequest=" + urllib.parse.quote(json.dumps(json_request))
     headers = {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/octet-stream",
+        "Authorization": f"Bearer {token.strip()}",
+        "Accept": "application/a-gzip",
     }
     resp = _http.fetch_with_retry(
         url=_REPORTER_URL,
-        method="POST",
+        method="GET",
         headers=headers,
-        data=body,
+        params=params,
     )
     status = resp.status_code
     if status == 404:
         # Week's report not generated yet (Apple lag) — caller treats as None.
         sys.stderr.write(
-            f"INFO: Apple Reporter 404 for week ending {date_str} — "
+            f"INFO: Apple Reporter 404 for week ending {date_iso} — "
             "report not ready, returning empty.\n"
         )
         return b""
