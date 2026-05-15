@@ -60,13 +60,60 @@ jobs:
           restore-keys: |
             drafts-
 
+      # Fallback: regenerate draft on cache miss. Race condition 2026-05-15:
+      # preview_bot cancelled runs могут не сохранить cache → publish.yml после
+      # approve видит старый cache без сегодняшнего slug → fail. Регенерируем
+      # draft inline из plan через тот же daily_post_generator. Идемпотентно
+      # с preview-side: content тот же что был в preview.
+      - name: Regenerate draft if missing (cache-miss fallback)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.slug != '' }}
+        env:
+          SLUG: ${{ inputs.slug }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          mkdir -p drafts
+          if [[ -f "drafts/${SLUG}.md" ]]; then
+            echo "draft already in cache — skip regen"
+            exit 0
+          fi
+          echo "WARN: drafts/${SLUG}.md not found in cache — regenerating from plan"
+          PYTHONPATH=. python - <<'PYEOF'
+          import datetime as dt, os, sys
+          from pathlib import Path
+          from src.plan_reader import parse_plan
+          from src.daily_post_generator import generate_one
+          slug = os.environ["SLUG"]
+          plans = Path("plans")
+          drafts = Path("drafts")
+          drafts.mkdir(exist_ok=True)
+          spend = Path(".metrics/api_spend.json")
+          spend.parent.mkdir(exist_ok=True)
+          # Find entry by slug in any monthly plan
+          target = None
+          for p in sorted(plans.glob("monthly_plan_*.md")):
+              plan = parse_plan(p)
+              for entry in plan.entries:
+                  if entry.slug == slug:
+                      target = (entry, p)
+                      break
+              if target:
+                  break
+          if not target:
+              sys.stderr.write(f"FATAL: slug {slug!r} not found in any plan\n")
+              sys.exit(1)
+          entry, plan_path = target
+          repo_root = Path.cwd()
+          generated = generate_one(entry, repo_root, spend, drafts)
+          print(f"Regenerated drafts/{slug}.md ({generated.stat().st_size} bytes)")
+          PYEOF
+
       - name: Promote draft → queue (workflow_dispatch path)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.slug != '' }}
         env:
           SLUG: ${{ inputs.slug }}
         run: |
           if [[ ! -f "drafts/${SLUG}.md" ]]; then
-            echo "ERROR: drafts/${SLUG}.md not found in cache"
+            echo "ERROR: drafts/${SLUG}.md not found in cache AND regen failed"
             echo "Cached drafts:"
             ls -la drafts/ 2>/dev/null || echo "(no drafts/ dir)"
             exit 1
