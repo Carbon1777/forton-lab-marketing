@@ -234,7 +234,14 @@ def _authenticate() -> str:
     # Solution для numeric Key ID: extract digits only via regex.
     import re as _re
     key_id = _re.sub(r"\D", "", os.environ["RUSTORE_KEY_ID"])
-    timestamp = dt.datetime.now(tz=_RUSTORE_TZ).isoformat(timespec="milliseconds")
+    # HOTFIX 2026-05-15 #5: smoke run 25928073303 returned HTTP 400
+    # "Invalid request format. Unexpected value". Researcher used +03:00
+    # ISO offset — RuStore API may expect UTC Z suffix. Try Z format.
+    timestamp = (
+        dt.datetime.now(tz=dt.timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
     signature = _sign_jws(key_id, timestamp, private_key)
 
     body = {
