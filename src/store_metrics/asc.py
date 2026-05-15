@@ -1,53 +1,57 @@
-"""Apple App Store metrics adapter — Apple Reporter API + iTunes RSS.
+"""Apple App Store metrics adapter — manual CSV installs + iTunes RSS ratings.
 
-Pipeline (real-mode, all 4 envs set):
-    1. _fetch_sales_tsv: GET https://api.appstoreconnect.apple.com/v1/salesReports
-       with query filters (frequency=WEEKLY, reportSubType=SUMMARY,
-       reportType=SALES, vendorNumber, reportDate=YYYY-MM-DD) + Bearer
-       Authorization header. Response is gzipped TSV (Sales Summary Weekly).
-       Modern ASC Sales Reports API — replaces deprecated legacy
-       itc-reporter endpoint.
-    2. _parse_installs_from_tsv: filter rows where Product Type Identifier == "1F"
-       (paid/free download — installs) AND Apple Identifier == app_id; sum Units,
-       group by Country Code → top_country.
-    3. _fetch_rss_ratings: GET https://itunes.apple.com/<cc>/rss/customerreviews/
-       id=<app_id>/sortBy=mostRecent/page=1/json — no auth, last 50 reviews,
-       aggregate across RU/US/KZ/BY/UA для weighted avg rating.
-    4. fetch_weekly: composes StoreSnapshot из этих трёх кусков.
+Pipeline (real-mode, app-id envs set):
+    1. _read_csv_installs: read `.metrics/asc_weekly/<YYYY-Www>.csv` (or .tsv/.txt)
+       — Apple "Sales and Trends → Reports → Weekly Summary" download
+       (28-col tab-separated TSV by default; we accept both .csv and .tsv).
+       Filter rows where Apple Identifier == app_id AND Product Type Identifier == "1F"
+       (free first-download = install), sum Units, group by Country Code.
+       File missing → installs=None + soft-fallback error string.
+    2. _fetch_rss_ratings: GET https://itunes.apple.com/<cc>/rss/customerreviews/
+       id=<app_id>/sortBy=mostRecent/page=1/json — no auth, last 50 reviews per
+       country, aggregated across RU/US/KZ/BY/UA for weighted avg rating.
+       RSS failure → rating=None (soft, doesn't break digest).
+    3. fetch_weekly: composes StoreSnapshot from CSV (installs) + RSS (rating).
+
+Architectural pivot (2026-05-15):
+    Earlier hotfix iterations attempted modern App Store Connect Sales Reports
+    API (Bearer token + GET /v1/salesReports). User's Reporter Token is a UUID
+    for the **deprecated legacy itc-reporter API**, which Apple's modern endpoint
+    rejects as "improperly configured bearer token". The Integrations path
+    (JWT from ASC API Key) is blocked by user's cert recovery. Canonical
+    solution: **manual CSV upload** — same pattern as RuStore (which has no
+    statistics API at all). 5 min/week user effort, but reliable, predictable,
+    doesn't depend on Apple flakiness.
 
 Env required (real-mode):
-    ASC_REPORTER_ACCESS_TOKEN — UUID-style bearer (Reporter Tokens portal,
-                                  TTL 180 days)
-    ASC_VENDOR_NUMBER         — Apple vendor account number (digits)
-    ASC_APP_ID_CENTRY         — numeric Apple App ID for Centry
-    ASC_APP_ID_DIKTUM         — numeric Apple App ID for Diktum
+    ASC_APP_ID_CENTRY  — numeric Apple App ID for Centry (for RSS lookups
+                          AND for filtering rows in the CSV).
+    ASC_APP_ID_DIKTUM  — numeric Apple App ID for Diktum.
 
-Without any of these → fallback to mock data (для local dev / тестов CLI).
+Without these → mock data (preserves CLI / dev behaviour). Old envs
+ASC_REPORTER_ACCESS_TOKEN / ASC_VENDOR_NUMBER are no longer used by this
+module (kept in GH Secrets for now, can be deleted post-merge).
 
 References:
-    - Brain decisions 2026-05-14 «Apple Reporter Token РАЗБЛОКИРОВАН»
-    - Phase 5 RESEARCH §«Per-API Technical Detail → Apple Reporter API»
-    - D-5-01: Reporter API path (not Integrations API, which is blocked).
-    - D-5-11: graceful degrade on 404 (week report not ready yet).
+    - Phase 5 RESEARCH §«iTunes RSS Reviews» — RSS endpoint unchanged.
+    - Brain decisions 2026-05-14 «Apple Reporter API blocked → manual CSV».
+    - Apple Sales Reports CSV/TSV column reference (28 columns):
+      https://developer.apple.com/help/app-store-connect/reference/sales-and-trends-reports/
 """
 from __future__ import annotations
 
 import csv
 import datetime as dt
-import gzip
 import io
 import json
 import os
 import sys
-import urllib.parse
+from pathlib import Path
 from typing import Final
 
 from . import _http
 from .models import Product, StoreSnapshot
 
-_REPORTER_URL: Final[str] = (
-    "https://api.appstoreconnect.apple.com/v1/salesReports"
-)
 _RSS_URL_TEMPLATE: Final[str] = (
     "https://itunes.apple.com/{cc}/rss/customerreviews/id={app_id}"
     "/sortBy=mostRecent/page=1/json"
@@ -55,16 +59,15 @@ _RSS_URL_TEMPLATE: Final[str] = (
 _RSS_COUNTRIES: Final[tuple[str, ...]] = ("ru", "us", "kz", "by", "ua")
 
 # Product Type Identifier for free/paid app downloads (installs).
-# 1F = iPhone/iPad free app, 1 = paid app, 3F = update, IA1 = in-app etc.
-# Per spec: installs == rows with PTI "1F" only.
+# 1F = iPhone/iPad free app first download = install.
+# 1 = paid app, 3F = update, IA1 = in-app etc. — excluded.
 _INSTALL_PTI: Final[str] = "1F"
 
 _MOCK_INSTALLS: dict[Product, int] = {"centry": 23, "diktum": 18}
 _MOCK_PREV: dict[Product, int] = {"centry": 19, "diktum": 22}
 
+# Only app-id envs are needed now — no bearer token, no vendor number.
 _REQUIRED_ENVS: Final[tuple[str, ...]] = (
-    "ASC_REPORTER_ACCESS_TOKEN",
-    "ASC_VENDOR_NUMBER",
     "ASC_APP_ID_CENTRY",
     "ASC_APP_ID_DIKTUM",
 )
@@ -75,129 +78,94 @@ _REQUIRED_ENVS: Final[tuple[str, ...]] = (
 # ===================================================================
 
 def _is_configured() -> bool:
-    """True iff ВСЕ 4 env-переменные заданы непустыми строками."""
+    """True iff both ASC_APP_ID_* envs are set (non-empty)."""
     return all(os.environ.get(k) for k in _REQUIRED_ENVS)
 
 
 def _app_id_for(product: Product) -> str:
-    """Resolve numeric app id from env per product."""
+    """Resolve numeric Apple app id per product, stripping whitespace."""
     key = "ASC_APP_ID_CENTRY" if product == "centry" else "ASC_APP_ID_DIKTUM"
-    val = os.environ.get(key, "")
+    val = os.environ.get(key, "").strip()
     if not val:
         raise RuntimeError(f"{key} not set")
     return val
 
 
 # ===================================================================
-# Date helpers
+# Manual CSV installs reader
 # ===================================================================
 
-def _target_sunday(week_start: dt.date) -> dt.date:
-    """Apple Reporter requests weekly reports keyed by the LAST DAY of the week.
-
-    week_start is Monday (ISO week start). Return the Sunday that ends that
-    week: week_start + 6 days.
-
-    Note on lag: Apple has a 24-48h delay before a week's report is generated,
-    so callers should pass week_start = (today − 7d aligned to Mon) для
-    надёжной выборки.
-    """
-    return week_start + dt.timedelta(days=6)
+def _iso_week_key(week_start: dt.date) -> str:
+    """Compute filename stem YYYY-Www for the ISO week containing week_start."""
+    iso = week_start.isocalendar()
+    return f"{iso.year}-W{iso.week:02d}"
 
 
-# ===================================================================
-# Apple Reporter API — Sales Summary Weekly
-# ===================================================================
-
-def _fetch_sales_tsv(vendor: str, token: str, target_sunday: dt.date) -> bytes:
-    """POST Reporter API, return decompressed TSV bytes.
-
-    Returns:
-        Decompressed TSV bytes (may be header-only if no sales).
-        Empty bytes b'' if API returns 404 (week not yet ready — graceful).
-
-    Raises:
-        RuntimeError on 401/403 (token problem).
-        requests.HTTPError on 5xx after retries.
-    """
-    # HOTFIX 2026-05-15 #3 (smoke runs 25890122345, 25891726581, 25891966494):
-    # Previous wires hit deprecated legacy itc-reporter endpoint with
-    # jsonRequest body. Apple returns 403 / Code=101 "Invalid method" on
-    # that endpoint regardless of method name we send — endpoint is dead.
-    #
-    # Fix: use modern App Store Connect Sales Reports API endpoint with
-    # GET + query filter params + Bearer header. Token is the same
-    # (ASC → Sales and Trends → About Reports → Generate Reporter Token).
-    # Response is still gzipped TSV with identical 28-column schema.
-    date_iso = target_sunday.strftime("%Y-%m-%d")
-    params = {
-        "filter[frequency]": "WEEKLY",
-        "filter[reportSubType]": "SUMMARY",
-        "filter[reportType]": "SALES",
-        "filter[vendorNumber]": vendor.strip(),
-        "filter[reportDate]": date_iso,
-    }
-    headers = {
-        "Authorization": f"Bearer {token.strip()}",
-        "Accept": "application/a-gzip",
-    }
-    resp = _http.fetch_with_retry(
-        url=_REPORTER_URL,
-        method="GET",
-        headers=headers,
-        params=params,
-    )
-    status = resp.status_code
-    if status == 404:
-        # Week's report not generated yet (Apple lag) — caller treats as None.
-        sys.stderr.write(
-            f"INFO: Apple Reporter 404 for week ending {date_iso} — "
-            "report not ready, returning empty.\n"
-        )
-        return b""
-    if status in (401, 403):
-        # HOTFIX: include response excerpt (without secrets — only API's
-        # error message) so digest shows actionable error instead of
-        # generic "check token".
-        snippet = (resp.text or "")[:200].replace("\n", " ")
-        raise RuntimeError(
-            f"Apple Reporter auth failed (HTTP {status}): {snippet}"
-        )
-    if status >= 400:
-        # 4xx≠401/403/404 — surface as generic failure (no retry by _http).
-        resp.raise_for_status()
-    try:
-        return gzip.decompress(resp.content)
-    except (OSError, EOFError) as exc:
-        raise RuntimeError(
-            f"Apple Reporter response gzip decompress failed: {exc!r}"
-        ) from exc
-
-
-def _parse_installs_from_tsv(
-    tsv_bytes: bytes,
+def _read_csv_installs(
+    repo_root: Path,
+    week_start: dt.date,
     app_id: str,
 ) -> tuple[int | None, dict[str, int]]:
-    """Parse Reporter TSV → (total_installs, by_country dict).
+    """Read `.metrics/asc_weekly/<YYYY-Www>.{csv,tsv,txt}`, sum installs for `app_id`.
+
+    Apple's "Sales and Trends → Reports → Weekly Summary" download is a
+    **tab-separated** file. We default to TSV parsing but accept several
+    extensions (.csv .tsv .txt) for user convenience.
 
     Returns:
-        (None, {}) — if tsv_bytes is empty (report not ready / Apple absent).
-        (0, {})    — if file has data but no row matches app_id (= 0 installs).
-        (N, {...}) — N installs (PTI=1F + matching Apple Identifier), grouped
-                       by Country Code.
+        (None, {})   — file missing (soft-fallback flagged by caller).
+        (0, {})      — file present, headers OK, but zero matching rows for
+                       this app_id (file exists but the app had no installs
+                       OR Apple hasn't generated rows for this app yet).
+        (N, {...})   — N installs grouped by Country Code (PTI == "1F" and
+                       Apple Identifier == app_id).
 
-    Notes:
-        - Robust against header-only TSV (returns (None, {})).
-        - csv.DictReader handles BOM-less UTF-8 tab-separated.
+    Decoding:
+        Apple Sales Reports are usually UTF-8. We try UTF-8, then UTF-8-sig,
+        then UTF-16 as defensive fallbacks (some older exports used UTF-16).
+
+    Filtering:
+        - Apple Identifier == app_id  (numeric Apple App ID)
+        - Product Type Identifier == "1F"  (free app first download = install)
+        - Units > 0
     """
-    if not tsv_bytes:
+    iso_key = _iso_week_key(week_start)
+    csv_dir = repo_root / ".metrics" / "asc_weekly"
+    candidates = [
+        csv_dir / f"{iso_key}.csv",
+        csv_dir / f"{iso_key}.tsv",
+        csv_dir / f"{iso_key}.txt",
+    ]
+    file_path = next((p for p in candidates if p.exists()), None)
+    if file_path is None:
         return (None, {})
 
-    text = tsv_bytes.decode("utf-8", errors="replace")
-    lines = text.splitlines()
-    if len(lines) <= 1:
-        # Only header (or empty) — no data rows at all.
-        return (None, {})
+    raw = file_path.read_bytes()
+    # Detect UTF-16 by BOM first (defensive — some older Apple exports used
+    # UTF-16). UTF-8 ASCII content silently "decodes" as UTF-16 into garbage,
+    # so we must check the BOM explicitly before trying that codec.
+    text: str | None = None
+    if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        try:
+            text = raw.decode("utf-16")
+        except (UnicodeDecodeError, UnicodeError):
+            text = None
+    if text is None:
+        for encoding in ("utf-8", "utf-8-sig", "utf-16"):
+            try:
+                text = raw.decode(encoding)
+                break
+            except (UnicodeDecodeError, UnicodeError):
+                continue
+    if text is None:
+        raise RuntimeError(
+            f"ASC CSV {file_path} encoding not recognized "
+            "(tried utf-8/utf-8-sig/utf-16)"
+        )
+
+    # Strip Unicode BOM if any leaked through utf-8 decode.
+    if text.startswith("﻿"):
+        text = text[1:]
 
     reader = csv.DictReader(io.StringIO(text), delimiter="\t")
 
@@ -206,29 +174,36 @@ def _parse_installs_from_tsv(
     matched_any_row = False
 
     for row in reader:
+        # Tolerant header lookup — Apple TSV exact column names.
         pti = (row.get("Product Type Identifier") or "").strip()
         apple_id = (row.get("Apple Identifier") or "").strip()
+        units_raw = (row.get("Units") or "0").strip()
+        country = (row.get("Country Code") or "").strip().upper()
+
         if apple_id != app_id:
-            # Row belongs to a different app — skip but mark file as having data.
+            # Row for a different app — mark file as having data, skip.
+            if apple_id:
+                matched_any_row = True
             continue
         matched_any_row = True
+
         if pti != _INSTALL_PTI:
-            # Different product type (paid app, update, IAP, etc.) — not install.
+            # Different product type (paid app, update, IAP) — not an install.
             continue
         try:
-            units = int((row.get("Units") or "0").strip())
-        except ValueError:
+            units = int(units_raw or "0")
+        except (ValueError, TypeError):
             continue
         if units <= 0:
             continue
-        country = (row.get("Country Code") or "").strip().upper()
         total += units
         if country:
             by_country[country] = by_country.get(country, 0) + units
 
     if not matched_any_row:
-        # File had rows, но ни одной для этого app_id → legit "0 installs".
-        return (0, {})
+        # File had no data for this or any app — treat as "no data" rather
+        # than legit zero. Same semantics as missing file from digest POV.
+        return (None, {})
     return (total, by_country)
 
 
@@ -319,14 +294,32 @@ def _fetch_rss_ratings(
 
 
 # ===================================================================
+# Repo root resolution
+# ===================================================================
+
+def _repo_root() -> Path:
+    """Resolve marketing-v3 repo root from this file's location.
+
+    src/store_metrics/asc.py → parents[2] == marketing-v3/
+    """
+    return Path(__file__).resolve().parents[2]
+
+
+# ===================================================================
 # Public API
 # ===================================================================
 
 def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
-    """Fetch installs + rating + top country for one week.
+    """Fetch installs (manual CSV) + rating (RSS) for one ISO week.
 
     week_start = Monday of the target week (ISO).
-    Without all 4 envs → returns mock snapshot (preserves CLI behaviour).
+    Without all app-id envs → mock snapshot (preserves CLI behaviour).
+
+    Composition:
+        - installs из manual CSV (юзер положил воскресной задачей).
+          Если CSV нет → installs=None, error="ASC CSV не положен — installs см. ASC UI".
+        - rating из iTunes RSS (no auth, no blocking).
+          Если RSS падает → rating=None, но installs остаются.
     """
     if not _is_configured():
         return StoreSnapshot(
@@ -339,25 +332,38 @@ def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
             top_country_share=0.78,
         )
 
-    vendor = os.environ["ASC_VENDOR_NUMBER"]
-    token = os.environ["ASC_REPORTER_ACCESS_TOKEN"]
     app_id = _app_id_for(product)
-    target_sun = _target_sunday(week_start)
 
+    # ----- Installs (manual CSV) -----
+    installs: int | None = None
+    by_country: dict[str, int] = {}
+    csv_error: str | None = None
     try:
-        tsv_bytes = _fetch_sales_tsv(vendor, token, target_sun)
-    except RuntimeError as exc:
-        return StoreSnapshot(
-            product=product,
-            store="app_store",
-            week_start=week_start,
-            installs=None,
-            error=f"reporter auth failed: {exc}",
+        installs, by_country = _read_csv_installs(
+            _repo_root(), week_start, app_id,
         )
+    except RuntimeError as exc:
+        installs = None
+        csv_error = f"ASC CSV error: {exc}"
 
-    installs, by_country = _parse_installs_from_tsv(tsv_bytes, app_id)
+    csv_missing = installs is None and csv_error is None
+
+    # ----- Ratings (iTunes RSS) -----
+    rating: float | None = None
+    try:
+        rating, _count = _fetch_rss_ratings(app_id)
+    except Exception as exc:  # noqa: BLE001 — RSS не критичен для digest
+        sys.stderr.write(f"WARN: ASC RSS fetch failed for {app_id}: {exc!r}\n")
+        rating = None
+
     top_cc, share = _top_country(by_country)
-    rating, _count = _fetch_rss_ratings(app_id)
+
+    if csv_missing:
+        error = "ASC CSV не положен — installs см. ASC UI (Sales and Trends)"
+    elif csv_error:
+        error = csv_error
+    else:
+        error = None
 
     return StoreSnapshot(
         product=product,
@@ -369,7 +375,7 @@ def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
         rating_count=None,
         top_country=top_cc,
         top_country_share=share,
-        error=None,
+        error=error,
     )
 
 

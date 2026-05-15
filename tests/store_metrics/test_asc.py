@@ -1,13 +1,20 @@
-"""Unit tests for src/store_metrics/asc.py — Apple Reporter + iTunes RSS.
+"""Unit tests for src/store_metrics/asc.py — manual CSV installs + iTunes RSS.
 
-All HTTP calls are mocked via unittest.mock.patch on src.store_metrics._http.
-fetch_with_retry. Fixtures live in tests/fixtures/store_metrics/.
+After 2026-05-15 canonical pivot:
+    - Installs path reads `.metrics/asc_weekly/<YYYY-Www>.{csv,tsv,txt}` —
+      Apple Sales Reports "Weekly Summary" download (28-col TSV).
+    - Ratings path keeps iTunes Customer Reviews RSS (no auth).
+    - No more Reporter Token / Vendor Number — those envs are dead.
+
+HTTP calls (RSS only now) are mocked via unittest.mock.patch on
+src.store_metrics._http.fetch_with_retry. CSV reading uses real fixture
+files under tests/fixtures/store_metrics/.
 """
 from __future__ import annotations
 
 import datetime as dt
-import gzip
 import json
+import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -17,13 +24,15 @@ from src.store_metrics import asc
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "store_metrics"
 
-SAMPLE_TSV = (FIXTURES / "apple_sales_weekly_sample.tsv").read_bytes()
-EMPTY_TSV = (FIXTURES / "apple_sales_weekly_empty.tsv").read_bytes()
+CSV_ASC = FIXTURES / "asc_weekly_2026-W20.tsv"   # tab-separated Apple Sales Report
 RSS_CENTRY = json.loads((FIXTURES / "apple_rss_centry_with_reviews.json").read_text())
 RSS_DIKTUM_EMPTY = json.loads((FIXTURES / "apple_rss_diktum_empty.json").read_text())
 
 APPLE_ID_CENTRY = "1000000000"
 APPLE_ID_DIKTUM = "2000000000"
+
+# Mon 2026-05-11 == ISO 2026-W20.
+WEEK_W20 = dt.date(2026, 5, 11)
 
 
 # ===================================================================
@@ -32,17 +41,10 @@ APPLE_ID_DIKTUM = "2000000000"
 
 def _set_envs(monkeypatch, *, all_present: bool = True) -> None:
     if all_present:
-        monkeypatch.setenv("ASC_REPORTER_ACCESS_TOKEN", "tok-uuid")
-        monkeypatch.setenv("ASC_VENDOR_NUMBER", "94183271")
         monkeypatch.setenv("ASC_APP_ID_CENTRY", APPLE_ID_CENTRY)
         monkeypatch.setenv("ASC_APP_ID_DIKTUM", APPLE_ID_DIKTUM)
     else:
-        for k in (
-            "ASC_REPORTER_ACCESS_TOKEN",
-            "ASC_VENDOR_NUMBER",
-            "ASC_APP_ID_CENTRY",
-            "ASC_APP_ID_DIKTUM",
-        ):
+        for k in ("ASC_APP_ID_CENTRY", "ASC_APP_ID_DIKTUM"):
             monkeypatch.delenv(k, raising=False)
 
 
@@ -53,15 +55,19 @@ def test_is_configured_all_envs_set(monkeypatch):
 
 def test_is_configured_missing_envs(monkeypatch):
     _set_envs(monkeypatch, all_present=False)
-    # set only 2 — still incomplete
-    monkeypatch.setenv("ASC_REPORTER_ACCESS_TOKEN", "tok")
-    monkeypatch.setenv("ASC_VENDOR_NUMBER", "94183271")
+    assert asc._is_configured() is False
+
+
+def test_is_configured_partial_envs_returns_false(monkeypatch):
+    """Only one of two app IDs set → still False."""
+    _set_envs(monkeypatch, all_present=False)
+    monkeypatch.setenv("ASC_APP_ID_CENTRY", APPLE_ID_CENTRY)
     assert asc._is_configured() is False
 
 
 def test_is_configured_empty_string_counts_as_missing(monkeypatch):
     _set_envs(monkeypatch, all_present=True)
-    monkeypatch.setenv("ASC_REPORTER_ACCESS_TOKEN", "")
+    monkeypatch.setenv("ASC_APP_ID_CENTRY", "")
     assert asc._is_configured() is False
 
 
@@ -77,205 +83,162 @@ def test_app_id_for_missing_env_raises(monkeypatch):
         asc._app_id_for("centry")
 
 
-# ===================================================================
-# _target_sunday
-# ===================================================================
-
-def test_target_sunday_for_monday_week_start():
-    """week_start = Mon 2026-05-11 → Sun 2026-05-17."""
-    assert asc._target_sunday(dt.date(2026, 5, 11)) == dt.date(2026, 5, 17)
-
-
-def test_target_sunday_for_iso_monday_returns_same_week_sunday():
-    """ISO week W20 of 2026 — Mon May 11, Sun May 17."""
-    week_start = dt.date(2026, 5, 11)
-    sunday = asc._target_sunday(week_start)
-    assert sunday.weekday() == 6   # 6 == Sunday
-    assert (sunday - week_start).days == 6
+def test_app_id_for_strips_whitespace(monkeypatch):
+    """GH Secret storage may add trailing newline — _app_id_for must strip."""
+    monkeypatch.setenv("ASC_APP_ID_CENTRY", "1000000000\n")
+    monkeypatch.setenv("ASC_APP_ID_DIKTUM", "  2000000000  ")
+    assert asc._app_id_for("centry") == "1000000000"
+    assert asc._app_id_for("diktum") == "2000000000"
 
 
 # ===================================================================
-# _fetch_sales_tsv — happy / 404 / 401
+# _iso_week_key
 # ===================================================================
 
-def _mock_response(status: int = 200, content: bytes = b"") -> MagicMock:
-    m = MagicMock()
-    m.status_code = status
-    m.content = content
-    return m
+def test_iso_week_key_for_mon_2026_05_11():
+    """ISO 2026 week 20 starts Mon May 11."""
+    assert asc._iso_week_key(dt.date(2026, 5, 11)) == "2026-W20"
 
 
-def test_fetch_sales_tsv_returns_decompressed_bytes():
-    """Mock _http to return gzipped TSV → asc returns the raw bytes."""
-    gz = gzip.compress(SAMPLE_TSV)
-    with patch.object(
-        asc._http,
-        "fetch_with_retry",
-        return_value=_mock_response(200, gz),
-    ) as mock_http:
-        result = asc._fetch_sales_tsv(
-            vendor="94183271", token="tok", target_sunday=dt.date(2026, 5, 17),
-        )
-    assert result == SAMPLE_TSV
-    # HOTFIX 2026-05-15 #3: switched to modern ASC Sales Reports API —
-    # GET request with query filter params + Bearer header (NOT POST with
-    # jsonRequest body). Endpoint changed to api.appstoreconnect.apple.com.
-    call = mock_http.call_args
-    assert call.kwargs["url"] == asc._REPORTER_URL
-    assert "api.appstoreconnect.apple.com" in asc._REPORTER_URL
-    assert call.kwargs["method"] == "GET"
-    headers = call.kwargs["headers"]
-    assert headers["Authorization"] == "Bearer tok"
-    params = call.kwargs["params"]
-    # Sunday in ISO format for reportDate
-    assert params["filter[reportDate]"] == "2026-05-17"
-    assert params["filter[vendorNumber]"] == "94183271"
-    assert params["filter[frequency]"] == "WEEKLY"
-    assert params["filter[reportSubType]"] == "SUMMARY"
-    assert params["filter[reportType]"] == "SALES"
-
-
-def test_fetch_sales_tsv_404_returns_empty_bytes():
-    """Apple lag — report not ready yet → empty bytes, no raise."""
-    with patch.object(
-        asc._http,
-        "fetch_with_retry",
-        return_value=_mock_response(404, b""),
-    ):
-        result = asc._fetch_sales_tsv(
-            vendor="94183271", token="tok", target_sunday=dt.date(2026, 5, 17),
-        )
-    assert result == b""
-
-
-def test_fetch_sales_tsv_401_raises_runtimeerror():
-    # HOTFIX: error message now includes HTTP status + response excerpt.
-    resp = _mock_response(401, b"")
-    resp.text = '{"error":"invalid_token"}'
-    with patch.object(asc._http, "fetch_with_retry", return_value=resp):
-        with pytest.raises(RuntimeError, match=r"Apple Reporter auth failed \(HTTP 401\)"):
-            asc._fetch_sales_tsv(
-                vendor="94183271", token="tok",
-                target_sunday=dt.date(2026, 5, 17),
-            )
-
-
-def test_fetch_sales_tsv_403_raises_runtimeerror():
-    resp = _mock_response(403, b"")
-    resp.text = "Forbidden"
-    with patch.object(asc._http, "fetch_with_retry", return_value=resp):
-        with pytest.raises(RuntimeError, match=r"Apple Reporter auth failed \(HTTP 403\)"):
-            asc._fetch_sales_tsv(
-                vendor="94183271", token="tok",
-                target_sunday=dt.date(2026, 5, 17),
-            )
-
-
-# HOTFIX regression tests (smoke run 25890122345)
-
-
-def test_fetch_sales_tsv_token_in_bearer_header():
-    """Modern ASC Sales Reports API: token in Bearer header, params as query."""
-    gz = gzip.compress(SAMPLE_TSV)
-    with patch.object(
-        asc._http,
-        "fetch_with_retry",
-        return_value=_mock_response(200, gz),
-    ) as mock_http:
-        asc._fetch_sales_tsv(
-            vendor="94183271", token="secret-token-xyz",
-            target_sunday=dt.date(2026, 5, 17),
-        )
-    headers = mock_http.call_args.kwargs["headers"]
-    params = mock_http.call_args.kwargs["params"]
-    assert headers["Authorization"] == "Bearer secret-token-xyz"
-    assert params["filter[vendorNumber]"] == "94183271"
-
-
-def test_fetch_sales_tsv_strips_whitespace_in_vendor_and_token():
-    """GH Secret storage may add trailing newline — strip before sending."""
-    gz = gzip.compress(SAMPLE_TSV)
-    with patch.object(
-        asc._http,
-        "fetch_with_retry",
-        return_value=_mock_response(200, gz),
-    ) as mock_http:
-        asc._fetch_sales_tsv(
-            vendor="94183271\n", token="  token-xyz \n ",
-            target_sunday=dt.date(2026, 5, 17),
-        )
-    headers = mock_http.call_args.kwargs["headers"]
-    params = mock_http.call_args.kwargs["params"]
-    assert headers["Authorization"] == "Bearer token-xyz"
-    assert params["filter[vendorNumber]"] == "94183271"
-
-
-def test_fetch_sales_tsv_gzip_corruption_raises_runtimeerror():
-    """Body must be gzipped — raw text triggers OSError → wrap as RuntimeError."""
-    with patch.object(
-        asc._http,
-        "fetch_with_retry",
-        return_value=_mock_response(200, b"not gzipped bytes"),
-    ):
-        with pytest.raises(RuntimeError, match="gzip decompress"):
-            asc._fetch_sales_tsv(
-                vendor="94183271", token="tok",
-                target_sunday=dt.date(2026, 5, 17),
-            )
+def test_iso_week_key_pads_week_number():
+    """Week number always 2 digits."""
+    assert asc._iso_week_key(dt.date(2026, 1, 5)) == "2026-W02"
 
 
 # ===================================================================
-# _parse_installs_from_tsv
+# _read_csv_installs — using real fixture
 # ===================================================================
 
-def test_parse_installs_from_tsv_filters_1F_only():
-    """Centry sample: 1F RU 5 + 1F KZ 2 = 7 (3F update row excluded)."""
-    total, by_cc = asc._parse_installs_from_tsv(SAMPLE_TSV, APPLE_ID_CENTRY)
+def _stage_csv(
+    tmp_path: Path,
+    fixture: Path,
+    iso_key: str = "2026-W20",
+    ext: str = "tsv",
+) -> Path:
+    """Copy a fixture CSV/TSV into a fake repo root structure."""
+    target = tmp_path / ".metrics" / "asc_weekly" / f"{iso_key}.{ext}"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(fixture, target)
+    return target
+
+
+def test_read_csv_installs_centry_full_csv(tmp_path):
+    """ASC fixture: Centry has 1F RU 5 + 1F KZ 2 = 7 installs (3F update excluded)."""
+    _stage_csv(tmp_path, CSV_ASC)
+    total, by_cc = asc._read_csv_installs(tmp_path, WEEK_W20, APPLE_ID_CENTRY)
     assert total == 7
     assert by_cc == {"RU": 5, "KZ": 2}
 
 
-def test_parse_installs_from_tsv_groups_by_country():
-    """Centry — multiple countries → grouped dict."""
-    total, by_cc = asc._parse_installs_from_tsv(SAMPLE_TSV, APPLE_ID_CENTRY)
-    assert set(by_cc.keys()) == {"RU", "KZ"}
-    assert sum(by_cc.values()) == total
-
-
-def test_parse_installs_from_tsv_for_diktum_only_1F_counted():
-    """Diktum sample: 1F RU 3 = 3 (paid row "1" and IA1 row excluded)."""
-    total, by_cc = asc._parse_installs_from_tsv(SAMPLE_TSV, APPLE_ID_DIKTUM)
+def test_read_csv_installs_diktum_filters_correctly(tmp_path):
+    """Diktum: 1F RU 3 = 3 (paid '1' row and IA1 row excluded)."""
+    _stage_csv(tmp_path, CSV_ASC)
+    total, by_cc = asc._read_csv_installs(tmp_path, WEEK_W20, APPLE_ID_DIKTUM)
     assert total == 3
     assert by_cc == {"RU": 3}
 
 
-def test_parse_installs_from_tsv_empty_tsv_returns_none():
-    """tsv_bytes == b'' → (None, {})."""
-    total, by_cc = asc._parse_installs_from_tsv(b"", APPLE_ID_CENTRY)
+def test_read_csv_installs_csv_extension_accepted(tmp_path):
+    """User may save the file as .csv even though it's tab-separated."""
+    _stage_csv(tmp_path, CSV_ASC, ext="csv")
+    total, _ = asc._read_csv_installs(tmp_path, WEEK_W20, APPLE_ID_CENTRY)
+    assert total == 7
+
+
+def test_read_csv_installs_txt_extension_accepted(tmp_path):
+    """User may save the file as .txt."""
+    _stage_csv(tmp_path, CSV_ASC, ext="txt")
+    total, _ = asc._read_csv_installs(tmp_path, WEEK_W20, APPLE_ID_CENTRY)
+    assert total == 7
+
+
+def test_read_csv_installs_missing_file_returns_none(tmp_path):
+    """No file → (None, {}), not raise."""
+    total, by_cc = asc._read_csv_installs(tmp_path, WEEK_W20, APPLE_ID_CENTRY)
     assert total is None
     assert by_cc == {}
 
 
-def test_parse_installs_from_tsv_header_only_returns_none():
-    """Empty file (only header line) → (None, {})."""
-    total, by_cc = asc._parse_installs_from_tsv(EMPTY_TSV, APPLE_ID_CENTRY)
-    assert total is None
-    assert by_cc == {}
-
-
-def test_parse_installs_from_tsv_unknown_app_id_returns_zero():
-    """File has data, но ни одной строки для запрошенного app_id → (0, {})."""
-    total, by_cc = asc._parse_installs_from_tsv(SAMPLE_TSV, "9999999999")
+def test_read_csv_installs_unknown_app_id_returns_none(tmp_path):
+    """File present, but app_id not in any row → (None, {}) — treat as no data."""
+    _stage_csv(tmp_path, CSV_ASC)
+    total, by_cc = asc._read_csv_installs(tmp_path, WEEK_W20, "9999999999")
+    # File has data (other apps) — but nothing for this app. Returned as None
+    # so the digest can flag "no installs row for this app" rather than show 0.
+    # Actually: matched_any_row tracks ANY apple_id seen in the file (different
+    # app), so we get matched_any_row=True and total=0. That's "legit zero".
     assert total == 0
     assert by_cc == {}
 
 
-def test_parse_installs_from_tsv_skips_zero_units_rows():
-    """IA1 row for Diktum has Units=0 → not counted, но matched_any_row=True."""
-    total, by_cc = asc._parse_installs_from_tsv(SAMPLE_TSV, APPLE_ID_DIKTUM)
-    # Only 1F RU 3 counted; paid "1" row and IA1 zero excluded.
+def test_read_csv_installs_groups_by_country(tmp_path):
+    """Multiple countries → grouped dict, sum matches total."""
+    _stage_csv(tmp_path, CSV_ASC)
+    total, by_cc = asc._read_csv_installs(tmp_path, WEEK_W20, APPLE_ID_CENTRY)
+    assert set(by_cc.keys()) == {"RU", "KZ"}
+    assert sum(by_cc.values()) == total
+
+
+def test_read_csv_installs_iso_week_picks_right_file(tmp_path):
+    """Files for different ISO weeks coexist — pick the one matching week_start."""
+    # Stage two files: W19 and W20, with different contents.
+    csv_dir = tmp_path / ".metrics" / "asc_weekly"
+    csv_dir.mkdir(parents=True, exist_ok=True)
+    # W19 file: 1F row attributing 99 installs (should NOT be picked when asking W20).
+    (csv_dir / "2026-W19.tsv").write_text(
+        "Provider\tProvider Country\tSKU\tDeveloper\tTitle\tVersion\t"
+        "Product Type Identifier\tUnits\tDeveloper Proceeds (per unit)\t"
+        "Begin Date\tEnd Date\tCustomer Currency\tCountry Code\t"
+        "Currency of Proceeds\tApple Identifier\tCustomer Price\n"
+        f"APPLE\tUS\tsku\tForton\tCentry\t1.0\t1F\t99\t0.0\t05/04/2026\t"
+        f"05/10/2026\tRUB\tRU\tRUB\t{APPLE_ID_CENTRY}\t0.0\n",
+        encoding="utf-8",
+    )
+    # W20 file: real fixture.
+    shutil.copy(CSV_ASC, csv_dir / "2026-W20.tsv")
+    total, _ = asc._read_csv_installs(tmp_path, WEEK_W20, APPLE_ID_CENTRY)
+    # W20 fixture: 5 + 2 = 7. W19 ignored.
+    assert total == 7
+
+
+def test_read_csv_installs_bom_prefixed_file(tmp_path):
+    """UTF-8 BOM prefix should not leak into the first column header."""
+    csv_dir = tmp_path / ".metrics" / "asc_weekly"
+    csv_dir.mkdir(parents=True, exist_ok=True)
+    # Read fixture, prepend BOM, write as utf-8.
+    raw = CSV_ASC.read_text(encoding="utf-8")
+    (csv_dir / "2026-W20.tsv").write_text("﻿" + raw, encoding="utf-8")
+    total, _ = asc._read_csv_installs(tmp_path, WEEK_W20, APPLE_ID_CENTRY)
+    assert total == 7
+
+
+def test_read_csv_installs_skips_zero_unit_rows(tmp_path):
+    """Diktum IA1 row has Units=0 → not counted (even though PTI also wrong)."""
+    _stage_csv(tmp_path, CSV_ASC)
+    total, by_cc = asc._read_csv_installs(tmp_path, WEEK_W20, APPLE_ID_DIKTUM)
+    # Only 1F RU 3 counted; paid "1" row (BY) and IA1 zero excluded.
     assert total == 3
-    assert "BY" not in by_cc   # paid app row excluded
+    assert "BY" not in by_cc
+
+
+def test_read_csv_installs_invalid_units_value_skipped(tmp_path):
+    """Non-int Units value → skip row, don't crash."""
+    csv_dir = tmp_path / ".metrics" / "asc_weekly"
+    csv_dir.mkdir(parents=True, exist_ok=True)
+    (csv_dir / "2026-W20.tsv").write_text(
+        "Provider\tProvider Country\tSKU\tDeveloper\tTitle\tVersion\t"
+        "Product Type Identifier\tUnits\tDeveloper Proceeds (per unit)\t"
+        "Begin Date\tEnd Date\tCustomer Currency\tCountry Code\t"
+        "Currency of Proceeds\tApple Identifier\tCustomer Price\n"
+        f"APPLE\tUS\tsku\tForton\tCentry\t1.0\t1F\tabc\t0.0\t05/12/2026\t"
+        f"05/18/2026\tRUB\tRU\tRUB\t{APPLE_ID_CENTRY}\t0.0\n"
+        f"APPLE\tUS\tsku\tForton\tCentry\t1.0\t1F\t5\t0.0\t05/12/2026\t"
+        f"05/18/2026\tRUB\tRU\tRUB\t{APPLE_ID_CENTRY}\t0.0\n",
+        encoding="utf-8",
+    )
+    total, _ = asc._read_csv_installs(tmp_path, WEEK_W20, APPLE_ID_CENTRY)
+    # First row skipped (abc), second counted.
+    assert total == 5
 
 
 # ===================================================================
@@ -309,9 +272,8 @@ def test_top_country_zero_total_returns_none_pair():
 # ===================================================================
 
 def test_fetch_rss_ratings_aggregates_across_countries():
-    """5 reviews in RU (5+4+5), repeated in US (3 ratings) — weighted avg."""
+    """Same fixture for RU/US → 3 entries each, 5,4,5 → avg=28/6."""
     def fake_fetch(url: str, method: str = "GET", **kwargs):
-        # Same fixture for both RU and US → 3 entries each, all 5,4,5.
         m = MagicMock()
         m.status_code = 200
         m.json.return_value = RSS_CENTRY
@@ -321,8 +283,6 @@ def test_fetch_rss_ratings_aggregates_across_countries():
         avg, count = asc._fetch_rss_ratings(
             APPLE_ID_CENTRY, countries=["ru", "us"],
         )
-    # Each country: 3 ratings (5,4,5) = sum 14
-    # Across 2 countries: sum=28, count=6 → avg=28/6
     assert count == 6
     assert avg == pytest.approx(28 / 6)
 
@@ -365,8 +325,6 @@ def test_fetch_rss_ratings_handles_single_entry_dict():
 
 def test_fetch_rss_ratings_skips_country_on_http_error():
     """One country returns 500, second OK → result includes second only."""
-    responses_by_url: dict[str, MagicMock] = {}
-
     def fake_fetch(url: str, method: str = "GET", **kwargs):
         m = MagicMock()
         if "/ru/" in url:
@@ -374,7 +332,7 @@ def test_fetch_rss_ratings_skips_country_on_http_error():
             m.content = b""
             return m
         m.status_code = 200
-        m.json.return_value = RSS_CENTRY   # 3 ratings 5,4,5 = sum 14
+        m.json.return_value = RSS_CENTRY
         return m
 
     with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch):
@@ -390,11 +348,11 @@ def test_fetch_rss_ratings_skips_invalid_rating_labels():
     bad_payload = {
         "feed": {
             "entry": [
-                {"im:rating": {"label": "abc"}},     # invalid
-                {"im:rating": {"label": "5"}},        # valid
-                {"im:rating": {"label": "9"}},        # out of range — skip
-                {"im:rating": "not-a-dict"},          # malformed
-                {},                                    # no rating
+                {"im:rating": {"label": "abc"}},
+                {"im:rating": {"label": "5"}},
+                {"im:rating": {"label": "9"}},
+                {"im:rating": "not-a-dict"},
+                {},
             ]
         }
     }
@@ -420,7 +378,7 @@ def test_fetch_rss_ratings_tolerates_network_exception_per_country():
             raise RuntimeError("network down")
         m = MagicMock()
         m.status_code = 200
-        m.json.return_value = RSS_CENTRY   # sum 14, count 3
+        m.json.return_value = RSS_CENTRY
         return m
 
     with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch):
@@ -432,7 +390,7 @@ def test_fetch_rss_ratings_tolerates_network_exception_per_country():
 
 
 def test_fetch_rss_ratings_default_countries_includes_ru_us_kz_by_ua():
-    """Smoke: with no `countries=` arg, default list includes 5 markets."""
+    """Smoke: with no countries= arg, default list includes 5 markets."""
     calls: list[str] = []
 
     def fake_fetch(url, method="GET", **kwargs):
@@ -466,13 +424,13 @@ def test_fetch_rss_ratings_non_json_response_skipped():
 
 
 # ===================================================================
-# fetch_weekly — full integration with mocked HTTP
+# fetch_weekly — integration
 # ===================================================================
 
 def test_fetch_weekly_unconfigured_returns_mock(monkeypatch):
-    """Without envs → mock StoreSnapshot, no HTTP calls."""
+    """Without envs → mock StoreSnapshot, no HTTP / CSV calls."""
     _set_envs(monkeypatch, all_present=False)
-    snap = asc.fetch_weekly("centry", dt.date(2026, 5, 11))
+    snap = asc.fetch_weekly("centry", WEEK_W20)
     assert snap.product == "centry"
     assert snap.store == "app_store"
     assert snap.installs == 23
@@ -480,136 +438,135 @@ def test_fetch_weekly_unconfigured_returns_mock(monkeypatch):
     assert snap.top_country == "RU"
 
 
-def test_fetch_weekly_configured_integrates_real_path(monkeypatch):
-    """Full real-mode: TSV + RSS mocked → StoreSnapshot populated."""
+def test_fetch_weekly_csv_missing_soft_fallback(monkeypatch, tmp_path):
+    """Configured but CSV not present → installs=None, error message set,
+    rating still fetched через RSS."""
     _set_envs(monkeypatch, all_present=True)
-    gz_tsv = gzip.compress(SAMPLE_TSV)
 
     def fake_fetch(url, method="GET", **kwargs):
         m = MagicMock()
         m.status_code = 200
-        if "api.appstoreconnect.apple.com" in url:
-            m.content = gz_tsv
-        elif "itunes.apple.com" in url and "/ru/" in url:
+        m.json.return_value = RSS_CENTRY
+        return m
+
+    with patch.object(
+        asc, "_repo_root", return_value=tmp_path,
+    ), patch.object(
+        asc._http, "fetch_with_retry", side_effect=fake_fetch,
+    ):
+        snap = asc.fetch_weekly("centry", WEEK_W20)
+
+    assert snap.installs is None
+    assert snap.error is not None
+    assert "ASC CSV не положен" in snap.error
+    # Rating still wired through RSS (independent of CSV).
+    assert snap.rating is not None
+
+
+def test_fetch_weekly_csv_ok_rss_ok_returns_full_snapshot(monkeypatch, tmp_path):
+    """Both paths succeed → installs + rating + top_country, no error."""
+    _set_envs(monkeypatch, all_present=True)
+    _stage_csv(tmp_path, CSV_ASC)
+
+    def fake_fetch(url, method="GET", **kwargs):
+        m = MagicMock()
+        m.status_code = 200
+        if "itunes.apple.com" in url and "/ru/" in url:
             m.json.return_value = RSS_CENTRY
         else:
-            # Other RSS countries empty
             m.json.return_value = RSS_DIKTUM_EMPTY
         return m
 
-    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch):
-        snap = asc.fetch_weekly("centry", dt.date(2026, 5, 11))
+    with patch.object(
+        asc, "_repo_root", return_value=tmp_path,
+    ), patch.object(
+        asc._http, "fetch_with_retry", side_effect=fake_fetch,
+    ):
+        snap = asc.fetch_weekly("centry", WEEK_W20)
 
-    assert snap.product == "centry"
-    assert snap.store == "app_store"
-    assert snap.week_start == dt.date(2026, 5, 11)
-    # SAMPLE_TSV Centry: 1F RU 5 + 1F KZ 2 = 7
-    assert snap.installs == 7
+    assert snap.installs == 7    # 1F RU 5 + 1F KZ 2
     assert snap.top_country == "RU"
     assert snap.top_country_share == pytest.approx(5 / 7)
-    # RSS RU only — 3 ratings (5+4+5)/3 = 4.6...
+    # RSS RU only — sum 14, count 3 → 14/3
     assert snap.rating == pytest.approx(14 / 3)
     assert snap.error is None
 
 
-def test_fetch_weekly_404_graceful_degrade(monkeypatch):
-    """Reporter 404 → installs None, no error string (lag absorbed)."""
+def test_fetch_weekly_rss_fails_csv_still_works(monkeypatch, tmp_path):
+    """RSS network failure → installs read OK, rating=None, no error."""
     _set_envs(monkeypatch, all_present=True)
+    _stage_csv(tmp_path, CSV_ASC)
 
     def fake_fetch(url, method="GET", **kwargs):
-        m = MagicMock()
-        if "api.appstoreconnect.apple.com" in url:
-            m.status_code = 404
-            m.content = b""
-        else:
-            m.status_code = 200
-            m.json.return_value = RSS_DIKTUM_EMPTY
-        return m
+        raise RuntimeError("network down")
 
-    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch):
-        snap = asc.fetch_weekly("centry", dt.date(2026, 5, 11))
+    with patch.object(
+        asc, "_repo_root", return_value=tmp_path,
+    ), patch.object(
+        asc._http, "fetch_with_retry", side_effect=fake_fetch,
+    ):
+        snap = asc.fetch_weekly("centry", WEEK_W20)
 
-    assert snap.installs is None
-    assert snap.top_country is None
-    assert snap.top_country_share is None
-    # 404 == lag, не auth fail → error stays None
+    assert snap.installs == 7
+    assert snap.rating is None
+    # RSS failures are swallowed — no error string for that.
     assert snap.error is None
 
 
-def test_fetch_weekly_401_records_error(monkeypatch):
-    """401 wraps to error="reporter auth failed: ..." on StoreSnapshot."""
+def test_fetch_weekly_for_diktum_isolates_correctly(monkeypatch, tmp_path):
+    """Same CSV, requesting Diktum → only Diktum 1F rows summed."""
     _set_envs(monkeypatch, all_present=True)
-
-    def fake_fetch(url, method="GET", **kwargs):
-        m = MagicMock()
-        m.status_code = 401
-        m.content = b""
-        return m
-
-    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch):
-        snap = asc.fetch_weekly("centry", dt.date(2026, 5, 11))
-
-    assert snap.installs is None
-    assert snap.error is not None
-    assert "reporter auth failed" in snap.error
-
-
-def test_fetch_previous_unconfigured_returns_mock(monkeypatch):
-    _set_envs(monkeypatch, all_present=False)
-    snap = asc.fetch_previous("diktum", dt.date(2026, 5, 11))
-    assert snap.installs == 22   # _MOCK_PREV
-    assert snap.week_start == dt.date(2026, 5, 4)   # -7 days
-
-
-def test_fetch_previous_calls_fetch_weekly_with_prev_week(monkeypatch):
-    """Configured → shifts target_sunday by -7 days."""
-    _set_envs(monkeypatch, all_present=True)
-    captured: list[str] = []
-
-    def fake_fetch(url, method="GET", **kwargs):
-        m = MagicMock()
-        if "api.appstoreconnect.apple.com" in url:
-            # Modern API uses params, not data
-            params = kwargs.get("params", {})
-            captured.append(params.get("filter[reportDate]", ""))
-            m.status_code = 200
-            m.content = gzip.compress(EMPTY_TSV)
-        else:
-            m.status_code = 200
-            m.json.return_value = RSS_DIKTUM_EMPTY
-        return m
-
-    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch):
-        snap = asc.fetch_previous("centry", dt.date(2026, 5, 11))
-
-    # Prev week of W20 (May 11) is W19 (May 4) → Sunday May 10 → 2026-05-10
-    assert "2026-05-10" in captured
-    # snapshot.week_start should reflect the PREVIOUS week (Monday May 4),
-    # matching mock-mode contract (fetch_previous returns snapshot dated to the
-    # earlier week so digest can compare apples-to-apples).
-    assert snap.week_start == dt.date(2026, 5, 4)
-
-
-def test_fetch_weekly_unknown_app_id_returns_zero_installs(monkeypatch):
-    """Configured envs, real path, но фиксача без строк для app_id → 0 installs."""
-    monkeypatch.setenv("ASC_REPORTER_ACCESS_TOKEN", "tok")
-    monkeypatch.setenv("ASC_VENDOR_NUMBER", "94183271")
-    monkeypatch.setenv("ASC_APP_ID_CENTRY", "9999999999")   # mismatch
-    monkeypatch.setenv("ASC_APP_ID_DIKTUM", "8888888888")
-    gz_tsv = gzip.compress(SAMPLE_TSV)
+    _stage_csv(tmp_path, CSV_ASC)
 
     def fake_fetch(url, method="GET", **kwargs):
         m = MagicMock()
         m.status_code = 200
-        if "api.appstoreconnect.apple.com" in url:
-            m.content = gz_tsv
-        else:
-            m.json.return_value = RSS_DIKTUM_EMPTY
+        m.json.return_value = RSS_DIKTUM_EMPTY
         return m
 
-    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch):
-        snap = asc.fetch_weekly("centry", dt.date(2026, 5, 11))
+    with patch.object(
+        asc, "_repo_root", return_value=tmp_path,
+    ), patch.object(
+        asc._http, "fetch_with_retry", side_effect=fake_fetch,
+    ):
+        snap = asc.fetch_weekly("diktum", WEEK_W20)
 
-    # File had rows, none matched 9999999999 → (0, {})
-    assert snap.installs == 0
-    assert snap.top_country is None
+    assert snap.installs == 3   # 1F RU 3
+    assert snap.rating is None
+    assert snap.top_country == "RU"
+    assert snap.error is None
+
+
+# ===================================================================
+# fetch_previous
+# ===================================================================
+
+def test_fetch_previous_unconfigured_returns_mock(monkeypatch):
+    _set_envs(monkeypatch, all_present=False)
+    snap = asc.fetch_previous("diktum", WEEK_W20)
+    assert snap.installs == 22   # _MOCK_PREV
+    assert snap.week_start == dt.date(2026, 5, 4)
+
+
+def test_fetch_previous_shifts_week_by_7_days(monkeypatch, tmp_path):
+    """Configured → fetch_weekly called with week_start - 7 days. W19 CSV
+    is absent in fixture → soft-fallback."""
+    _set_envs(monkeypatch, all_present=True)
+
+    def fake_fetch(url, method="GET", **kwargs):
+        m = MagicMock()
+        m.status_code = 200
+        m.json.return_value = RSS_DIKTUM_EMPTY
+        return m
+
+    with patch.object(
+        asc, "_repo_root", return_value=tmp_path,
+    ), patch.object(
+        asc._http, "fetch_with_retry", side_effect=fake_fetch,
+    ):
+        snap = asc.fetch_previous("centry", WEEK_W20)
+
+    assert snap.week_start == dt.date(2026, 5, 4)
+    assert snap.installs is None
+    assert snap.error is not None
+    assert "ASC CSV не положен" in snap.error
