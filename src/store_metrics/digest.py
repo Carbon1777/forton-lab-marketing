@@ -28,6 +28,32 @@ import html
 
 from .models import ALERT_PCT, ProductReport, StoreSnapshot, WeeklyReport, WeekDelta
 
+
+# External-blocker error patterns — when snap.error matches these, render
+# the row as a clean `—` placeholder (no wall of text in digest). These
+# errors describe known structural limitations (Apple cert recovery,
+# RuStore Mail.ru ограничение, GPlay 24h lag) which are NOT actionable
+# per-week — user already knows. Showing them every Monday is noise.
+_BLOCKER_PATTERNS: tuple[str, ...] = (
+    "Apple Integrations",
+    "ждём Apple cert recovery",
+    "RuStore Public API не отдаёт",
+    "Mail.ru ограничение",
+    "Brain Q3",
+    "GPlay daily CSVs not yet available",
+    "Google has ~24h lag",
+    "reporter auth failed",
+    "GCS bucket name invalid",
+    "credentials build failed",
+)
+
+
+def _is_blocker_error(error: str | None) -> bool:
+    """True if error is a known external limitation (not actionable per-week)."""
+    if not error:
+        return False
+    return any(p in error for p in _BLOCKER_PATTERNS)
+
 _STORE_NAME: dict[str, str] = {
     "app_store": "App Store",
     "google_play": "Google Play",
@@ -90,10 +116,10 @@ def _render_product_block(report: ProductReport) -> list[str]:
             f"{_fmt_pct(store_delta.delta_pct):>6} {store_delta.arrow}   "
             f"{_fmt_rating(snap)}"
         )
-        if snap.error:
-            # HR-02 fix: snap.error может содержать сырой response.text от API
-            # с символами `<`/`>`/`&` — без html.escape Telegram отклоняет
-            # сообщение как невалидный HTML (parse_mode=HTML).
+        if snap.error and not _is_blocker_error(snap.error):
+            # Real per-week errors (network blip, timeout) — still show inline.
+            # Known external limitations rendered as clean `—` row instead
+            # of wall of text (см. _is_blocker_error).
             line = f"   {_STORE_NAME[snap.store]:<12}  <i>{html.escape(snap.error)}</i>"
         out.append(line)
 
@@ -124,18 +150,23 @@ def _render_trend(report: ProductReport) -> str | None:
 
 
 def _gather_alerts(report: WeeklyReport) -> list[str]:
-    """Build alert lines: any per-store delta >= ALERT_PCT triggers."""
-    # HR-02 fix: snap.error contains raw API response — html.escape before
-    # embedding into HTML-mode TG message.
+    """Build alert lines: any per-store delta >= ALERT_PCT triggers.
+
+    Skips known external limitations (Apple cert recovery, RuStore Mail.ru,
+    GPlay 24h lag) — those aren't per-week actionable and would just duplicate
+    walls of text. Real per-week errors (transient API failures) still show.
+    """
     alerts: list[str] = list(report.overall_alerts)
     for prod in report.products:
         prev_by_store = {s.store: s for s in prod.prev_snapshots}
         for snap in prod.snapshots:
             if snap.error:
-                alerts.append(
-                    f"• {_STORE_NAME[snap.store]} {prod.product.upper()} "
-                    f"— {html.escape(snap.error)}"
-                )
+                # Drop external-blocker noise; keep real transient errors.
+                if not _is_blocker_error(snap.error):
+                    alerts.append(
+                        f"• {_STORE_NAME[snap.store]} {prod.product.upper()} "
+                        f"— {html.escape(snap.error)}"
+                    )
                 continue
             prev_snap = prev_by_store.get(snap.store)
             prev_installs = prev_snap.installs if prev_snap else None
