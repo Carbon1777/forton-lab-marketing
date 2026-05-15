@@ -320,15 +320,18 @@ centryweb.ru
 
 ```yaml
 slug: forton-may15-day-rhythm
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: forton-lab
 rubric: use_case
 media:
-  - path: assets/posts/2026-05/forton-may15-day-rhythm.png
-    sha256: bf3b86d5820631580e69e45e7e7ab81bf3929e5869087003bfe1559959a9770f
-    role: image
+- path: assets/posts/2026-05/forton-may15-day-rhythm.png
+  sha256: bf3b86d5820631580e69e45e7e7ab81bf3929e5869087003bfe1559959a9770f
+  role: image
 image: assets/posts/2026-05/forton-may15-day-rhythm.png
-status: draft
+status: published
+published_at: '2026-05-15T13:38:10.797935+00:00'
 ```
 
 Один день с двумя приложениями Forton Lab.
