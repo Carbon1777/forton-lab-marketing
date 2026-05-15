@@ -1,43 +1,37 @@
-"""Google Play metrics adapter — manual CSV installs + androidpublisher reviews.
+"""Google Play metrics adapter — GCS bucket installs CSV + androidpublisher v3 reviews.
 
-Pipeline (real-mode, package envs set):
-    1. _read_csv_installs: read `.metrics/gplay_weekly/<YYYY-Www>.csv` —
-       Google Play Console "Statistics → Export CSV" download (UTF-16 LE BOM,
-       comma-separated, daily rows). Filter rows where Package Name == package
-       AND Date is within the target ISO week, sum Daily Device Installs,
-       group by Country.
-    2. _fetch_reviews (optional): GET androidpublisher.googleapis.com/v3/
-       applications/<pkg>/reviews via googleapiclient — returns last 7 days
-       reviews. Only attempted when a service-account credential is present;
-       failures are swallowed so installs still flow through.
-    3. fetch_weekly: composes StoreSnapshot from CSV (installs) + API (rating).
+Pipeline (real-mode, all 4 envs set):
+    1. _fetch_installs_csv: download stats/installs/installs_<pkg>_<YYYYMM>_country.csv
+       from GCS bucket `pubsite_prod_rev_<developer_id>`. Encoded UTF-16 LE BOM.
+    2. _parse_installs_csv: decode UTF-16, filter rows by Package Name +
+       week_start..week_end inclusive, sum Daily Device Installs, group by Country.
+    3. _fetch_reviews: GET androidpublisher.googleapis.com/v3/applications/<pkg>/reviews
+       via googleapiclient — returns last 7 days reviews (API limitation; perfect
+       for weekly digest). Paginate via tokenPagination.nextPageToken (cap 200).
+    4. fetch_weekly: composes StoreSnapshot from these pieces.
 
-Architectural pivot (2026-05-15):
-    Earlier hotfix iterations attempted GCS bucket downloads
-    (`gs://pubsite_prod_rev_<developer_id>/stats/installs/...`). GH Secret
-    handling silently injected whitespace/zero-width chars that broke bucket
-    name validation, and diagnostic step output was masked by GH Actions
-    secret-redaction — undebuggable remotely. Canonical solution: **manual
-    CSV upload** — same pattern as RuStore. 5 min/week user effort, but
-    reliable, predictable. Reviews API stays where it works.
+Architectural note (per RESEARCH §«Google Play / GCS»):
+    Google Play Developer **Reporting** API does NOT return installs/uninstalls —
+    it only exposes Vitals (ANR, crash, slow startup). Installs come from monthly
+    CSV reports staged in the GCS bucket `pubsite_prod_rev_<developer_id>` by
+    Google Play Console every night. That's the only first-party path.
 
 Env required (real-mode):
+    GOOGLE_PLAY_SA_JSON       — raw service account JSON content (multi-line
+                                  GH Secret), OR
+    GOOGLE_PLAY_SA_JSON_PATH  — filesystem path to SA JSON (local dev).
+    GPLAY_DEVELOPER_ID        — numeric developer id used to construct GCS
+                                  bucket name (e.g. "6224792403622982347").
     GPLAY_PACKAGE_CENTRY      — Play package name for Centry (e.g.
-                                  "website.centry.app") — used for CSV row
-                                  filtering AND reviews API path.
+                                  "website.centry.app").
     GPLAY_PACKAGE_DIKTUM      — same for Diktum.
 
-Optional (enables reviews path):
-    GOOGLE_PLAY_SA_JSON       — raw service account JSON content, OR
-    GOOGLE_PLAY_SA_JSON_PATH  — filesystem path to SA JSON.
-
-Without package envs → mock data. Without SA envs → installs work, rating=None.
-Old env GPLAY_DEVELOPER_ID is no longer used by this module (was only needed
-for GCS bucket construction).
+Without any of these → fallback to mock data (for local dev / CLI tests).
 
 References:
-    - Phase 5 RESEARCH §«Google Play / androidpublisher v3 reviews»
-    - Brain decisions 2026-05-14 «GPlay GCS path blocked → manual CSV».
+    - Phase 5 RESEARCH §«Per-API Technical Detail → Google Play»
+    - Phase 5 CONTEXT D-5-11 (graceful degrade when blob not generated yet)
+    - Brain decisions 2026-05-14 «Google Play GCS + androidpublisher dual API»
 """
 from __future__ import annotations
 
@@ -47,11 +41,11 @@ import io
 import json
 import os
 import sys
-from pathlib import Path
 from typing import Final
 
 from .models import Product, StoreSnapshot
 
+_GCS_SCOPE: Final[str] = "https://www.googleapis.com/auth/devstorage.read_only"
 _PLAY_REVIEWS_SCOPE: Final[str] = "https://www.googleapis.com/auth/androidpublisher"
 
 # Safety cap to prevent runaway pagination loops on androidpublisher reviews.list.
@@ -61,7 +55,8 @@ _REVIEWS_PAGE_CAP: Final[int] = 200
 _MOCK_INSTALLS: dict[Product, int] = {"centry": 11, "diktum": 9}
 _MOCK_PREV: dict[Product, int] = {"centry": 16, "diktum": 15}
 
-_REQUIRED_ENVS: Final[tuple[str, ...]] = (
+_REQUIRED_BASE_ENVS: Final[tuple[str, ...]] = (
+    "GPLAY_DEVELOPER_ID",
     "GPLAY_PACKAGE_CENTRY",
     "GPLAY_PACKAGE_DIKTUM",
 )
@@ -72,24 +67,25 @@ _REQUIRED_ENVS: Final[tuple[str, ...]] = (
 # ===================================================================
 
 def _is_configured() -> bool:
-    """True iff both GPLAY_PACKAGE_* envs are set (non-empty).
+    """True iff one of (raw-JSON env, path env) is set AND all base envs set.
 
-    SA credentials are optional — installs read from CSV without auth;
-    reviews API path uses SA only when available.
+    Either ``GOOGLE_PLAY_SA_JSON`` (raw JSON content, used in CI GH Secret form)
+    OR ``GOOGLE_PLAY_SA_JSON_PATH`` (filesystem path, used in local dev) — но
+    хотя бы один из двух обязателен.
     """
-    return all(os.environ.get(k) for k in _REQUIRED_ENVS)
-
-
-def _has_sa_credentials() -> bool:
-    """True iff one of (raw-JSON env, path env) is set for the reviews path."""
-    return bool(
+    sa_set = bool(
         os.environ.get("GOOGLE_PLAY_SA_JSON")
         or os.environ.get("GOOGLE_PLAY_SA_JSON_PATH")
     )
+    return sa_set and all(os.environ.get(k) for k in _REQUIRED_BASE_ENVS)
 
 
 def _package_for(product: Product) -> str:
-    """Resolve Play package name per product, stripping whitespace."""
+    """Resolve Play package name per product.
+
+    HOTFIX 2026-05-15: strip env values — GH Secret storage may include
+    trailing whitespace that breaks GCS blob path matching.
+    """
     key = "GPLAY_PACKAGE_CENTRY" if product == "centry" else "GPLAY_PACKAGE_DIKTUM"
     val = os.environ.get(key, "").strip()
     if not val:
@@ -98,19 +94,22 @@ def _package_for(product: Product) -> str:
 
 
 # ===================================================================
-# Credentials (only needed for reviews path)
+# Credentials
 # ===================================================================
 
 def _get_credentials():
-    """Build service account credentials with androidpublisher scope.
+    """Build service account credentials with GCS + androidpublisher scopes.
 
     Prefer raw env content (``GOOGLE_PLAY_SA_JSON``). If absent, fall back to
     ``GOOGLE_PLAY_SA_JSON_PATH`` (local dev).
+
+    Returns:
+        google.oauth2.service_account.Credentials with both scopes attached.
     """
     # Lazy import: avoid loading google-auth at module import time in mock mode.
     from google.oauth2 import service_account
 
-    scopes = [_PLAY_REVIEWS_SCOPE]
+    scopes = [_GCS_SCOPE, _PLAY_REVIEWS_SCOPE]
     raw = os.environ.get("GOOGLE_PLAY_SA_JSON")
     if raw:
         sa_info = json.loads(raw)
@@ -128,93 +127,124 @@ def _get_credentials():
 
 
 # ===================================================================
-# Manual CSV installs reader
+# Date helpers
 # ===================================================================
 
-def _iso_week_key(week_start: dt.date) -> str:
-    """Compute filename stem YYYY-Www for the ISO week containing week_start."""
-    iso = week_start.isocalendar()
-    return f"{iso.year}-W{iso.week:02d}"
+def _iso_week_range(week_start: dt.date) -> tuple[dt.date, dt.date]:
+    """ISO Monday → (Monday, Sunday) inclusive 7-day range."""
+    return (week_start, week_start + dt.timedelta(days=6))
 
 
-def _read_csv_installs(
-    repo_root: Path,
-    week_start: dt.date,
+def _target_months(week_start: dt.date, week_end: dt.date) -> list[str]:
+    """Return list of YYYYMM strings covering the week (1 or 2 entries).
+
+    Google Play CSV reports are partitioned per month
+    (installs_<pkg>_YYYYMM_country.csv). Weeks at month boundary span
+    two files — caller fetches both and merges.
+    """
+    m_start = week_start.strftime("%Y%m")
+    m_end = week_end.strftime("%Y%m")
+    return [m_start] if m_start == m_end else [m_start, m_end]
+
+
+# ===================================================================
+# GCS — installs CSV
+# ===================================================================
+
+def _fetch_installs_csv(
+    credentials,
+    developer_id: str,
     package: str,
-) -> tuple[int | None, dict[str, int]]:
-    """Read `.metrics/gplay_weekly/<YYYY-Www>.{csv,txt}`, sum installs for `package`.
-
-    Google Play Console "Statistics → Export CSV" produces UTF-16 LE BOM
-    encoded files with comma-separated daily rows. Header columns include:
-    Date, Package Name, Country, Daily Device Installs, Daily Device Uninstalls,
-    Daily User Installs, Daily User Uninstalls, Active Device Installs.
+    yyyymm: str,
+) -> bytes | None:
+    """Download installs CSV blob from GCS bucket.
 
     Returns:
-        (None, {})   — file missing (soft-fallback flagged by caller).
-        (0, {})      — file present but zero install rows for this package
-                       in this week.
-        (N, {...})   — N installs grouped by Country code.
+        Raw bytes (UTF-16 LE BOM-encoded CSV) when the blob exists.
+        ``None`` when the blob does not exist — Google Play generates these
+        reports nightly per UTC, so a request made before the file lands
+        для текущего месяца returns None (graceful absence).
+
+    Lets ``google.api_core.exceptions`` (NotFound, Forbidden, etc.) propagate
+    so :func:`fetch_weekly` can wrap them into a ``StoreSnapshot.error``.
+    """
+    # Lazy import — keeps mock-mode cold-start light.
+    from google.cloud import storage
+
+    # HOTFIX 2026-05-15 (smoke test run 25890122345): GH Secret values may
+    # include trailing whitespace/newline. GCS bucket validation rejected
+    # "pubsite_prod_rev_<id>\n" because the trailing \n means the name
+    # "doesn't end with a number or letter". Strip on read.
+    # HOTFIX 2026-05-15 #2: even with .strip(), smoke run 25891726581 still
+    # failed bucket validation. Surface repr() of the actual developer_id so
+    # we can see invisible chars (zero-width spaces, BOMs, etc.) in next run.
+    dev_id_clean = developer_id.strip()
+    bucket_name = f"pubsite_prod_rev_{dev_id_clean}"
+    blob_path = f"stats/installs/installs_{package.strip()}_{yyyymm}_country.csv"
+    client = storage.Client(credentials=credentials)
+    try:
+        bucket = client.bucket(bucket_name)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"GCS bucket name invalid: {bucket_name!r} "
+            f"(developer_id raw={developer_id!r} cleaned={dev_id_clean!r}) — {exc}"
+        ) from exc
+    blob = bucket.blob(blob_path)
+    if not blob.exists():
+        sys.stderr.write(
+            f"INFO: Play GCS blob missing: gs://{bucket_name}/{blob_path} — "
+            "report not generated yet, skipping.\n"
+        )
+        return None
+    return blob.download_as_bytes()
+
+
+def _parse_installs_csv(
+    csv_bytes: bytes,
+    package: str,
+    week_start: dt.date,
+    week_end: dt.date,
+) -> tuple[int | None, dict[str, int]]:
+    """Parse installs CSV → (total, by_country).
+
+    Filters:
+        - Package Name == package (multi-app developers могут share bucket).
+        - week_start <= Date <= week_end inclusive.
+
+    Returns:
+        (None, {})   — empty / header-only file.
+        (0, {})      — file had rows but none matched package + date filter.
+        (N, {...})   — N installs grouped by Country.
 
     Decoding:
-        Try UTF-16 first (Play Console default), then utf-8-sig (BOM), then
-        plain utf-8 (defensive — некоторые re-exports теряют BOM).
-
-    Filtering:
-        - Package Name == package (case-insensitive)
-        - week_start <= Date <= week_end (inclusive 7-day window)
-        - Daily Device Installs > 0
+        Uses ``bytes.decode('utf-16')`` which auto-detects the byte-order mark
+        produced by Google Play (UTF-16 LE BOM). Pitfall: using ``utf-16-le``
+        explicitly would leave the BOM in the first column header — we DO
+        rely on the BOM stripping.
     """
-    iso_key = _iso_week_key(week_start)
-    csv_dir = repo_root / ".metrics" / "gplay_weekly"
-    candidates = [
-        csv_dir / f"{iso_key}.csv",
-        csv_dir / f"{iso_key}.txt",
-    ]
-    file_path = next((p for p in candidates if p.exists()), None)
-    if file_path is None:
+    if not csv_bytes:
         return (None, {})
 
-    raw = file_path.read_bytes()
-    # Detect UTF-16 by BOM (Play Console default). Otherwise UTF-8 family.
-    # Order matters: UTF-8 ASCII content silently "decodes" as UTF-16 into
-    # garbage Han characters, so we must check the BOM explicitly first.
-    text: str | None = None
-    if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
-        try:
-            text = raw.decode("utf-16")
-        except (UnicodeDecodeError, UnicodeError):
-            text = None
-    if text is None:
-        for encoding in ("utf-8-sig", "utf-8", "utf-16"):
-            try:
-                text = raw.decode(encoding)
-                break
-            except (UnicodeDecodeError, UnicodeError):
-                continue
-    if text is None:
-        raise RuntimeError(
-            f"GPlay CSV {file_path} encoding not recognized "
-            "(tried utf-16/utf-8-sig/utf-8)"
-        )
+    try:
+        text = csv_bytes.decode("utf-16")
+    except UnicodeDecodeError:
+        # Defensive: fall back to UTF-8 if Google ever changes encoding.
+        text = csv_bytes.decode("utf-8", errors="replace")
 
-    # Strip Unicode BOM if leaked through.
-    if text.startswith("﻿"):
-        text = text[1:]
+    lines = text.splitlines()
+    if len(lines) <= 1:
+        return (None, {})
 
     reader = csv.DictReader(io.StringIO(text))
-    week_end = week_start + dt.timedelta(days=6)
-    package_norm = package.strip().lower()
 
     total = 0
     by_country: dict[str, int] = {}
     matched_any_row = False
 
     for row in reader:
-        pkg = (row.get("Package Name") or "").strip().lower()
-        if pkg != package_norm:
-            # Different package — mark file as having data, skip.
-            if pkg:
-                matched_any_row = True
+        row_pkg = (row.get("Package Name") or "").strip()
+        if row_pkg != package:
+            # Different package — skip but mark file as having data.
             continue
         matched_any_row = True
 
@@ -229,9 +259,11 @@ def _read_csv_installs(
         installs_raw = (row.get("Daily Device Installs") or "0").strip() or "0"
         try:
             installs = int(installs_raw)
-        except (ValueError, TypeError):
+        except ValueError:
             continue
         if installs <= 0:
+            # Uninstall-only or 0-install row — does not contribute to totals
+            # for this package on this date, но и не отменяет matched_any_row.
             continue
 
         country = (row.get("Country") or "").strip().upper()
@@ -240,7 +272,7 @@ def _read_csv_installs(
             by_country[country] = by_country.get(country, 0) + installs
 
     if not matched_any_row:
-        return (None, {})
+        return (0, {})
     return (total, by_country)
 
 
@@ -272,6 +304,11 @@ def _fetch_reviews(
 
     Returns:
         (avg_rating, count) where avg is None when count == 0.
+
+    Resilience:
+        Лёгкие защиты: missing/non-int starRating → skip row, don't crash.
+        Hard errors (HttpError) propagate — :func:`fetch_weekly` decides how
+        to surface (e.g., Forbidden → "GCS access denied" style error).
     """
     # Lazy import — keeps cold-start light in mock mode.
     from googleapiclient.discovery import build
@@ -332,32 +369,17 @@ def _fetch_reviews(
 
 
 # ===================================================================
-# Repo root resolution
-# ===================================================================
-
-def _repo_root() -> Path:
-    """Resolve marketing-v3 repo root from this file's location.
-
-    src/store_metrics/play.py → parents[2] == marketing-v3/
-    """
-    return Path(__file__).resolve().parents[2]
-
-
-# ===================================================================
 # Public API
 # ===================================================================
 
 def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
-    """Fetch installs (manual CSV) + rating (androidpublisher) for one week.
+    """Fetch installs + rating + top country for one week (Google Play).
 
     week_start = Monday of the target week (ISO).
-    Without package envs → mock snapshot (preserves CLI behaviour).
+    Without all envs → mock snapshot (preserves CLI behaviour in dev).
 
-    Composition:
-        - installs из manual CSV (юзер положил воскресной задачей).
-          Если CSV нет → installs=None, error="GPlay CSV не положен — ...".
-        - rating через androidpublisher API (требует SA credentials).
-          Если SA нет или API падает → rating=None, installs остаются.
+    On GCS Forbidden (mis-scoped SA) → StoreSnapshot with installs=None and
+    error string. On generic exception — propagate to caller (cli wraps).
     """
     if not _is_configured():
         return StoreSnapshot(
@@ -370,55 +392,82 @@ def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
             top_country_share=0.72,
         )
 
+    developer_id = os.environ["GPLAY_DEVELOPER_ID"].strip()
     package = _package_for(product)
+    week_start_d, week_end_d = _iso_week_range(week_start)
+    months = _target_months(week_start_d, week_end_d)
 
-    # ----- Installs (manual CSV) -----
-    installs: int | None = None
-    by_country: dict[str, int] = {}
-    csv_error: str | None = None
+    # Lazy import — only loaded when we hit the real path.
+    from google.api_core import exceptions as gcp_exc
+
     try:
-        installs, by_country = _read_csv_installs(
-            _repo_root(), week_start, package,
+        credentials = _get_credentials()
+    except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+        return StoreSnapshot(
+            product=product,
+            store="google_play",
+            week_start=week_start,
+            installs=None,
+            error=f"credentials build failed: {exc}",
         )
-    except RuntimeError as exc:
-        installs = None
-        csv_error = f"GPlay CSV error: {exc}"
 
-    csv_missing = installs is None and csv_error is None
+    # ----- Installs (GCS) -----
+    total_installs = 0
+    merged_by_country: dict[str, int] = {}
+    any_data_seen = False
 
-    # ----- Reviews (androidpublisher) — optional, only if SA credentials present.
-    # Failures are swallowed so installs still flow through.
-    rating: float | None = None
-    if _has_sa_credentials():
-        try:
-            credentials = _get_credentials()
-            rating, _count = _fetch_reviews(credentials, package)
-        except Exception as exc:  # noqa: BLE001 — degrade gracefully
-            sys.stderr.write(
-                f"WARN: GPlay reviews fetch failed for {package}: {exc!r}\n"
+    try:
+        for yyyymm in months:
+            csv_bytes = _fetch_installs_csv(
+                credentials, developer_id, package, yyyymm,
             )
-            rating = None
+            if csv_bytes is None:
+                # Blob not generated yet — keep going for the other month.
+                continue
+            sub_total, sub_by_cc = _parse_installs_csv(
+                csv_bytes, package, week_start_d, week_end_d,
+            )
+            if sub_total is not None:
+                any_data_seen = True
+                total_installs += sub_total
+                for cc, n in sub_by_cc.items():
+                    merged_by_country[cc] = merged_by_country.get(cc, 0) + n
+    except gcp_exc.Forbidden as exc:
+        return StoreSnapshot(
+            product=product,
+            store="google_play",
+            week_start=week_start,
+            installs=None,
+            error=f"GCS access denied (check SA permissions): {exc}",
+        )
 
-    top_cc, share = _top_country(by_country)
+    installs_final: int | None = total_installs if any_data_seen else None
 
-    if csv_missing:
-        error = "GPlay CSV не положен — installs см. Play Console Exports"
-    elif csv_error:
-        error = csv_error
-    else:
-        error = None
+    top_cc, share = _top_country(merged_by_country)
+
+    # ----- Reviews (androidpublisher) -----
+    # Reviews are not required for the snapshot to be useful — degrade gracefully
+    # if androidpublisher fails (e.g. SA missing reviews permission). Installs
+    # still flow through; rating left as None.
+    rating: float | None = None
+    try:
+        rating, _count = _fetch_reviews(credentials, package)
+    except Exception as exc:  # noqa: BLE001 — RSS analog, degrade per-call
+        sys.stderr.write(
+            f"WARN: Play reviews fetch failed for {package}: {exc!r}\n"
+        )
 
     return StoreSnapshot(
         product=product,
         store="google_play",
         week_start=week_start,
-        installs=installs,
+        installs=installs_final,
         uninstalls=None,
         rating=rating,
         rating_count=None,
         top_country=top_cc,
         top_country_share=share,
-        error=error,
+        error=None,
     )
 
 

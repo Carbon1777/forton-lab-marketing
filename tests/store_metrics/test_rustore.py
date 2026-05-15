@@ -1,15 +1,19 @@
-"""Unit tests for src/store_metrics/rustore.py — JWS auth + reviews + CSV.
+"""Unit tests for src/store_metrics/rustore.py — JWS auth + reviews + installs stub.
+
+After 2026-05-15 canonical pivot (full-auto mode, drop manual CSV):
+    - Installs path = STUB (always None + Mail.ru limitation error string).
+      RuStore Public API не отдаёт installs (Brain Q3 2026-05-14 verified).
+      Ждём пока Mail.ru добавит statistics endpoint в API.
+    - Reviews path keeps JWS RSA-SHA512 auth + paginated comment API.
 
 HTTP calls mocked via unittest.mock.patch on src.store_metrics._http.fetch_with_retry.
 RSA test key generated once for the module (fast — 2048-bit, ~50ms).
-CSV reading uses real fixture files under tests/fixtures/store_metrics/.
 """
 from __future__ import annotations
 
 import base64
 import datetime as dt
 import json
-import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -31,11 +35,6 @@ REVIEWS_CENTRY = json.loads(
 REVIEWS_EMPTY = json.loads(
     (FIXTURES / "rustore_reviews_empty.json").read_text(encoding="utf-8")
 )
-
-CSV_FULL = FIXTURES / "rustore_weekly_2026-W20_full.csv"
-CSV_MINIMAL = FIXTURES / "rustore_weekly_2026-W20_minimal.csv"
-CSV_RUSSIAN = FIXTURES / "rustore_weekly_2026-W20_russian.csv"
-CSV_BOM = FIXTURES / "rustore_weekly_2026-W20_bom.csv"
 
 PACKAGE_CENTRY = "website.centry.app"
 PACKAGE_DIKTUM = "ru.diktumweb.diktum"
@@ -145,6 +144,19 @@ def test_package_for_missing_env_raises(monkeypatch, rsa_keypair):
     _set_envs(monkeypatch, pem, mode="none")
     with pytest.raises(RuntimeError, match="RUSTORE_PACKAGE_CENTRY"):
         rustore._package_for("centry")
+
+
+# ===================================================================
+# Installs limitation constant — sanity на shape сообщения
+# ===================================================================
+
+def test_installs_limitation_error_mentions_mail_ru():
+    """Stable error string должен содержать ключевые маркеры для digest."""
+    msg = rustore._INSTALLS_LIMITATION_ERROR
+    assert "Mail.ru" in msg
+    assert "Brain Q3" in msg or "Q3" in msg
+    # Указание что это constraint, не наш wire issue.
+    assert "installs" in msg.lower()
 
 
 # ===================================================================
@@ -504,170 +516,11 @@ def test_fetch_reviews_page_cap_safety():
 
 
 # ===================================================================
-# _iso_week_key
-# ===================================================================
-
-def test_iso_week_key_for_mon_2026_05_11():
-    """ISO 2026 week 20 starts Mon May 11."""
-    assert rustore._iso_week_key(dt.date(2026, 5, 11)) == "2026-W20"
-
-
-def test_iso_week_key_pads_week_number():
-    """Week number always 2 digits."""
-    # Mon 2026-01-05 → 2026-W02
-    assert rustore._iso_week_key(dt.date(2026, 1, 5)) == "2026-W02"
-
-
-# ===================================================================
-# _resolve_header_map
-# ===================================================================
-
-def test_resolve_header_map_english_full():
-    mapping = rustore._resolve_header_map(["App", "Installs", "Country"])
-    assert mapping == {"app": "App", "installs": "Installs", "country": "Country"}
-
-
-def test_resolve_header_map_russian_full():
-    mapping = rustore._resolve_header_map(["Приложение", "Установки", "Страна"])
-    assert mapping == {
-        "app": "Приложение",
-        "installs": "Установки",
-        "country": "Страна",
-    }
-
-
-def test_resolve_header_map_missing_country_returns_partial():
-    mapping = rustore._resolve_header_map(["App", "Installs"])
-    assert mapping == {"app": "App", "installs": "Installs"}
-
-
-def test_resolve_header_map_missing_app_returns_none():
-    """No app/package column → required header absent → None."""
-    assert rustore._resolve_header_map(["Foo", "Installs"]) is None
-
-
-def test_resolve_header_map_missing_installs_returns_none():
-    assert rustore._resolve_header_map(["App", "Foo"]) is None
-
-
-def test_resolve_header_map_empty_fieldnames_returns_none():
-    assert rustore._resolve_header_map(None) is None
-    assert rustore._resolve_header_map([]) is None
-
-
-# ===================================================================
-# _read_csv_installs — using real fixtures
-# ===================================================================
-
-def _stage_csv(tmp_path: Path, fixture: Path, iso_key: str = "2026-W20") -> Path:
-    """Copy a fixture CSV into a fake repo root structure."""
-    target = tmp_path / ".metrics" / "rustore_weekly" / f"{iso_key}.csv"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy(fixture, target)
-    return target
-
-
-def test_read_csv_installs_full_csv(tmp_path):
-    """Full CSV: Centry gets 3+1=4 installs, RU+KZ."""
-    _stage_csv(tmp_path, CSV_FULL)
-    total, by_cc = rustore._read_csv_installs(tmp_path, WEEK_W20, PACKAGE_CENTRY)
-    assert total == 4
-    assert by_cc == {"RU": 3, "KZ": 1}
-
-
-def test_read_csv_installs_full_csv_diktum(tmp_path):
-    """Same fixture, package=Diktum → 2 installs in RU."""
-    _stage_csv(tmp_path, CSV_FULL)
-    total, by_cc = rustore._read_csv_installs(tmp_path, WEEK_W20, PACKAGE_DIKTUM)
-    assert total == 2
-    assert by_cc == {"RU": 2}
-
-
-def test_read_csv_installs_minimal_csv(tmp_path):
-    """Minimal: only App+Installs columns → installs OK, by_country empty."""
-    _stage_csv(tmp_path, CSV_MINIMAL)
-    total, by_cc = rustore._read_csv_installs(tmp_path, WEEK_W20, PACKAGE_CENTRY)
-    assert total == 4
-    assert by_cc == {}
-
-
-def test_read_csv_installs_russian_headers(tmp_path):
-    """Cyrillic headers should be recognized."""
-    _stage_csv(tmp_path, CSV_RUSSIAN)
-    total, by_cc = rustore._read_csv_installs(tmp_path, WEEK_W20, PACKAGE_CENTRY)
-    assert total == 3
-    assert by_cc == {"RU": 3}
-
-
-def test_read_csv_installs_bom_csv(tmp_path):
-    """UTF-8 BOM-prefixed CSV should decode correctly without leaking the BOM
-    into the first header name."""
-    _stage_csv(tmp_path, CSV_BOM)
-    total, by_cc = rustore._read_csv_installs(tmp_path, WEEK_W20, PACKAGE_CENTRY)
-    assert total == 4
-    assert by_cc == {"RU": 3, "KZ": 1}
-
-
-def test_read_csv_installs_missing_file_returns_none(tmp_path):
-    """No file → (None, {}), не raise."""
-    total, by_cc = rustore._read_csv_installs(tmp_path, WEEK_W20, PACKAGE_CENTRY)
-    assert total is None
-    assert by_cc == {}
-
-
-def test_read_csv_installs_unknown_package_returns_zero(tmp_path):
-    """File present, package not in any row → (0, {})."""
-    _stage_csv(tmp_path, CSV_FULL)
-    total, by_cc = rustore._read_csv_installs(
-        tmp_path, WEEK_W20, "com.nonexistent.app",
-    )
-    assert total == 0
-    assert by_cc == {}
-
-
-def test_read_csv_installs_invalid_headers_raises(tmp_path):
-    """CSV missing required app/installs columns → RuntimeError."""
-    bad = tmp_path / ".metrics" / "rustore_weekly" / "2026-W20.csv"
-    bad.parent.mkdir(parents=True, exist_ok=True)
-    bad.write_text("Foo,Bar,Baz\n1,2,3\n", encoding="utf-8")
-    with pytest.raises(RuntimeError, match="missing required headers"):
-        rustore._read_csv_installs(tmp_path, WEEK_W20, PACKAGE_CENTRY)
-
-
-def test_read_csv_installs_case_insensitive_package_match(tmp_path):
-    """Package match is case-insensitive."""
-    target = tmp_path / ".metrics" / "rustore_weekly" / "2026-W20.csv"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(
-        "App,Installs,Country\n"
-        "Website.Centry.App,5,RU\n",   # mixed case
-        encoding="utf-8",
-    )
-    total, by_cc = rustore._read_csv_installs(tmp_path, WEEK_W20, PACKAGE_CENTRY)
-    assert total == 5
-    assert by_cc == {"RU": 5}
-
-
-# ===================================================================
-# _top_country
-# ===================================================================
-
-def test_top_country_picks_highest_share():
-    top, share = rustore._top_country({"RU": 3, "KZ": 1})
-    assert top == "RU"
-    assert share == pytest.approx(0.75)
-
-
-def test_top_country_empty_returns_none_pair():
-    assert rustore._top_country({}) == (None, None)
-
-
-# ===================================================================
-# fetch_weekly — integration
+# fetch_weekly — integration (stub installs + JWS reviews)
 # ===================================================================
 
 def test_fetch_weekly_unconfigured_returns_mock(monkeypatch, rsa_keypair):
-    """Without envs → mock snapshot, no HTTP / CSV calls."""
+    """Without envs → mock snapshot, no HTTP / stub calls."""
     pem, _ = rsa_keypair
     _set_envs(monkeypatch, pem, mode="none")
     snap = rustore.fetch_weekly("centry", WEEK_W20)
@@ -678,96 +531,81 @@ def test_fetch_weekly_unconfigured_returns_mock(monkeypatch, rsa_keypair):
     assert snap.top_country == "RU"
 
 
-def test_fetch_weekly_csv_missing_soft_fallback(monkeypatch, rsa_keypair, tmp_path):
-    """Configured but CSV not present → installs=None, error message set,
-    rating still fetched через API."""
+def test_fetch_weekly_installs_returns_none_mail_ru_limitation(
+    monkeypatch, rsa_keypair,
+):
+    """Configured → installs=None + error mentions Mail.ru limitation.
+
+    Это canonical state — RuStore Public API не отдаёт installs endpoint.
+    Reviews независимо работают через JWS auth.
+    """
     pem, _ = rsa_keypair
     _set_envs(monkeypatch, pem, mode="raw")
 
     auth_resp = _mock_response(AUTH_RESPONSE)
     reviews_resp = _mock_response(REVIEWS_CENTRY)
     with patch.object(
-        rustore, "_repo_root", return_value=tmp_path,
-    ), patch.object(
         rustore._http, "fetch_with_retry", side_effect=[auth_resp, reviews_resp],
     ):
         snap = rustore.fetch_weekly("centry", WEEK_W20)
 
+    # Installs всегда None — Mail.ru constraint.
     assert snap.installs is None
     assert snap.error is not None
-    assert "RuStore CSV не положен" in snap.error
-    # Rating still wired through API (independent of CSV).
+    assert "Mail.ru" in snap.error or "Brain Q3" in snap.error
+    # Rating всё ещё работает через JWS reviews API.
     assert snap.rating == pytest.approx(4.5)
+    # top_country None — нет installs данных.
+    assert snap.top_country is None
+    assert snap.top_country_share is None
 
 
-def test_fetch_weekly_csv_ok_ratings_ok_returns_full_snapshot(
-    monkeypatch, rsa_keypair, tmp_path,
+def test_fetch_weekly_reviews_api_fails_installs_still_blocker(
+    monkeypatch, rsa_keypair,
 ):
-    """Both paths succeed → installs + rating + top_country populated, no error."""
+    """Auth fails → rating=None, installs всё равно None с Mail.ru blocker.
+
+    Error string должен включать оба: primary (Mail.ru) + secondary (API).
+    """
     pem, _ = rsa_keypair
     _set_envs(monkeypatch, pem, mode="raw")
-    _stage_csv(tmp_path, CSV_FULL)
 
-    auth_resp = _mock_response(AUTH_RESPONSE)
-    reviews_resp = _mock_response(REVIEWS_CENTRY)
-    with patch.object(
-        rustore, "_repo_root", return_value=tmp_path,
-    ), patch.object(
-        rustore._http, "fetch_with_retry", side_effect=[auth_resp, reviews_resp],
-    ):
-        snap = rustore.fetch_weekly("centry", WEEK_W20)
-
-    assert snap.installs == 4
-    assert snap.rating == pytest.approx(4.5)
-    assert snap.top_country == "RU"
-    assert snap.top_country_share == pytest.approx(0.75)
-    assert snap.error is None
-
-
-def test_fetch_weekly_ratings_api_fails_csv_still_works(
-    monkeypatch, rsa_keypair, tmp_path,
-):
-    """Auth fails → installs read OK from CSV, rating=None, error mentions API."""
-    pem, _ = rsa_keypair
-    _set_envs(monkeypatch, pem, mode="raw")
-    _stage_csv(tmp_path, CSV_FULL)
-
-    # Auth fails with HTTP 401
+    # Auth fails with HTTP 401 — reviews API недоступен
     auth_resp = _mock_response({"err": "bad signature"}, status=401)
     with patch.object(
-        rustore, "_repo_root", return_value=tmp_path,
-    ), patch.object(
         rustore._http, "fetch_with_retry", return_value=auth_resp,
     ):
         snap = rustore.fetch_weekly("centry", WEEK_W20)
 
-    assert snap.installs == 4   # CSV read OK
+    assert snap.installs is None
     assert snap.rating is None
     assert snap.error is not None
+    # Primary error — Mail.ru limitation для installs.
+    assert "Mail.ru" in snap.error
+    # Secondary — reviews API failure.
     assert "RuStore reviews API" in snap.error
 
 
 def test_fetch_weekly_for_diktum_isolates_correctly(
-    monkeypatch, rsa_keypair, tmp_path,
+    monkeypatch, rsa_keypair,
 ):
-    """Same CSV, requesting Diktum → only Diktum rows summed."""
+    """Same envs, requesting Diktum → snapshot built for diktum package."""
     pem, _ = rsa_keypair
     _set_envs(monkeypatch, pem, mode="raw")
-    _stage_csv(tmp_path, CSV_FULL)
 
     auth_resp = _mock_response(AUTH_RESPONSE)
     reviews_resp = _mock_response(REVIEWS_EMPTY)
     with patch.object(
-        rustore, "_repo_root", return_value=tmp_path,
-    ), patch.object(
         rustore._http, "fetch_with_retry", side_effect=[auth_resp, reviews_resp],
     ):
         snap = rustore.fetch_weekly("diktum", WEEK_W20)
 
-    assert snap.installs == 2   # Diktum got 2 installs in fixture (RU)
+    assert snap.product == "diktum"
+    assert snap.store == "rustore"
+    assert snap.installs is None
     assert snap.rating is None  # empty reviews fixture
-    assert snap.top_country == "RU"
-    assert snap.error is None
+    assert snap.error is not None
+    assert "Mail.ru" in snap.error
 
 
 # ===================================================================
@@ -782,19 +620,16 @@ def test_fetch_previous_unconfigured_returns_mock(monkeypatch, rsa_keypair):
     assert snap.week_start == dt.date(2026, 5, 4)
 
 
-def test_fetch_previous_shifts_week_by_7_days(monkeypatch, rsa_keypair, tmp_path):
+def test_fetch_previous_shifts_week_by_7_days(monkeypatch, rsa_keypair):
     """Configured → calls fetch_weekly with week_start - 7 days.
 
-    Previous week CSV (W19) absent in fixture → installs=None соft-fallback.
+    Installs всегда None — Mail.ru limitation независимо от недели.
     """
     pem, _ = rsa_keypair
     _set_envs(monkeypatch, pem, mode="raw")
-    # Don't stage W19 → CSV missing → soft-fallback.
     auth_resp = _mock_response(AUTH_RESPONSE)
     reviews_resp = _mock_response(REVIEWS_EMPTY)
     with patch.object(
-        rustore, "_repo_root", return_value=tmp_path,
-    ), patch.object(
         rustore._http, "fetch_with_retry", side_effect=[auth_resp, reviews_resp],
     ):
         snap = rustore.fetch_previous("centry", WEEK_W20)
@@ -802,7 +637,7 @@ def test_fetch_previous_shifts_week_by_7_days(monkeypatch, rsa_keypair, tmp_path
     assert snap.week_start == dt.date(2026, 5, 4)
     assert snap.installs is None
     assert snap.error is not None
-    assert "RuStore CSV не положен" in snap.error
+    assert "Mail.ru" in snap.error
 
 
 # HOTFIX regression tests (smoke run 25890122345)
