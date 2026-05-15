@@ -1,0 +1,90 @@
+name: store_metrics_demo
+
+# One-shot demo: показывает canonical digest format с canned realistic data.
+# Triggered manually (workflow_dispatch), не на cron.
+# Used когда live data недоступна (Apple cert recovery + low-traffic apps без
+# daily GPlay CSVs) чтобы verify polished output format.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.txt
+      - name: Render + send canonical demo digest
+        env:
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+        run: |
+          PYTHONPATH=. python <<'PY'
+          import datetime as dt
+          from src.store_metrics.cli import send_to_planner
+          from src.store_metrics.digest import render_digest
+          from src.store_metrics.models import (
+              StoreSnapshot, ProductReport, TrendPoint, WeeklyReport,
+          )
+
+          # Canonical demo — week 12-18 May 2026.
+          week_start = dt.date(2026, 5, 12)
+          prev_week = week_start - dt.timedelta(days=7)
+
+          centry_curr = [
+              StoreSnapshot("centry","app_store",week_start,12,rating=4.7,rating_count=245,top_country="RU",top_country_share=0.78),
+              StoreSnapshot("centry","google_play",week_start,8,rating=4.6,rating_count=89,top_country="RU",top_country_share=0.85),
+              StoreSnapshot("centry","rustore",week_start,3,rating=4.8,rating_count=12,top_country="RU",top_country_share=0.95),
+          ]
+          centry_prev = [
+              StoreSnapshot("centry","app_store",prev_week,10,rating=4.7),
+              StoreSnapshot("centry","google_play",prev_week,12,rating=4.6),
+              StoreSnapshot("centry","rustore",prev_week,3,rating=4.8),
+          ]
+          centry_trend = [
+              TrendPoint(prev_week - dt.timedelta(days=21), installs=35),
+              TrendPoint(prev_week - dt.timedelta(days=14), installs=40),
+              TrendPoint(prev_week - dt.timedelta(days=7),  installs=25),
+              TrendPoint(week_start, installs=23),
+          ]
+
+          diktum_curr = [
+              StoreSnapshot("diktum","app_store",week_start,8,rating=4.6,rating_count=12,top_country="RU",top_country_share=0.92),
+              StoreSnapshot("diktum","google_play",week_start,6,rating=4.5,rating_count=8,top_country="RU",top_country_share=0.88),
+              StoreSnapshot("diktum","rustore",week_start,2,rating=4.7,rating_count=5,top_country="RU",top_country_share=0.95),
+          ]
+          diktum_prev = [
+              StoreSnapshot("diktum","app_store",prev_week,8,rating=4.6),
+              StoreSnapshot("diktum","google_play",prev_week,10,rating=4.6),
+              StoreSnapshot("diktum","rustore",prev_week,2,rating=4.7),
+          ]
+          diktum_trend = [
+              TrendPoint(prev_week - dt.timedelta(days=21), installs=22),
+              TrendPoint(prev_week - dt.timedelta(days=14), installs=18),
+              TrendPoint(prev_week - dt.timedelta(days=7),  installs=20),
+              TrendPoint(week_start, installs=16),
+          ]
+
+          report = WeeklyReport(
+              week_start=week_start,
+              products=[
+                  ProductReport(product="centry",snapshots=centry_curr,prev_snapshots=centry_prev,trend_4w=centry_trend),
+                  ProductReport(product="diktum",snapshots=diktum_curr,prev_snapshots=diktum_prev,trend_4w=diktum_trend),
+              ],
+              hypotheses=[
+                  "Diktum просел в Google Play -40% — что-то с конверсией?",
+                  "Centry стабильно но не растёт — пора залп посевов?",
+                  "RuStore рейтинги 4.7-4.8 — формат заходит, посевы оправданы",
+              ],
+          )
+          digest = "🧪 <b>[DEMO]</b> canonical format preview\n\n" + render_digest(report)
+          print(digest)
+          ok = send_to_planner(digest)
+          print(f"\nSent to TG: {ok}")
+          PY
