@@ -1,15 +1,19 @@
 {
   "_schema_version": 3,
-  "_updated": "2026-05-11T17:16:37.735401+00:00",
+  "_updated": "2026-05-15T13:38:08.123905+00:00",
   "2026-05": {
-    "input_tokens": 17031,
-    "output_tokens": 15025,
-    "usd": 0.5765,
-    "calls": 15,
+    "input_tokens": 17797,
+    "output_tokens": 15249,
+    "usd": 0.5822,
+    "calls": 16,
     "by_purpose": {
       "monthly_plan": {
         "calls": 3,
         "usd": 0.2765
+      },
+      "daily_post": {
+        "calls": 1,
+        "usd": 0.0057
       }
     },
     "regen_count": 2,
