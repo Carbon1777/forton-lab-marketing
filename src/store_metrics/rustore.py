@@ -229,7 +229,11 @@ def _authenticate() -> str:
     # GH Secret values include trailing whitespace/newline which breaks
     # signature (signed message becomes "<key_id>\n<timestamp>" while server
     # signs over "<key_id><timestamp>" → mismatch). Strip on read.
-    key_id = os.environ["RUSTORE_KEY_ID"].strip()
+    # HOTFIX 2026-05-15 #4: GH Secret value may include invisible chars
+    # (BOM/NBSP/zero-width) that survive .strip() but corrupt signed message.
+    # Solution для numeric Key ID: extract digits only via regex.
+    import re as _re
+    key_id = _re.sub(r"\D", "", os.environ["RUSTORE_KEY_ID"])
     timestamp = dt.datetime.now(tz=_RUSTORE_TZ).isoformat(timespec="milliseconds")
     signature = _sign_jws(key_id, timestamp, private_key)
 

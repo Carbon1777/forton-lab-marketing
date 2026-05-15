@@ -171,23 +171,31 @@ def _fetch_installs_csv(
     # Lazy import — keeps mock-mode cold-start light.
     from google.cloud import storage
 
-    # HOTFIX 2026-05-15 (smoke test run 25890122345): GH Secret values may
-    # include trailing whitespace/newline. GCS bucket validation rejected
-    # "pubsite_prod_rev_<id>\n" because the trailing \n means the name
-    # "doesn't end with a number or letter". Strip on read.
-    # HOTFIX 2026-05-15 #2: even with .strip(), smoke run 25891726581 still
-    # failed bucket validation. Surface repr() of the actual developer_id so
-    # we can see invisible chars (zero-width spaces, BOMs, etc.) in next run.
-    dev_id_clean = developer_id.strip()
+    # HOTFIX 2026-05-15 #4: GH Secret value contains invisible chars
+    # (BOM/NBSP/zero-width) that survive .strip() but break GCS bucket
+    # validation. Local test of same env value succeeds → проблема в GH
+    # Actions transport. Solution для numeric IDs: extract digits only
+    # via regex. Bulletproof — bucket name guaranteed valid.
+    import re as _re
+    dev_id_clean = _re.sub(r"\D", "", developer_id)
+    pkg_clean = _re.sub(r"\s+", "", package).replace("﻿", "").replace(
+        "​", ""
+    ).replace("\xa0", "")
+    if not dev_id_clean:
+        raise RuntimeError(
+            f"GPLAY_DEVELOPER_ID has no digits after sanitization "
+            f"(len_raw={len(developer_id)}, ascii={developer_id.isascii()})"
+        )
     bucket_name = f"pubsite_prod_rev_{dev_id_clean}"
-    blob_path = f"stats/installs/installs_{package.strip()}_{yyyymm}_country.csv"
+    blob_path = f"stats/installs/installs_{pkg_clean}_{yyyymm}_country.csv"
     client = storage.Client(credentials=credentials)
     try:
         bucket = client.bucket(bucket_name)
     except ValueError as exc:
         raise RuntimeError(
             f"GCS bucket name invalid: {bucket_name!r} "
-            f"(developer_id raw={developer_id!r} cleaned={dev_id_clean!r}) — {exc}"
+            f"(developer_id len_raw={len(developer_id)} len_clean={len(dev_id_clean)} "
+            f"ascii_raw={developer_id.isascii()}) — {exc}"
         ) from exc
     blob = bucket.blob(blob_path)
     if not blob.exists():
