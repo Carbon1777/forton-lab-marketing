@@ -281,7 +281,8 @@ def test_authenticate_constructs_correct_body(monkeypatch, rsa_keypair):
     assert captured["headers"]["Content-Type"] == "application/json"
     body = captured["json_body"]
     assert body["keyId"] == KEY_ID
-    assert "timestamp" in body and body["timestamp"].endswith("+03:00")
+    # HOTFIX 2026-05-15 #5: switched к UTC Z format (was +03:00, caused HTTP 400).
+    assert "timestamp" in body and body["timestamp"].endswith("Z")
     # Verify base64 signature roundtrips to 256 bytes (RSA-2048).
     sig_bytes = base64.b64decode(body["signature"])
     assert len(sig_bytes) == 256
