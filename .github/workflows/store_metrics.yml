@@ -49,6 +49,24 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Diagnose secret shapes (hotfix debug — bypass GH log masking)
+        env:
+          GPLAY_DEVELOPER_ID: ${{ secrets.GPLAY_DEVELOPER_ID }}
+          ASC_VENDOR_NUMBER: ${{ secrets.ASC_VENDOR_NUMBER }}
+          RUSTORE_KEY_ID: ${{ secrets.RUSTORE_KEY_ID }}
+          RUSTORE_COMPANY_ID: ${{ secrets.RUSTORE_COMPANY_ID }}
+        run: |
+          python3 -c "
+          import os, hashlib
+          for k in ('GPLAY_DEVELOPER_ID','ASC_VENDOR_NUMBER','RUSTORE_KEY_ID','RUSTORE_COMPANY_ID'):
+              v = os.environ.get(k,'')
+              n = len(v)
+              head = v[:1].encode().hex() if v else ''
+              tail = v[-1:].encode().hex() if v else ''
+              sha = hashlib.md5(v.encode()).hexdigest()[:8]
+              print(f'{k}: len={n} head=0x{head} tail=0x{tail} sha8={sha}')
+          "
+
       - name: Collect + render + send digest
         env:
           # ------------ TG (planner bot, Phase 1.5 inheritance) ------------

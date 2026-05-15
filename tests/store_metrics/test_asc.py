@@ -117,24 +117,22 @@ def test_fetch_sales_tsv_returns_decompressed_bytes():
             vendor="94183271", token="tok", target_sunday=dt.date(2026, 5, 17),
         )
     assert result == SAMPLE_TSV
-    # Verify Reporter URL и form-body shape
+    # HOTFIX 2026-05-15 #3: switched to modern ASC Sales Reports API —
+    # GET request with query filter params + Bearer header (NOT POST with
+    # jsonRequest body). Endpoint changed to api.appstoreconnect.apple.com.
     call = mock_http.call_args
     assert call.kwargs["url"] == asc._REPORTER_URL
-    assert call.kwargs["method"] == "POST"
+    assert "api.appstoreconnect.apple.com" in asc._REPORTER_URL
+    assert call.kwargs["method"] == "GET"
     headers = call.kwargs["headers"]
-    # HOTFIX 2026-05-15: token goes in jsonRequest body as accesstoken field,
-    # NOT in Authorization HTTP header (Apple Reporter Legacy spec).
-    assert "Authorization" not in headers
-    assert headers["Content-Type"] == "application/x-www-form-urlencoded"
-    body = call.kwargs["data"]
-    assert body.startswith("jsonRequest=")
-    # Token must be inside jsonRequest body
-    assert "accesstoken" in body
-    assert "tok" in body
-    # Verify queryInput contains the expected Sunday in YYYYMMDD
-    assert "20260517" in body
-    # Vendor encoded
-    assert "94183271" in body
+    assert headers["Authorization"] == "Bearer tok"
+    params = call.kwargs["params"]
+    # Sunday in ISO format for reportDate
+    assert params["filter[reportDate]"] == "2026-05-17"
+    assert params["filter[vendorNumber]"] == "94183271"
+    assert params["filter[frequency]"] == "WEEKLY"
+    assert params["filter[reportSubType]"] == "SUMMARY"
+    assert params["filter[reportType]"] == "SALES"
 
 
 def test_fetch_sales_tsv_404_returns_empty_bytes():
@@ -176,10 +174,8 @@ def test_fetch_sales_tsv_403_raises_runtimeerror():
 # HOTFIX regression tests (smoke run 25890122345)
 
 
-def test_fetch_sales_tsv_token_in_body_not_header():
-    """Apple Reporter Legacy: token MUST be in jsonRequest body, NOT header."""
-    import json as _json
-    import urllib.parse as _up
+def test_fetch_sales_tsv_token_in_bearer_header():
+    """Modern ASC Sales Reports API: token in Bearer header, params as query."""
     gz = gzip.compress(SAMPLE_TSV)
     with patch.object(
         asc._http,
@@ -190,22 +186,14 @@ def test_fetch_sales_tsv_token_in_body_not_header():
             vendor="94183271", token="secret-token-xyz",
             target_sunday=dt.date(2026, 5, 17),
         )
-    body = mock_http.call_args.kwargs["data"]
     headers = mock_http.call_args.kwargs["headers"]
-    # NO Authorization header
-    assert "Authorization" not in headers
-    # Parse jsonRequest body
-    encoded = body.replace("jsonRequest=", "", 1)
-    parsed = _json.loads(_up.unquote(encoded))
-    assert parsed["accesstoken"] == "secret-token-xyz"
-    assert parsed["account"] == "94183271"
-    assert parsed["mode"] == "Robot.XML"
+    params = mock_http.call_args.kwargs["params"]
+    assert headers["Authorization"] == "Bearer secret-token-xyz"
+    assert params["filter[vendorNumber]"] == "94183271"
 
 
 def test_fetch_sales_tsv_strips_whitespace_in_vendor_and_token():
-    """GH Secret storage may add trailing newline — strip before signing."""
-    import json as _json
-    import urllib.parse as _up
+    """GH Secret storage may add trailing newline — strip before sending."""
     gz = gzip.compress(SAMPLE_TSV)
     with patch.object(
         asc._http,
@@ -216,11 +204,10 @@ def test_fetch_sales_tsv_strips_whitespace_in_vendor_and_token():
             vendor="94183271\n", token="  token-xyz \n ",
             target_sunday=dt.date(2026, 5, 17),
         )
-    body = mock_http.call_args.kwargs["data"]
-    encoded = body.replace("jsonRequest=", "", 1)
-    parsed = _json.loads(_up.unquote(encoded))
-    assert parsed["accesstoken"] == "token-xyz"
-    assert parsed["account"] == "94183271"
+    headers = mock_http.call_args.kwargs["headers"]
+    params = mock_http.call_args.kwargs["params"]
+    assert headers["Authorization"] == "Bearer token-xyz"
+    assert params["filter[vendorNumber]"] == "94183271"
 
 
 def test_fetch_sales_tsv_gzip_corruption_raises_runtimeerror():
@@ -501,7 +488,7 @@ def test_fetch_weekly_configured_integrates_real_path(monkeypatch):
     def fake_fetch(url, method="GET", **kwargs):
         m = MagicMock()
         m.status_code = 200
-        if "reportingitc-reporter.apple.com" in url:
+        if "api.appstoreconnect.apple.com" in url:
             m.content = gz_tsv
         elif "itunes.apple.com" in url and "/ru/" in url:
             m.json.return_value = RSS_CENTRY
@@ -531,7 +518,7 @@ def test_fetch_weekly_404_graceful_degrade(monkeypatch):
 
     def fake_fetch(url, method="GET", **kwargs):
         m = MagicMock()
-        if "reportingitc-reporter.apple.com" in url:
+        if "api.appstoreconnect.apple.com" in url:
             m.status_code = 404
             m.content = b""
         else:
@@ -581,8 +568,10 @@ def test_fetch_previous_calls_fetch_weekly_with_prev_week(monkeypatch):
 
     def fake_fetch(url, method="GET", **kwargs):
         m = MagicMock()
-        if "reportingitc-reporter.apple.com" in url:
-            captured.append(kwargs.get("data", ""))
+        if "api.appstoreconnect.apple.com" in url:
+            # Modern API uses params, not data
+            params = kwargs.get("params", {})
+            captured.append(params.get("filter[reportDate]", ""))
             m.status_code = 200
             m.content = gzip.compress(EMPTY_TSV)
         else:
@@ -593,8 +582,8 @@ def test_fetch_previous_calls_fetch_weekly_with_prev_week(monkeypatch):
     with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch):
         snap = asc.fetch_previous("centry", dt.date(2026, 5, 11))
 
-    # Prev week of W20 (May 11) is W19 (May 4) → Sunday May 10 → 20260510 in body
-    assert any("20260510" in body for body in captured)
+    # Prev week of W20 (May 11) is W19 (May 4) → Sunday May 10 → 2026-05-10
+    assert "2026-05-10" in captured
     # snapshot.week_start should reflect the PREVIOUS week (Monday May 4),
     # matching mock-mode contract (fetch_previous returns snapshot dated to the
     # earlier week so digest can compare apples-to-apples).
@@ -612,7 +601,7 @@ def test_fetch_weekly_unknown_app_id_returns_zero_installs(monkeypatch):
     def fake_fetch(url, method="GET", **kwargs):
         m = MagicMock()
         m.status_code = 200
-        if "reportingitc-reporter.apple.com" in url:
+        if "api.appstoreconnect.apple.com" in url:
             m.content = gz_tsv
         else:
             m.json.return_value = RSS_DIKTUM_EMPTY
