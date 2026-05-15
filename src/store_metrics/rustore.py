@@ -1,4 +1,4 @@
-"""RuStore metrics adapter — JWS RSA-SHA512 auth + reviews API + manual CSV installs.
+"""RuStore metrics adapter — JWS RSA-SHA512 auth + reviews API + installs stub.
 
 Pipeline (real-mode, all envs set):
     1. _authenticate: POST /public/auth/ с JSON {keyId, timestamp, signature}.
@@ -9,15 +9,20 @@ Pipeline (real-mode, all envs set):
     3. _fetch_reviews: GET /public/v1/application/<packageName>/comment
        Header: Public-Token: <token>. Pagination via page/size + body.last.
        Filter commentStatus == "PUBLISHED", aggregate appRating 1-5.
-    4. _read_csv_installs: читает manual CSV из
-       .metrics/rustore_weekly/<YYYY-WW>.csv. Tolerant к UTF-8 BOM + Cyrillic
-       заголовкам (Приложение / Установки / Страна). Filter по packageName.
-    5. fetch_weekly: композирует StoreSnapshot из CSV (installs) + API (rating).
+    4. **Installs path — stubbed.** RuStore Public API НЕ предоставляет
+       installs/stats endpoints — это constraint от Mail.ru (Brain decision
+       Q3 2026-05-14, verified through full list of 9 Console methods).
+       Возвращаем installs=None + явный error-message.
+    5. fetch_weekly: композирует StoreSnapshot из stub installs + API rating.
 
 Architectural notes:
     - RuStore Public API НЕ отдаёт installs (Brain decision 2026-05-14,
-      verified UI Console — 9 методов "Общие методы", нет getAppsList и нет
-      statistics). Installs → manual CSV workflow (D-5-04).
+      verified UI Console — 9 методов "Общие методы", нет statistics).
+      Это constraint Mail.ru, не наш wire issue — installs физически
+      невозможны автоматически без HTML scraping fragile Console UI.
+    - Manual CSV mode был отвергнут юзером (2026-05-15: "я не буду ничего
+      загружать руками"). Canonical solution для installs — ждать пока
+      Mail.ru добавит statistics endpoint в Public API.
     - Auth — это JWS (не JWE), хоть response field и называется "jwe"
       (RESEARCH §5 «RuStore Authorization»). Implementation использует
       cryptography PKCS1v15 + SHA512 напрямую, без PyJWT.
@@ -36,16 +41,14 @@ Env required (real-mode):
 Without these → mock data (preserves CLI / dev behaviour).
 
 References:
-    - Phase 5 RESEARCH §5 «RuStore Authorization» / §6 «Reviews» / §7 «CSV»
-    - Phase 5 CONTEXT D-5-04 (CSV manual workflow + soft-fallback)
+    - Phase 5 RESEARCH §5 «RuStore Authorization» / §6 «Reviews»
     - Brain decisions 2026-05-14 «RuStore API статистики НЕТ → Q3 закрыт»
+    - Brain decisions 2026-05-15 «full-auto mode, drop manual CSV»
 """
 from __future__ import annotations
 
 import base64
-import csv
 import datetime as dt
-import io
 import json
 import os
 import sys
@@ -99,20 +102,14 @@ _REQUIRED_BASE_ENVS: Final[tuple[str, ...]] = (
     "RUSTORE_PACKAGE_DIKTUM",
 )
 
-# ===================================================================
-# CSV header recognition (tolerant: EN + RU; case-insensitive)
-# ===================================================================
-
-_HEADER_APP: Final[frozenset[str]] = frozenset({
-    "app", "package", "package name", "приложение", "application",
-})
-_HEADER_INSTALLS: Final[frozenset[str]] = frozenset({
-    "installs", "installs_count", "downloads", "установки", "загрузки",
-    "скачивания",
-})
-_HEADER_COUNTRY: Final[frozenset[str]] = frozenset({
-    "country", "country code", "iso country", "страна",
-})
+# Stable error string — surfaced в StoreSnapshot.error для installs.
+# Mail.ru constraint: Public API не отдаёт installs endpoint. Меняется
+# ТОЛЬКО когда Mail.ru добавит statistics endpoint в API.
+_INSTALLS_LIMITATION_ERROR: Final[str] = (
+    "RuStore Public API не отдаёт installs (Mail.ru ограничение, "
+    "Brain Q3 2026-05-14). Альтернативы: HTML scrape (fragile) или "
+    "ждать пока Mail.ru добавит stats endpoint."
+)
 
 
 # ===================================================================
@@ -400,166 +397,21 @@ def _fetch_reviews(bearer: str, package: str) -> tuple[float | None, int]:
 
 
 # ===================================================================
-# Manual CSV installs reader
-# ===================================================================
-
-def _iso_week_key(week_start: dt.date) -> str:
-    """Compute filename stem YYYY-Www for the ISO week containing week_start."""
-    iso = week_start.isocalendar()
-    return f"{iso.year}-W{iso.week:02d}"
-
-
-def _resolve_header_map(
-    fieldnames: list[str] | None,
-) -> dict[str, str] | None:
-    """Match CSV headers (case-insensitive, RU+EN tolerant) to canonical names.
-
-    Returns:
-        Dict с ключами "app", "installs", optional "country" → original header.
-        ``None`` if required columns (app, installs) missing.
-    """
-    if not fieldnames:
-        return None
-    mapping: dict[str, str] = {}
-    for h in fieldnames:
-        if not isinstance(h, str):
-            continue
-        norm = h.strip().lower()
-        if norm in _HEADER_APP and "app" not in mapping:
-            mapping["app"] = h
-        elif norm in _HEADER_INSTALLS and "installs" not in mapping:
-            mapping["installs"] = h
-        elif norm in _HEADER_COUNTRY and "country" not in mapping:
-            mapping["country"] = h
-    if "app" not in mapping or "installs" not in mapping:
-        return None
-    return mapping
-
-
-def _read_csv_installs(
-    repo_root: Path,
-    week_start: dt.date,
-    package: str,
-) -> tuple[int | None, dict[str, int]]:
-    """Read manual RuStore CSV for the ISO week, sum installs for `package`.
-
-    File: ``<repo_root>/.metrics/rustore_weekly/<YYYY-Www>.csv``.
-
-    Returns:
-        (None, {})   — file missing (soft-fallback flagged by caller).
-        (0, {})      — file present, headers OK, но zero matching rows.
-        (N, {...})   — N installs grouped by country (если column есть).
-
-    Decoding:
-        Try UTF-8 first; on UnicodeDecodeError fall back to utf-8-sig (BOM).
-        utf-8-sig accepts both BOM-prefixed and plain UTF-8 input, so это
-        безопасный fallback.
-
-    Filtering:
-        Сравниваем app column case-insensitive с package name. Тривиально
-        equality сначала, для tolerance fixture-вариаций.
-    """
-    iso_key = _iso_week_key(week_start)
-    csv_path = repo_root / ".metrics" / "rustore_weekly" / f"{iso_key}.csv"
-    if not csv_path.exists():
-        return (None, {})
-
-    raw = csv_path.read_bytes()
-    try:
-        text = raw.decode("utf-8")
-        # Strip BOM if первый byte отрезан после decode.
-        if text.startswith("﻿"):
-            text = text[1:]
-    except UnicodeDecodeError:
-        try:
-            text = raw.decode("utf-8-sig")
-        except UnicodeDecodeError as exc:
-            raise RuntimeError(
-                f"RuStore CSV {csv_path} not UTF-8 readable: {exc}"
-            ) from exc
-
-    reader = csv.DictReader(io.StringIO(text))
-    header_map = _resolve_header_map(reader.fieldnames)
-    if header_map is None:
-        raise RuntimeError(
-            f"RuStore CSV {csv_path} missing required headers; "
-            f"found: {reader.fieldnames}"
-        )
-
-    package_norm = package.strip().lower()
-    total = 0
-    by_country: dict[str, int] = {}
-
-    for row in reader:
-        app_raw = row.get(header_map["app"], "")
-        if not isinstance(app_raw, str):
-            continue
-        if app_raw.strip().lower() != package_norm:
-            continue
-
-        installs_raw = row.get(header_map["installs"], "0")
-        try:
-            installs = int((installs_raw or "0").strip() or "0")
-        except (ValueError, AttributeError):
-            continue
-        if installs <= 0:
-            continue
-        total += installs
-
-        if "country" in header_map:
-            country_raw = row.get(header_map["country"], "")
-            if isinstance(country_raw, str):
-                country = country_raw.strip().upper()
-                if country:
-                    by_country[country] = by_country.get(country, 0) + installs
-
-    return (total, by_country)
-
-
-# ===================================================================
-# Top country helper (parallel asc/play)
-# ===================================================================
-
-def _top_country(
-    by_country: dict[str, int],
-) -> tuple[str | None, float | None]:
-    """Pick highest-install country и его долю (0.0..1.0)."""
-    if not by_country:
-        return (None, None)
-    total = sum(by_country.values())
-    if total <= 0:
-        return (None, None)
-    top_cc, top_n = max(by_country.items(), key=lambda kv: kv[1])
-    return (top_cc, top_n / total)
-
-
-# ===================================================================
-# Repo root resolution
-# ===================================================================
-
-def _repo_root() -> Path:
-    """Resolve marketing-v3 repo root from this file's location.
-
-    src/store_metrics/rustore.py → parents[2] == marketing-v3/
-    """
-    return Path(__file__).resolve().parents[2]
-
-
-# ===================================================================
 # Public API
 # ===================================================================
 
 def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
-    """Fetch installs (CSV) + rating (API) for one ISO week (RuStore).
+    """Fetch installs (stub) + rating (JWS API) for one ISO week (RuStore).
 
     week_start = Monday of the target week (ISO).
     Без всех envs → mock snapshot (preserves CLI behaviour in dev).
 
     Composition:
-        - installs из manual CSV (юзер положил воскресной задачей).
-          Если CSV нет → installs=None, error="RuStore CSV не положен...".
-        - rating из API (independent of CSV — auth + reviews fetch).
-          Если API падает → rating=None, но installs остаются.
+        - installs = None (всегда) + error mentioning Mail.ru limitation.
+          RuStore Public API физически не отдаёт installs endpoint —
+          ждём пока Mail.ru добавит. До этого момента installs всегда None.
+        - rating через JWS auth + reviews API.
+          Если API падает → rating=None, error appended после installs-blocker.
     """
     if not _is_configured():
         return StoreSnapshot(
@@ -574,21 +426,16 @@ def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
 
     package = _package_for(product)
 
-    # ----- Installs (manual CSV) -----
-    csv_error: str | None = None
+    # ----- Installs (RuStore Public API — Mail.ru limitation) -----
+    # RuStore Public API НЕ предоставляет installs/stats endpoints
+    # (Brain decision Q3 2026-05-14, документально подтверждено через
+    # обзор полного списка методов в Console). Это constraint от Mail.ru,
+    # не наш wire issue — installs физически невозможны автоматически.
     installs: int | None = None
-    by_country: dict[str, int] = {}
-    try:
-        installs, by_country = _read_csv_installs(
-            _repo_root(), week_start, package,
-        )
-    except RuntimeError as exc:
-        installs = None
-        csv_error = f"RuStore CSV error: {exc}"
+    by_country: dict[str, int] = {}  # noqa: F841 — placeholder если Mail.ru добавит endpoint
+    installs_error = _INSTALLS_LIMITATION_ERROR
 
-    csv_missing = installs is None and csv_error is None
-
-    # ----- Rating (API) -----
+    # ----- Rating (JWS reviews API) -----
     rating: float | None = None
     rating_error: str | None = None
     try:
@@ -601,20 +448,12 @@ def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
             f"WARN: RuStore rating fetch failed for {package}: {exc!r}\n"
         )
 
-    top_cc, share = _top_country(by_country)
-
-    # Compose error string — prefer CSV-side problem over rating-side problem,
-    # т.к. csv_missing is most actionable (юзер забыл положить файл).
-    if csv_missing:
-        error = "RuStore CSV не положен — installs см. Console руками"
-    elif csv_error and rating_error:
-        error = f"{csv_error}; {rating_error}"
-    elif csv_error:
-        error = csv_error
-    elif rating_error:
-        error = rating_error
+    # Compose error string — installs blocker всегда присутствует, rating
+    # error дописывается если был.
+    if rating_error:
+        error = f"{installs_error}; {rating_error}"
     else:
-        error = None
+        error = installs_error
 
     return StoreSnapshot(
         product=product,
@@ -624,8 +463,8 @@ def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
         uninstalls=None,
         rating=rating,
         rating_count=None,
-        top_country=top_cc,
-        top_country_share=share,
+        top_country=None,
+        top_country_share=None,
         error=error,
     )
 
