@@ -49,51 +49,37 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Diagnose secret shapes (hotfix debug — bypass GH log masking)
-        env:
-          GPLAY_DEVELOPER_ID: ${{ secrets.GPLAY_DEVELOPER_ID }}
-          ASC_VENDOR_NUMBER: ${{ secrets.ASC_VENDOR_NUMBER }}
-          RUSTORE_KEY_ID: ${{ secrets.RUSTORE_KEY_ID }}
-          RUSTORE_COMPANY_ID: ${{ secrets.RUSTORE_COMPANY_ID }}
-        run: |
-          python3 -c "
-          import os, hashlib
-          for k in ('GPLAY_DEVELOPER_ID','ASC_VENDOR_NUMBER','RUSTORE_KEY_ID','RUSTORE_COMPANY_ID'):
-              v = os.environ.get(k,'')
-              n = len(v)
-              head = v[:1].encode().hex() if v else ''
-              tail = v[-1:].encode().hex() if v else ''
-              sha = hashlib.md5(v.encode()).hexdigest()[:8]
-              print(f'{k}: len={n} head=0x{head} tail=0x{tail} sha8={sha}')
-          "
-
       - name: Collect + render + send digest
         env:
           # ------------ TG (planner bot, Phase 1.5 inheritance) ------------
           TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
           TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
 
-          # ------------ Apple App Store — Reporter API (TTL 180d) ----------
-          # Reporter Token (ASC_REPORTER_ACCESS_TOKEN) — UUID, expires
-          # 2026-11-10. Rotation reminder через secrets_metadata.json
-          # (см. weekly_planner extension в Phase 5.x).
-          ASC_REPORTER_ACCESS_TOKEN: ${{ secrets.ASC_REPORTER_ACCESS_TOKEN }}
-          ASC_VENDOR_NUMBER: ${{ secrets.ASC_VENDOR_NUMBER }}
+          # ------------ Apple App Store — manual CSV + iTunes RSS ----------
+          # Canonical pivot 2026-05-15: installs читаются из ручного CSV
+          # `.metrics/asc_weekly/<YYYY-Www>.csv` (Apple Sales Reports →
+          # Weekly Summary download). Ratings через iTunes RSS — no auth.
+          # ASC_REPORTER_ACCESS_TOKEN / ASC_VENDOR_NUMBER больше не нужны
+          # этому модулю (Reporter Token = UUID для deprecated itc-reporter
+          # API, modern Sales Reports API его отвергает).
           ASC_APP_ID_CENTRY: ${{ secrets.ASC_APP_ID_CENTRY }}
           ASC_APP_ID_DIKTUM: ${{ secrets.ASC_APP_ID_DIKTUM }}
 
-          # ------------ Google Play — Service Account (no TTL) -------------
-          # JSON весь содержимым в Secret value (multi-line). Reads
-          # androidpublisher (reviews) + GCS bucket reports (installs).
+          # ------------ Google Play — manual CSV + androidpublisher --------
+          # Canonical pivot 2026-05-15: installs читаются из ручного CSV
+          # `.metrics/gplay_weekly/<YYYY-Www>.csv` (Play Console Statistics
+          # → Export CSV). Reviews через androidpublisher v3 — опционально,
+          # SA credentials. GPLAY_DEVELOPER_ID больше не нужен (был только
+          # для конструкции GCS bucket name — путь deprecated).
           GOOGLE_PLAY_SA_JSON: ${{ secrets.GOOGLE_PLAY_SA_JSON }}
-          GPLAY_DEVELOPER_ID: ${{ secrets.GPLAY_DEVELOPER_ID }}
           GPLAY_PACKAGE_CENTRY: ${{ secrets.GPLAY_PACKAGE_CENTRY }}
           GPLAY_PACKAGE_DIKTUM: ${{ secrets.GPLAY_PACKAGE_DIKTUM }}
 
-          # ------------ RuStore — JWS RSA-SHA512 (manual rotation) ---------
+          # ------------ RuStore — JWS RSA-SHA512 reviews + manual CSV ------
           # Private key в multi-line PEM. Public key зарегистрирован в
           # Console под `RUSTORE_KEY_ID`. Installs читаются из ручного
-          # CSV `.metrics/rustore_weekly/<YYYY-Www>.csv` (D-5 2026-05-14).
+          # CSV `.metrics/rustore_weekly/<YYYY-Www>.csv` (D-5 2026-05-14 —
+          # API статистики не существует).
           RUSTORE_PRIVATE_KEY: ${{ secrets.RUSTORE_PRIVATE_KEY }}
           RUSTORE_KEY_ID: ${{ secrets.RUSTORE_KEY_ID }}
           RUSTORE_COMPANY_ID: ${{ secrets.RUSTORE_COMPANY_ID }}
