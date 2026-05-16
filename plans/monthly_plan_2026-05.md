@@ -348,15 +348,19 @@ fortonlab.ru
 
 ```yaml
 slug: diktum-may16-free-monologue
-channels: [tg, vk, yt]
+channels:
+- tg
+- vk
+- yt
 product: diktum
 rubric: feature_demo
 media:
-  - path: assets/posts/2026-05/diktum-may16-free-monologue.mp4
-    sha256: af36971075d11f4b63ef17281ae24072b21ff53e05d1a7cf24fdbc858589ef48
-    role: video
+- path: assets/posts/2026-05/diktum-may16-free-monologue.mp4
+  sha256: af36971075d11f4b63ef17281ae24072b21ff53e05d1a7cf24fdbc858589ef48
+  role: video
 video: assets/posts/2026-05/diktum-may16-free-monologue.mp4
-status: draft
+status: published
+published_at: '2026-05-16T10:17:46.056861+00:00'
 ```
 
 Сказали «расскажи о себе» — и ты замер на 5 секунд?
