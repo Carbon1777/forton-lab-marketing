@@ -377,15 +377,18 @@ diktumweb.ru
 
 ```yaml
 slug: centry-may17-feed-of-places
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: centry
 rubric: feature_carousel
 media:
-  - path: assets/posts/2026-05/centry-may17-feed-of-places.png
-    sha256: f8751323fc184132c896b61ab3696e26ce2446d345466e6eb9f28c26d44500de
-    role: image
+- path: assets/posts/2026-05/centry-may17-feed-of-places.png
+  sha256: f8751323fc184132c896b61ab3696e26ce2446d345466e6eb9f28c26d44500de
+  role: image
 image: assets/posts/2026-05/centry-may17-feed-of-places.png
-status: draft
+status: published
+published_at: '2026-05-17T10:19:53.366209+00:00'
 ```
 
 Открываешь приложение — лента, где живой район сегодня.
