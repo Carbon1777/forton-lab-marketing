@@ -405,15 +405,19 @@ centryweb.ru
 
 ```yaml
 slug: centry-may18-meet-via-places
-channels: [tg, vk, yt]
+channels:
+- tg
+- vk
+- yt
 product: centry
 rubric: feature_demo
 media:
-  - path: assets/posts/2026-05/centry-may18-meet-via-places.mp4
-    sha256: c8eb2885f4f9260e40e60c47046bb9d6ffcd5b3d9f576d1053dc6f812eb88acd
-    role: video
+- path: assets/posts/2026-05/centry-may18-meet-via-places.mp4
+  sha256: c8eb2885f4f9260e40e60c47046bb9d6ffcd5b3d9f576d1053dc6f812eb88acd
+  role: video
 video: assets/posts/2026-05/centry-may18-meet-via-places.mp4
-status: draft
+status: published
+published_at: '2026-05-18T12:04:12.907139+00:00'
 ```
 
 Знакомство в Centry начинается не с фотографии, а с места.
