@@ -434,15 +434,18 @@ centryweb.ru
 
 ```yaml
 slug: forton-may19-shared-principles
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: forton-lab
 rubric: philosophy
 media:
-  - path: assets/posts/2026-05/forton-may19-shared-principles.png
-    sha256: edf4c648a577efe0780b8f3828e4f9e8523442cd7ed1cda5f2962056a67438c3
-    role: image
+- path: assets/posts/2026-05/forton-may19-shared-principles.png
+  sha256: edf4c648a577efe0780b8f3828e4f9e8523442cd7ed1cda5f2962056a67438c3
+  role: image
 image: assets/posts/2026-05/forton-may19-shared-principles.png
-status: draft
+status: published
+published_at: '2026-05-19T12:03:41.204368+00:00'
 ```
 
 Что общего у Centry и Diktum.
