@@ -463,15 +463,19 @@ fortonlab.ru
 
 ```yaml
 slug: diktum-may20-five-min-daily
-channels: [tg, vk, yt]
+channels:
+- tg
+- vk
+- yt
 product: diktum
 rubric: feature_demo
 media:
-  - path: assets/posts/2026-05/diktum-may20-five-min-daily.mp4
-    sha256: 8c544004553b6efd0f9b357c0267cb2c42b17e8be6145a715fb1f38fa78eba1a
-    role: video
+- path: assets/posts/2026-05/diktum-may20-five-min-daily.mp4
+  sha256: 8c544004553b6efd0f9b357c0267cb2c42b17e8be6145a715fb1f38fa78eba1a
+  role: video
 video: assets/posts/2026-05/diktum-may20-five-min-daily.mp4
-status: draft
+status: published
+published_at: '2026-05-20T10:28:57.372765+00:00'
 ```
 
 5 минут в день — и через две недели речь становится острее.
