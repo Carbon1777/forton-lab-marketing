@@ -1,25 +1,18 @@
 name: preview_bot
 
 on:
-  schedule:
-    # CRITICAL: GH Actions scheduled cron throttles тики на ровные часы
-    # (00, 10, 30) часто. Incidents 2026-05-11 (пропущены 09:00-12:14 UTC)
-    # и 2026-05-12 (пропущены 09:00-10:03 UTC) — оба ждали preview в 12:00
-    # МСК, оба не получили без manual trigger.
-    #
-    # Multi-cron mitigation: 5 параллельных expressions на разные минуты
-    # первого часа окна (09:00, 09:03, 09:07, 09:15, 09:22 UTC). GH
-    # throttling редко бьёт сразу все смещения. Concurrency group preview-bot
-    # + cancel-in-progress: false → first успешный run grabs, остальные
-    # queue (быстро exit'нут потому что entry уже pending).
-    #
-    # Плюс `*/10 9-19` сохраняем для late-approve и continuous polling.
-    - cron: "0 9 * * *"
-    - cron: "3 9 * * *"
-    - cron: "7 9 * * *"
-    - cron: "15 9 * * *"
-    - cron: "22 9 * * *"
-    - cron: "*/10 9-19 * * *"
+  # Триггер ТОЛЬКО через workflow_dispatch. Primary source — Cloudflare Worker
+  # `forton-cron-trigger` (cron 0 9 UTC = 12:00 МСК) который POST'ит на GH API
+  # /actions/workflows/preview_bot.yml/dispatches. Внешний CF cron надёжен
+  # (не throttles как GH Actions scheduled). Один dispatch/день → один
+  # long-poll run (timeout-minutes 350 = ~5.5h), бот живёт 12:00-17:30 МСК.
+  #
+  # GH schedule cron УБРАН: с длинным polling (5.5h) multi-cron создавал бы
+  # очередь из 5.5-часовых задач (concurrency cancel-in-progress: false).
+  # Incidents 2026-05-11..20 показали GH cron unreliable — CF Worker заменил.
+  #
+  # Watchdog (preview_watchdog.yml) остаётся backup: если CF Worker не
+  # сработал, watchdog обнаружит отсутствие preview и сам dispatch'нет.
   workflow_dispatch: {}
 
 permissions:
@@ -35,7 +28,12 @@ concurrency:
 jobs:
   poll:
     runs-on: ubuntu-latest
-    timeout-minutes: 11   # 9-min polling + ~30s startup + headroom
+    # Long-poll window: бот живёт ~5.5h (12:00-17:30 МСК) чтобы late-approve
+    # работал весь рабочий день, не только в 12:00-12:11. На approve
+    # handle_publish → stop_running → job завершается раньше (не ждёт впустую).
+    # Public repo → GitHub Actions unlimited минут, длинный polling бесплатен.
+    # GH job hard limit 6h, ставим 350 мин под лимит.
+    timeout-minutes: 350
     steps:
       - name: Checkout
         uses: actions/checkout@v4
