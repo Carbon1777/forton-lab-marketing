@@ -492,15 +492,18 @@ diktumweb.ru
 
 ```yaml
 slug: diktum-may21-filler-words
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: diktum
 rubric: speech_tips
 media:
-  - path: assets/posts/2026-05/diktum-may21-filler-words.png
-    sha256: 88e98842b10a531b5e9129ee9a02b0599c475c87a972547137314046b2248690
-    role: image
+- path: assets/posts/2026-05/diktum-may21-filler-words.png
+  sha256: 88e98842b10a531b5e9129ee9a02b0599c475c87a972547137314046b2248690
+  role: image
 image: assets/posts/2026-05/diktum-may21-filler-words.png
-status: draft
+status: published
+published_at: '2026-05-21T09:05:25.554031+00:00'
 ```
 
 «Эээ», «ну», «как бы», «в общем», «короче».
