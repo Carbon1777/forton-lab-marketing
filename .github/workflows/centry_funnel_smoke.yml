@@ -1,0 +1,33 @@
+name: centry_funnel_smoke
+
+# Этап 0 — ручная проверка доступа к AppMetrica (Centry app 6301660) + Centry
+# Supabase из GH-раннера (США, без VPN). Запускать через "Run workflow".
+# Gate: оба = 200. НЕ путать с funnel_smoke.yml (Diktum).
+on:
+  workflow_dispatch: {}
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: AppMetrica reachability (Centry app 6301660)
+        env:
+          TOKEN: ${{ secrets.APPMETRICA_OAUTH_TOKEN }}
+        run: |
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: OAuth $TOKEN" \
+            "https://api.appmetrica.yandex.ru/management/v1/application/6301660")
+          echo "AppMetrica HTTP=$CODE"
+          test "$CODE" = "200"
+
+      - name: Centry Supabase reachability
+        env:
+          URL: ${{ secrets.SUPABASE_URL_CENTRY }}
+          KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CENTRY }}
+        run: |
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            "$URL/rest/v1/")
+          echo "Supabase HTTP=$CODE"
+          test "$CODE" = "200"
