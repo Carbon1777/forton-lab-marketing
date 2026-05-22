@@ -1,0 +1,63 @@
+name: centry_funnel
+
+# Еженедельный отчёт-воронка Centry (install → профиль → регистрация → активация).
+# Cron Вт 12:12 UTC = 15:12 МСК (через 5 мин после Diktum-воронки, +12 offset
+# против GH-cron-drift). Период отчёта = прошлая неделя Пн–Вс.
+# ВНИМАНИЕ: schedule срабатывает только на default-ветке (main) — активируется
+# после мержа feat/centry-funnel в main. workflow_dispatch работает на любой ветке.
+on:
+  schedule:
+    - cron: "12 12 * * 2"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # commit snapshot JSON
+
+concurrency:
+  group: centry-funnel
+  cancel-in-progress: false
+
+jobs:
+  collect-and-send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.BOT_DISPATCH_PAT }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Collect + render + send funnel
+        env:
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+          APPMETRICA_OAUTH_TOKEN: ${{ secrets.APPMETRICA_OAUTH_TOKEN }}
+          SUPABASE_URL_CENTRY: ${{ secrets.SUPABASE_URL_CENTRY }}
+          SUPABASE_SERVICE_ROLE_KEY_CENTRY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CENTRY }}
+        run: PYTHONPATH=. python -m src.centry_funnel.cli
+
+      - name: Commit updated snapshot
+        env:
+          GIT_AUTHOR_NAME: forton-metrics-bot
+          GIT_AUTHOR_EMAIL: forton-metrics-bot@users.noreply.github.com
+          GIT_COMMITTER_NAME: forton-metrics-bot
+          GIT_COMMITTER_EMAIL: forton-metrics-bot@users.noreply.github.com
+        run: |
+          if git diff --quiet .metrics/centry_funnel_snapshots.json 2>/dev/null; then
+            echo "snapshot unchanged — no commit"
+            exit 0
+          fi
+          git add .metrics/centry_funnel_snapshots.json
+          git commit -m "auto: weekly centry funnel snapshot [skip ci]"
+          git pull --rebase
+          git push

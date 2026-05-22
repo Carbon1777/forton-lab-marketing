@@ -1,0 +1,7 @@
+{
+  "data": [
+    {"dimensions": [{"name": "Органика"}], "metrics": [16.0]},
+    {"dimensions": [{"name": "Реклама"}], "metrics": [2.0]}
+  ],
+  "total_rows": 2
+}

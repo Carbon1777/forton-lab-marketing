@@ -1,0 +1,1 @@
+"""Centry funnel weekly report."""
