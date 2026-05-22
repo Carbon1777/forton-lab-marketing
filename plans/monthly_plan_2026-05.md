@@ -520,15 +520,19 @@ diktumweb.ru
 
 ```yaml
 slug: centry-may22-tokens-rating
-channels: [tg, vk, yt]
+channels:
+- tg
+- vk
+- yt
 product: centry
 rubric: feature_demo
 media:
-  - path: assets/posts/2026-05/centry-may22-tokens-rating.mp4
-    sha256: 8a7d27771104a63ede21445d896d6db5fcd2f9061eb82fe88be318dabd692091
-    role: video
+- path: assets/posts/2026-05/centry-may22-tokens-rating.mp4
+  sha256: 8a7d27771104a63ede21445d896d6db5fcd2f9061eb82fe88be318dabd692091
+  role: video
 video: assets/posts/2026-05/centry-may22-tokens-rating.mp4
-status: draft
+status: published
+published_at: '2026-05-22T09:58:50.513132+00:00'
 ```
 
 В Centry за активность дают токены.
