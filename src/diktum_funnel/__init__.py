@@ -1,0 +1,1 @@
+"""Diktum funnel weekly report."""
