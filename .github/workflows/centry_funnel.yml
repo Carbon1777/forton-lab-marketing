@@ -53,11 +53,14 @@ jobs:
           GIT_COMMITTER_NAME: forton-metrics-bot
           GIT_COMMITTER_EMAIL: forton-metrics-bot@users.noreply.github.com
         run: |
-          if git diff --quiet .metrics/centry_funnel_snapshots.json 2>/dev/null; then
+          # git add сначала: на первом запуске файл untracked, и `git diff
+          # --quiet` его НЕ видит (вернул бы 0 → коммит пропускался). Стейджим,
+          # затем проверяем staged-дифф — работает для нового/изменённого/равного.
+          git add .metrics/centry_funnel_snapshots.json
+          if git diff --cached --quiet -- .metrics/centry_funnel_snapshots.json; then
             echo "snapshot unchanged — no commit"
             exit 0
           fi
-          git add .metrics/centry_funnel_snapshots.json
           git commit -m "auto: weekly centry funnel snapshot [skip ci]"
           git pull --rebase
           git push
