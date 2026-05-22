@@ -1,0 +1,61 @@
+name: funnel_metrics
+
+# Еженедельный отчёт-воронка Diktum (install → registration → activation).
+# Cron Вт 12:07 UTC = 15:07 МСК. +7 мин offset против GH-cron-drift
+# (тот же приём, что store_metrics). Период отчёта = прошлая неделя Пн–Вс.
+on:
+  schedule:
+    - cron: "7 12 * * 2"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # commit snapshot JSON
+
+concurrency:
+  group: diktum-funnel
+  cancel-in-progress: false
+
+jobs:
+  collect-and-send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.BOT_DISPATCH_PAT }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Collect + render + send funnel
+        env:
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+          APPMETRICA_OAUTH_TOKEN: ${{ secrets.APPMETRICA_OAUTH_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: PYTHONPATH=. python -m src.diktum_funnel.cli
+
+      - name: Commit updated snapshot
+        env:
+          GIT_AUTHOR_NAME: forton-metrics-bot
+          GIT_AUTHOR_EMAIL: forton-metrics-bot@users.noreply.github.com
+          GIT_COMMITTER_NAME: forton-metrics-bot
+          GIT_COMMITTER_EMAIL: forton-metrics-bot@users.noreply.github.com
+        run: |
+          if git diff --quiet .metrics/funnel_snapshots.json 2>/dev/null; then
+            echo "snapshot unchanged — no commit"
+            exit 0
+          fi
+          git add .metrics/funnel_snapshots.json
+          git commit -m "auto: weekly funnel snapshot [skip ci]"
+          git pull --rebase
+          git push
