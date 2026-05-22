@@ -22,7 +22,7 @@
   `cd "/Users/jcat/Documents/Forton Lab/marketing-v3-wt-centry-funnel" && PYTHONPATH=. "/Users/jcat/Documents/Forton Lab/marketing-v3/.venv/bin/python" -m pytest <path> -v`
 - **GitHub repo:** `Carbon1777/forton-lab-marketing`
 - **Centry Supabase project ref:** `lqgzvolirohuettizkhx` (MCP-доступ для миграции RPC).
-- **Источник service-key Centry (значение НЕ печатать):** `/Users/jcat/Documents/Doc/centry-flutter/scripts/.env` → `SUPABASE_SECRET_KEY`.
+- **Источник service-key Centry (значение НЕ печатать):** `/Users/jcat/Documents/Doc/centry-flutter/scripts/.env` → `SUPABASE_SERVICE_KEY`.
 - 🔒 Секреты в чат/лог не печатать. Адресный `git add`. Все коммиты — на `feat/centry-funnel`, НЕ на `main`.
 
 ---
@@ -67,7 +67,7 @@ REPO=Carbon1777/forton-lab-marketing
 CENTRY_ENV=/Users/jcat/Documents/Doc/centry-flutter/scripts/.env
 gh secret set SUPABASE_URL_CENTRY --repo "$REPO" --body "https://lqgzvolirohuettizkhx.supabase.co"
 gh secret set SUPABASE_SERVICE_ROLE_KEY_CENTRY --repo "$REPO" \
-  --body "$(grep '^SUPABASE_SECRET_KEY=' "$CENTRY_ENV" | cut -d= -f2-)"
+  --body "$(grep '^SUPABASE_SERVICE_KEY=' "$CENTRY_ENV" | cut -d= -f2-)"
 gh secret list --repo "$REPO" | grep -E "SUPABASE_URL_CENTRY|SUPABASE_SERVICE_ROLE_KEY_CENTRY|APPMETRICA_OAUTH_TOKEN"
 ```
 
@@ -199,7 +199,7 @@ Expected: одна строка. Сверка с превью из SPEC: за W2
 
 ```bash
 CENTRY_ENV=/Users/jcat/Documents/Doc/centry-flutter/scripts/.env
-KEY=$(grep '^SUPABASE_SECRET_KEY=' "$CENTRY_ENV" | cut -d= -f2-)
+KEY=$(grep '^SUPABASE_SERVICE_KEY=' "$CENTRY_ENV" | cut -d= -f2-)
 curl -s -X POST "https://lqgzvolirohuettizkhx.supabase.co/rest/v1/rpc/get_centry_funnel_metrics" \
   -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
   -d '{"p_from":"2026-05-11","p_to":"2026-05-17"}'

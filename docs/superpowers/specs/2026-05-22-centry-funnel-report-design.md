@@ -204,7 +204,7 @@ Event-модель («сколько первых вступлений в пла
   Diktum-секретами `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` (без суффикса).
 - `APPMETRICA_APPLICATION_ID=6301660` — константа в коде, не секрет.
 - 🔒 Значение `SUPABASE_SERVICE_ROLE_KEY_CENTRY` берётся программно из
-  `centry-flutter/scripts/.env` (`SUPABASE_SECRET_KEY`), в чат/лог не печатается.
+  `centry-flutter/scripts/.env` (`SUPABASE_SERVICE_KEY`), в чат/лог не печатается.
   Ключ `exp` 2036 (~10 лет) — ротация в обозримом будущем не нужна.
 
 ## Формат сообщения в ТГ (черновик)
