@@ -1,0 +1,7 @@
+{
+  "data": [
+    {"dimensions": [{"name": "Органика"}], "metrics": [16.0]},
+    {"dimensions": [{"name": "VK Ads (ex. myTarget)"}], "metrics": [2.0]}
+  ],
+  "total_rows": 2
+}
