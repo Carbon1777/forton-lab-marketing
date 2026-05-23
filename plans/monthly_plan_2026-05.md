@@ -549,15 +549,18 @@ centryweb.ru
 
 ```yaml
 slug: forton-may23-reviews-matter
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: forton-lab
 rubric: principle
 media:
-  - path: assets/posts/2026-05/forton-may23-reviews-matter.png
-    sha256: ca7ca52d29c6a34c6f64afb47b3342247a9720cbcb3ca060838afcb65b300bc1
-    role: image
+- path: assets/posts/2026-05/forton-may23-reviews-matter.png
+  sha256: ca7ca52d29c6a34c6f64afb47b3342247a9720cbcb3ca060838afcb65b300bc1
+  role: image
 image: assets/posts/2026-05/forton-may23-reviews-matter.png
-status: draft
+status: published
+published_at: '2026-05-23T13:06:51.767061+00:00'
 ```
 
 Каждый отзыв в магазинах читаем.
