@@ -577,15 +577,19 @@ fortonlab.ru
 
 ```yaml
 slug: diktum-may24-speech-parasites
-channels: [tg, vk, yt]
+channels:
+- tg
+- vk
+- yt
 product: diktum
 rubric: feature_demo
 media:
-  - path: assets/posts/2026-05/diktum-may24-speech-parasites.mp4
-    sha256: c6aed06f6def5126addb07ae06843228b32e39721ca8f903b352288245d11085
-    role: video
+- path: assets/posts/2026-05/diktum-may24-speech-parasites.mp4
+  sha256: c6aed06f6def5126addb07ae06843228b32e39721ca8f903b352288245d11085
+  role: video
 video: assets/posts/2026-05/diktum-may24-speech-parasites.mp4
-status: draft
+status: published
+published_at: '2026-05-24T10:39:39.690241+00:00'
 ```
 
 47 слов-паразитов за минуту речи.
