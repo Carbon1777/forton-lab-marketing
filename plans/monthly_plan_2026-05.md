@@ -606,15 +606,18 @@ diktumweb.ru
 
 ```yaml
 slug: diktum-may25-tempo
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: diktum
 rubric: speech_tips
 media:
-  - path: assets/posts/2026-05/diktum-may25-tempo.png
-    sha256: 08e1b229ceb89ed9d8e82467b5f130fcc61049fd04974930f6fa25a7b206a847
-    role: image
+- path: assets/posts/2026-05/diktum-may25-tempo.png
+  sha256: 08e1b229ceb89ed9d8e82467b5f130fcc61049fd04974930f6fa25a7b206a847
+  role: image
 image: assets/posts/2026-05/diktum-may25-tempo.png
-status: draft
+status: published
+published_at: '2026-05-25T09:53:55.102111+00:00'
 ```
 
 Оптимальный темп речи — 120-150 слов в минуту.
