@@ -8,5 +8,15 @@
     "new_profiles": 5,
     "users": 5,
     "week_start": "2026-05-11"
+  },
+  "2026-W21": {
+    "activations": 0,
+    "guests": 1,
+    "installs_ads": 1,
+    "installs_organic": 18,
+    "installs_total": 19,
+    "new_profiles": 2,
+    "users": 1,
+    "week_start": "2026-05-18"
   }
 }
