@@ -634,15 +634,19 @@ diktumweb.ru
 
 ```yaml
 slug: centry-may26-30-seconds
-channels: [tg, vk, yt]
+channels:
+- tg
+- vk
+- yt
 product: centry
 rubric: feature_demo
 media:
-  - path: assets/posts/2026-05/centry-may26-thirty-seconds.mp4
-    sha256: 755319ed5f8ab720f663a0f7f58bcd287bf9aeb598ff248d5c7dceaac20ba2a9
-    role: video
+- path: assets/posts/2026-05/centry-may26-thirty-seconds.mp4
+  sha256: 755319ed5f8ab720f663a0f7f58bcd287bf9aeb598ff248d5c7dceaac20ba2a9
+  role: video
 video: assets/posts/2026-05/centry-may26-thirty-seconds.mp4
-status: draft
+status: published
+published_at: '2026-05-26T09:07:10.442312+00:00'
 ```
 
 247 сообщений в чате — 0 решений куда идти.
