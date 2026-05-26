@@ -1,0 +1,15 @@
+node_modules/
+.wrangler/
+.dev.vars
+.env
+worker-configuration.d.ts
+package.json
+package-lock.json
+.editorconfig
+.prettierrc
+.vscode/
+tsconfig.json
+vitest.config.mts
+public/
+test/
+AGENTS.md

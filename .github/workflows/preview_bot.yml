@@ -13,6 +13,9 @@ on:
   #
   # Watchdog (preview_watchdog.yml) остаётся backup: если CF Worker не
   # сработал, watchdog обнаружит отсутствие preview и сам dispatch'нет.
+  #
+  # CF Worker source-of-truth: marketing-v3/cf-worker/forton-cron-trigger/
+  # (2026-05-26: расширен на funnel_metrics.yml + centry_funnel.yml).
   workflow_dispatch: {}
 
 permissions:

@@ -3,6 +3,14 @@ name: funnel_metrics
 # Еженедельный отчёт-воронка Diktum (install → registration → activation).
 # Cron Вт 12:07 UTC = 15:07 МСК. +7 мин offset против GH-cron-drift
 # (тот же приём, что store_metrics). Период отчёта = прошлая неделя Пн–Вс.
+#
+# Primary trigger: Cloudflare Worker `forton-cron-trigger` (Вт 12:07 UTC
+# POST'ит на /actions/workflows/funnel_metrics.yml/dispatches). CF cron
+# секундной точности, не throttles. GH schedule оставлен как backup —
+# если CF Worker умрёт, GH-cron сработает (обычно).
+# Incident 2026-05-26: оба новых workflow (funnel + centry_funnel) дропнулись
+# на первом плановом вторнике — добавлен CF Worker как primary.
+# CF Worker source: marketing-v3/cf-worker/forton-cron-trigger/
 on:
   schedule:
     - cron: "7 12 * * 2"

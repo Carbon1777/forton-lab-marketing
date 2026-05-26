@@ -5,6 +5,13 @@ name: centry_funnel
 # против GH-cron-drift). Период отчёта = прошлая неделя Пн–Вс.
 # ВНИМАНИЕ: schedule срабатывает только на default-ветке (main) — активируется
 # после мержа feat/centry-funnel в main. workflow_dispatch работает на любой ветке.
+#
+# Primary trigger: Cloudflare Worker `forton-cron-trigger` (Вт 12:12 UTC
+# POST'ит на /actions/workflows/centry_funnel.yml/dispatches). CF cron
+# секундной точности, не throttles. GH schedule оставлен как backup.
+# Incident 2026-05-26: оба funnel-workflow дропнулись на первом плановом
+# вторнике после деплоя — добавлен CF Worker как primary.
+# CF Worker source: marketing-v3/cf-worker/forton-cron-trigger/
 on:
   schedule:
     - cron: "12 12 * * 2"

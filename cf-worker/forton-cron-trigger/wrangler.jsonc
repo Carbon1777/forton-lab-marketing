@@ -1,0 +1,22 @@
+// Forton Lab — external cron trigger Worker.
+// Triggers GH Actions workflows via workflow_dispatch on Cloudflare cron.
+// Reliable replacement for GH Actions scheduled cron (throttled in 2026-05).
+//
+// Secret GH_PAT (set via `wrangler secret put GH_PAT`) is the only credential.
+// Already configured 2026-05-18 — DO NOT re-upload unless rotating.
+{
+	"$schema": "https://json.schemastore.org/wrangler.json",
+	"name": "forton-cron-trigger",
+	"main": "src/index.js",
+	"compatibility_date": "2026-05-18",
+	"observability": {
+		"enabled": true
+	},
+	"triggers": {
+		"crons": [
+			"0 9 * * *",
+			"7 12 * * 2",
+			"12 12 * * 2"
+		]
+	}
+}
