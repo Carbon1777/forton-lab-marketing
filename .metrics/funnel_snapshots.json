@@ -6,5 +6,13 @@
     "installs_total": 0,
     "registrations": 10,
     "week_start": "2026-05-11"
+  },
+  "2026-W21": {
+    "activated": 7,
+    "installs_ads": 4,
+    "installs_organic": 33,
+    "installs_total": 37,
+    "registrations": 17,
+    "week_start": "2026-05-18"
   }
 }
