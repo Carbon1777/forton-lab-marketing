@@ -663,15 +663,18 @@ centryweb.ru
 
 ```yaml
 slug: forton-may27-notifications-hard
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: forton-lab
 rubric: ux_insight
 media:
-  - path: assets/posts/2026-05/forton-may27-notifications-hard.png
-    sha256: 9a651f48a5ecb28e2922f7cc61d66a024e0b9f1700de76454504cf3552e46651
-    role: image
+- path: assets/posts/2026-05/forton-may27-notifications-hard.png
+  sha256: 9a651f48a5ecb28e2922f7cc61d66a024e0b9f1700de76454504cf3552e46651
+  role: image
 image: assets/posts/2026-05/forton-may27-notifications-hard.png
-status: draft
+status: published
+published_at: '2026-05-27T09:56:28.057640+00:00'
 ```
 
 Уведомления — самое сложное в мобильной разработке.
