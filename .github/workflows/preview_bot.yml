@@ -55,6 +55,11 @@ jobs:
         # Incident 2026-05-13: apt-get install ffmpeg висит на 11 мин до
         # timeout → ВСЕ scheduled cron сегодня дропнулись. Переключаемся
         # на pre-built setup-ffmpeg action — 5-10 секунд вместо apt.
+        # Incident 2026-05-28: action упал на TypeError fetch failed (GH
+        # Releases CDN glitch). continue-on-error: true делает шаг soft-
+        # fail — preview всё равно отправится, просто без video metadata
+        # (косметика, не блокер). Аналогично в publish.yml.
+        continue-on-error: true
         uses: FedericoCarboni/setup-ffmpeg@v3
         with:
           ffmpeg-version: release

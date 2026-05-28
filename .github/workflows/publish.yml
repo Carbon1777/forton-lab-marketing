@@ -41,6 +41,11 @@ jobs:
       - name: Setup ffmpeg (для video metadata + thumbnail)
         # Incident 2026-05-13: apt-get install висит 11 мин до timeout.
         # Pre-built setup-ffmpeg action — 5-10 секунд.
+        # Incident 2026-05-28: action upstream упал на network fetch fail.
+        # continue-on-error: true → publish продолжается без ffmpeg, видео
+        # в TG отправится без явных width/height (тот же behaviour что
+        # до PR #66). Косметика, не блокирует публикацию.
+        continue-on-error: true
         uses: FedericoCarboni/setup-ffmpeg@v3
         with:
           ffmpeg-version: release
