@@ -692,15 +692,19 @@ fortonlab.ru
 
 ```yaml
 slug: centry-may28-vs-competitors
-channels: [tg, vk, yt]
+channels:
+- tg
+- vk
+- yt
 product: centry
 rubric: comparison
 media:
-  - path: assets/posts/2026-05/centry-may28-vs-competitors.mp4
-    sha256: 80e68a968033c48bec4194a21f91975f3d1c2960de8bd9448f9526b809bc405c
-    role: video
+- path: assets/posts/2026-05/centry-may28-vs-competitors.mp4
+  sha256: 80e68a968033c48bec4194a21f91975f3d1c2960de8bd9448f9526b809bc405c
+  role: video
 video: assets/posts/2026-05/centry-may28-vs-competitors.mp4
-status: draft
+status: published
+published_at: '2026-05-28T10:50:52.810407+00:00'
 ```
 
 Сравним Centry с конкурентом — Кавёр.
