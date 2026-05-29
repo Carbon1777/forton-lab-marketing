@@ -721,15 +721,18 @@ centryweb.ru
 
 ```yaml
 slug: forton-may29-loading-speed
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: forton-lab
 rubric: ux_insight
 media:
-  - path: assets/posts/2026-05/forton-may29-loading-speed.png
-    sha256: 841cce75da89d92cbce0cc2a6c11b5f0acc3a996bb442d8a03d8f4602b062f0b
-    role: image
+- path: assets/posts/2026-05/forton-may29-loading-speed.png
+  sha256: 841cce75da89d92cbce0cc2a6c11b5f0acc3a996bb442d8a03d8f4602b062f0b
+  role: image
 image: assets/posts/2026-05/forton-may29-loading-speed.png
-status: draft
+status: published
+published_at: '2026-05-29T09:28:27.551856+00:00'
 ```
 
 2 секунды на старт — или пользователь уходит.
