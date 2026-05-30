@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import datetime as dt
 
-from src.store_metrics.digest import render_digest
+from src.store_metrics.digest import _is_blocker_error, render_digest
 from src.store_metrics.models import (
     ALERT_PCT,
     ProductReport,
@@ -365,3 +365,35 @@ def test_render_digest_alerts_error_html_escaped():
     # Both must be HTML-escaped
     assert "&lt;html&gt;500&lt;/html&gt;" in out
     assert "<html>500</html>" not in out
+
+
+# ===================================================================
+# _is_blocker_error — known structural limitations render as clean «—»,
+# real per-week errors (transient API failures) stay visible as alerts.
+# ===================================================================
+
+def test_blocker_errors_known_structural_limitations():
+    """Known external limitations → blocker (rendered «—», no alert noise)."""
+    # ASC report still generating (Apple's 24-48h ONGOING lag) — not per-week
+    # actionable, resolves itself. MUST be a blocker so the Monday digest stays
+    # clean instead of walling App Store rows for both products.
+    assert _is_blocker_error(
+        "ASC: отчёт ещё генерируется (instances пусто; ONGOING создан 30.05, ждём 24-48ч)"
+    )
+    # RuStore Mail.ru installs limitation
+    assert _is_blocker_error(
+        "RuStore Public API не отдаёт installs (Mail.ru ограничение, ждём stats endpoint)"
+    )
+    # Google Play monthly CSV not generated yet
+    assert _is_blocker_error(
+        "GPlay installs CSV not yet generated for this week — Google публикует monthly _country.csv"
+    )
+
+
+def test_real_errors_are_not_blockers():
+    """Transient / actionable API failures stay visible as alerts (not «—»)."""
+    assert not _is_blocker_error("ASC: instances HTTP 500")
+    assert not _is_blocker_error("ASC installs error: boom")
+    assert not _is_blocker_error("RuntimeError: connection reset")
+    assert not _is_blocker_error(None)
+    assert not _is_blocker_error("")
