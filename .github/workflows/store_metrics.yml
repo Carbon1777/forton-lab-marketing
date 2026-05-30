@@ -1,5 +1,12 @@
 name: store_metrics
 
+# Hybrid per-app weekly report (quick 260530-x7x, 2026-05-31).
+#   Отчёт теперь ГИБРИДНЫЙ per-app (src/hybrid_report) — ОДНО богатое word-based
+#   сообщение НА КАЖДОЕ приложение (Centry + Diktum), 2 сообщения в канал
+#   «Планировщик». Источники: store-снапшоты + AppMetrica (installs/активность/
+#   воронка/экраны) + Supabase (регистрации→активация). Заменил прежний
+#   src.store_metrics.cli (общий digest). Снапшот — .metrics/hybrid_snapshots.json.
+#
 # Phase 5 — Weekly store metrics digest (METRICS-01, D-5-09).
 #
 # Cron Пн 06:37 UTC = 09:37 МСК.
@@ -55,7 +62,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Collect + render + send digest
+      - name: Collect + render + send hybrid per-app report
         env:
           # ------------ TG (planner bot, Phase 1.5 inheritance) ------------
           TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
@@ -106,10 +113,24 @@ jobs:
           RUSTORE_PACKAGE_DIKTUM: ${{ secrets.RUSTORE_PACKAGE_DIKTUM }}
 
           # ------------ Anthropic Haiku 4.5 — hypothesis injection ---------
-          # METRICS-09 / D-5-06. Если ключа нет — digest идёт без секции
-          # «💡 Гипотезы недели» (graceful fallback в `hypothesis.py`).
+          # METRICS-09 / D-5-06. hybrid_report его НЕ использует — оставлен в env
+          # без вреда (станет нужен если вернём гипотезы в гибридный отчёт).
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: PYTHONPATH=. python -m src.store_metrics.cli
+
+          # ------------ AppMetrica — installs/активность/воронка/экраны ----------
+          # hybrid_report (quick 260530-x7x): ym:ts:* (installs из *_funnel),
+          # ym:s:* (сессии/юзеры), ym:ce:devices (воронка онбординга + экраны).
+          # Общий OAuth-токен (scope appmetrica:read). TZ Europe/Moscow.
+          APPMETRICA_OAUTH_TOKEN: ${{ secrets.APPMETRICA_OAUTH_TOKEN }}
+
+          # ------------ Supabase — регистрации → активация ---------------------
+          # Diktum: SUPABASE_URL / SERVICE_ROLE_KEY (RPC get_funnel_metrics).
+          # Centry: *_CENTRY (RPC get_centry_funnel_metrics). Боты исключены в RPC.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL_CENTRY: ${{ secrets.SUPABASE_URL_CENTRY }}
+          SUPABASE_SERVICE_ROLE_KEY_CENTRY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CENTRY }}
+        run: PYTHONPATH=. python -m src.hybrid_report.cli
 
       - name: Commit updated snapshots
         env:
@@ -118,11 +139,15 @@ jobs:
           GIT_COMMITTER_NAME: forton-metrics-bot
           GIT_COMMITTER_EMAIL: forton-metrics-bot@users.noreply.github.com
         run: |
-          if git diff --quiet .metrics/store_snapshots.json 2>/dev/null; then
+          # git add сначала: на первом запуске файл untracked, и `git diff
+          # --quiet` его НЕ видит (вернул бы 0 → коммит пропускался — латентный
+          # баг старого store_metrics). Стейджим, затем проверяем staged-дифф —
+          # работает для нового/изменённого/равного (как в funnel_metrics.yml).
+          git add .metrics/hybrid_snapshots.json
+          if git diff --cached --quiet -- .metrics/hybrid_snapshots.json; then
             echo "snapshot unchanged — no commit"
             exit 0
           fi
-          git add .metrics/store_snapshots.json
-          git commit -m "auto: weekly store metrics snapshot [skip ci]"
+          git commit -m "auto: weekly hybrid report snapshot [skip ci]"
           git pull --rebase
           git push

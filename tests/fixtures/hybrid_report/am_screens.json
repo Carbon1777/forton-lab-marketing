@@ -1,0 +1,5 @@
+{"data": [
+  {"dimensions": [{"name": "activity_feed"}], "metrics": [40.0]},
+  {"dimensions": [{"name": "plans"}], "metrics": [22.0]},
+  {"dimensions": [{"name": "profile"}], "metrics": [15.0]}
+]}
