@@ -98,7 +98,8 @@ def test_fetch_top_screens_parses():
     ]
     params = f.call_args.kwargs["params"]
     assert params["metrics"] == "ym:ce:devices"
-    assert params["dimensions"] == "ym:ce:paramsLevel1"
+    # имя экрана лежит в paramsLevel2; paramsLevel1 — это КЛЮЧ "screen"
+    assert params["dimensions"] == "ym:ce:paramsLevel2"
     assert params["filters"] == "ym:ce:eventLabel=='screen_view'"
 
 

@@ -136,14 +136,21 @@ def _block_funnel(r: ProductReport) -> str:
     pieces: list[str] = []
     max_drop_pct = -1.0
     max_drop_label = ""
+    first_devices = f.steps[0].devices
     prev_devices: int | None = None
     for step in f.steps:
         if prev_devices is None:
+            # первый шаг — только число, он и есть знаменатель конверсии
             pieces.append(f"{step.label} — {step.devices}")
         else:
-            conv = _pct_word(step.devices, prev_devices)
-            conv_part = f" ({conv} от предыдущего)" if conv else ""
+            # конверсия от ПЕРВОГО шага («от открывших приложение»):
+            # эти события не строгая последовательная воронка, поэтому
+            # «от предыдущего» давало бы >100%. От первого — всегда ≤100%.
+            conv = _pct_word(step.devices, first_devices)
+            conv_part = f" ({conv} от открывших приложение)" if conv else ""
             pieces.append(f"{step.label} — {step.devices}{conv_part}")
+            # шаг макс. отвала — наибольшая ПОСЛЕДОВАТЕЛЬНАЯ относительная
+            # потеря (prev→cur), она верно находит реальный провал.
             if prev_devices > 0:
                 drop = (prev_devices - step.devices) / prev_devices * 100
                 if drop > max_drop_pct:

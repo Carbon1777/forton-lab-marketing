@@ -127,8 +127,12 @@ def fetch_top_screens(
     token: str | None = None,
     top_n: int = 7,
 ) -> AppMetricaScreens:
-    """Топ-N экранов по заходам: ym:ce:devices, dim ym:ce:paramsLevel1,
+    """Топ-N экранов по заходам: ym:ce:devices, dim ym:ce:paramsLevel2,
     фильтр eventLabel=='screen_view'. Сортировка по views убыв., срез [:top_n].
+
+    paramsLevel1 = КЛЮЧ параметра ("screen"); имя экрана лежит в paramsLevel2
+    (verified живым вызовом 25-31.05: Centry agreement/permissions/auth/...,
+    Diktum /auth, register, /analysis/:id, ...). Поэтому dim = paramsLevel2.
 
     Ср. время на экране НЕ достаём в этой итерации (avg_sec=None) — допустимо
     по формату «+ ср. время если достанется». Ошибка → мягкая деградация.
@@ -144,7 +148,7 @@ def fetch_top_screens(
                 "date1": week_start.isoformat(),
                 "date2": week_end.isoformat(),
                 "metrics": "ym:ce:devices",
-                "dimensions": "ym:ce:paramsLevel1",
+                "dimensions": "ym:ce:paramsLevel2",
                 "filters": "ym:ce:eventLabel=='screen_view'",
                 "accuracy": "full",
                 "lang": "ru",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 
 from src.hybrid_report.models import (
     AppMetricaActivity,
@@ -97,16 +98,21 @@ def test_render_activity_block():
 
 def test_render_funnel_block_with_max_dropoff():
     text = render_report(_report())
-    # каждый шаг присутствует с числом
+    # первый шаг — только число (он знаменатель конверсии)
     assert "открыли приложение — 25" in text
-    assert "посмотрели интро — 22" in text
-    assert "отправили email — 20" in text
-    assert "завершили регистрацию — 11" in text
-    # конверсия словом
-    assert "процентов" in text
-    # шаг макс. отвала: 20 -> 11 = -45% (max), назван явно
-    assert "Наибольший отвал" in text
-    assert "завершили регистрацию" in text
+    # конверсия каждого следующего шага — от ПЕРВОГО («от открывших приложение»)
+    assert "посмотрели интро — 22 (88 процентов от открывших приложение)" in text
+    assert "отправили email — 20 (80 процентов от открывших приложение)" in text
+    assert (
+        "завершили регистрацию — 11 (44 процента от открывших приложение)" in text
+    )
+    # ни одна конверсия не превышает 100 процентов (знаменатель — первый шаг)
+    for m in re.finditer(r"(\d+) процент\w* от открывших", text):
+        assert int(m.group(1)) <= 100
+    assert "от предыдущего" not in text
+    # шаг макс. отвала — наибольшая ПОСЛЕДОВАТЕЛЬНАЯ потеря: 20 -> 11 = 45%
+    assert "Наибольший отвал — на шаге завершили регистрацию" in text
+    assert "теряется 45 процентов" in text
 
 
 def test_render_screens_block():
