@@ -3,18 +3,24 @@
 Pipeline (real-mode, all 4 envs set):
     1. _fetch_installs_csv: download stats/installs/installs_<pkg>_<YYYYMM>_country.csv
        from GCS bucket `pubsite_prod_rev_<developer_id>`. Encoded UTF-16 LE BOM.
+       Google Play Console stages ONE monthly CSV per package; each row is a
+       (day, country) tuple carrying that day's Daily Device Installs.
     2. _parse_installs_csv: decode UTF-16, filter rows by Package Name +
        week_start..week_end inclusive, sum Daily Device Installs, group by Country.
     3. _fetch_reviews: GET androidpublisher.googleapis.com/v3/applications/<pkg>/reviews
        via googleapiclient — returns last 7 days reviews (API limitation; perfect
        for weekly digest). Paginate via tokenPagination.nextPageToken (cap 200).
-    4. fetch_weekly: composes StoreSnapshot from these pieces.
+    4. fetch_weekly: composes StoreSnapshot from these pieces. A reporting week may
+       straddle a month boundary → fetch both monthly CSVs and merge.
 
 Architectural note (per RESEARCH §«Google Play / GCS»):
     Google Play Developer **Reporting** API does NOT return installs/uninstalls —
-    it only exposes Vitals (ANR, crash, slow startup). Installs come from monthly
+    it only exposes Vitals (ANR, crash, slow startup). Installs come from MONTHLY
     CSV reports staged in the GCS bucket `pubsite_prod_rev_<developer_id>` by
-    Google Play Console every night. That's the only first-party path.
+    Google Play Console. The blob name carries a 6-digit YYYYMM (NOT a daily
+    YYYYMMDD) — Google never publishes per-day overview blobs. The current month's
+    file is updated through the month; a fully-closed reporting week is present by
+    the following Monday.
 
 Env required (real-mode):
     GOOGLE_PLAY_SA_JSON       — raw service account JSON content (multi-line
@@ -32,6 +38,7 @@ References:
     - Phase 5 RESEARCH §«Per-API Technical Detail → Google Play»
     - Phase 5 CONTEXT D-5-11 (graceful degrade when blob not generated yet)
     - Brain decisions 2026-05-14 «Google Play GCS + androidpublisher dual API»
+    - Brain decisions 2026-05-30 «GPlay installs bug: monthly _country.csv, not daily»
 """
 from __future__ import annotations
 
@@ -59,6 +66,15 @@ _REQUIRED_BASE_ENVS: Final[tuple[str, ...]] = (
     "GPLAY_DEVELOPER_ID",
     "GPLAY_PACKAGE_CENTRY",
     "GPLAY_PACKAGE_DIKTUM",
+)
+
+# Emitted as StoreSnapshot.error when no monthly CSV (or no in-week rows) exists.
+# MUST contain a substring listed in digest._BLOCKER_PATTERNS so the digest
+# renders a clean «—» row instead of a wall of text (см. digest.py).
+_NO_DATA_ERROR: Final[str] = (
+    "GPlay installs CSV not yet generated for this week — Google публикует "
+    "monthly _country.csv с задержкой в несколько дней; данные появятся, когда "
+    "дни недели закроются."
 )
 
 
@@ -135,29 +151,17 @@ def _iso_week_range(week_start: dt.date) -> tuple[dt.date, dt.date]:
     return (week_start, week_start + dt.timedelta(days=6))
 
 
-def _target_dates(week_start: dt.date, week_end: dt.date) -> list[dt.date]:
-    """Return list of `dt.date` from week_start to week_end inclusive (7 dates).
+def _months_spanned(week_start: dt.date, week_end: dt.date) -> list[str]:
+    """YYYYMM strings the [week_start..week_end] window touches.
 
-    Google Play GCS generates daily overview CSVs:
-        installs_<pkg>_YYYYMMDD_overview.csv
-    На каждый день с ~24h lag. Для weekly cadence читаем 7 daily файлов,
-    суммируем installs.
+    A reporting week that straddles a month boundary (e.g. Apr 27 – May 3)
+    needs BOTH monthly CSVs. Returns 1 or 2 entries, week_start-month first.
     """
-    n_days = (week_end - week_start).days + 1
-    return [week_start + dt.timedelta(days=i) for i in range(n_days)]
-
-
-def _last_closed_month_yyyymm(week_start: dt.date) -> str:
-    """Return YYYYMM string of the previous fully-closed month.
-
-    Используется для fetching country breakdown как proxy: monthly
-    `_country.csv` доступен только в начале следующего месяца, daily
-    overview не имеет country column. Берём last закрытый month как
-    приблизительный country split.
-    """
-    first_day_of_month = week_start.replace(day=1)
-    last_day_prev_month = first_day_of_month - dt.timedelta(days=1)
-    return last_day_prev_month.strftime("%Y%m")
+    months = [week_start.strftime("%Y%m")]
+    end_month = week_end.strftime("%Y%m")
+    if end_month != months[0]:
+        months.append(end_month)
+    return months
 
 
 # ===================================================================
@@ -197,50 +201,21 @@ def _gcs_bucket(credentials, developer_id: str):
         ) from exc
 
 
-def _fetch_daily_overview(
-    credentials,
-    developer_id: str,
-    package: str,
-    target_date: dt.date,
-) -> bytes | None:
-    """Download daily overview installs CSV for a specific date.
-
-    Path: `stats/installs/installs_<package>_<YYYYMMDD>_overview.csv`
-
-    Returns:
-        Raw bytes (UTF-16 LE BOM-encoded CSV) when blob exists.
-        ``None`` when the blob does not exist — Google has ~24h lag, plus
-        future dates won't have data yet.
-    """
-    bucket, bucket_name = _gcs_bucket(credentials, developer_id)
-    pkg_clean = _sanitize_package(package)
-    yyyymmdd = target_date.strftime("%Y%m%d")
-    blob_path = (
-        f"stats/installs/installs_{pkg_clean}_{yyyymmdd}_overview.csv"
-    )
-    blob = bucket.blob(blob_path)
-    if not blob.exists():
-        sys.stderr.write(
-            f"INFO: Play GCS daily blob missing: gs://{bucket_name}/{blob_path} — "
-            "report not generated yet, skipping day.\n"
-        )
-        return None
-    return blob.download_as_bytes()
-
-
-def _fetch_monthly_country(
+def _fetch_installs_csv(
     credentials,
     developer_id: str,
     package: str,
     yyyymm: str,
 ) -> bytes | None:
-    """Download monthly country breakdown CSV (proxy для top_country).
+    """Download the monthly installs country CSV for one package + month.
 
     Path: `stats/installs/installs_<package>_<YYYYMM>_country.csv`
 
-    Returns:
-        Raw bytes or None if blob missing. Used as country proxy when
-        daily overviews don't carry country breakdown.
+    Google Play Console stages exactly one such blob per package per month
+    (UTF-16 LE BOM), one row per (day, country). Returns:
+        Raw bytes when the blob exists.
+        ``None`` when the blob does not exist yet — Google has not generated
+        this month's file (very early in a month). Graceful, not an error.
     """
     bucket, bucket_name = _gcs_bucket(credentials, developer_id)
     pkg_clean = _sanitize_package(package)
@@ -250,8 +225,8 @@ def _fetch_monthly_country(
     blob = bucket.blob(blob_path)
     if not blob.exists():
         sys.stderr.write(
-            f"INFO: Play GCS monthly country blob missing: "
-            f"gs://{bucket_name}/{blob_path} — country proxy unavailable.\n"
+            f"INFO: Play GCS monthly blob missing: gs://{bucket_name}/{blob_path} — "
+            "report not generated yet.\n"
         )
         return None
     return blob.download_as_bytes()
@@ -265,86 +240,64 @@ def _decode_gplay_csv(csv_bytes: bytes) -> str:
         return csv_bytes.decode("utf-8", errors="replace")
 
 
-def _parse_installs_daily(
+def _parse_installs_csv(
     csv_bytes: bytes,
     package: str,
-) -> int | None:
-    """Parse daily overview CSV → total installs for one day.
+    week_start: dt.date,
+    week_end: dt.date,
+) -> tuple[int | None, dict[str, int]]:
+    """Parse monthly country CSV → (weekly installs, {country: installs}).
 
-    Daily overview columns (NO country):
-        Date, Package Name, Daily Device Installs, Daily Device Uninstalls,
-        Daily User Installs, Daily User Uninstalls,
-        Active Device Installs, Install events, Update events, Uninstall events
-
-    Typically 1 row per package per day. Returns sum of `Daily Device Installs`.
+    Monthly country columns (UTF-16 LE BOM):
+        Date, Package Name, Country, Daily Device Installs,
+        Daily Device Uninstalls, Active Device Installs
+    One row per (day, country). Keep rows where Package Name == package AND
+    Date (ISO YYYY-MM-DD) ∈ [week_start, week_end] inclusive; sum
+    `Daily Device Installs`; group positive installs by Country.
 
     Returns:
-        None  — empty/header-only file
-        int   — installs sum (may be 0)
+        (None, {}) — empty bytes / header-only file (no data rows at all).
+        (0, {})    — data rows exist but none match the package.
+        (int, by)  — matched: weekly installs sum + per-country breakdown
+                     (zero-install rows count toward the sum but not the geo map).
     """
     if not csv_bytes:
-        return None
+        return (None, {})
     text = _decode_gplay_csv(csv_bytes)
     lines = text.splitlines()
     if len(lines) <= 1:
-        return None
+        return (None, {})
 
     reader = csv.DictReader(io.StringIO(text))
     pkg_clean = _sanitize_package(package)
     total = 0
+    by_country: dict[str, int] = {}
     matched = False
     for row in reader:
         row_pkg = _sanitize_package(row.get("Package Name") or "")
         if row_pkg != pkg_clean:
             continue
         matched = True
+        date_raw = (row.get("Date") or "").strip()
+        try:
+            row_date = dt.date.fromisoformat(date_raw)
+        except ValueError:
+            continue
+        if not (week_start <= row_date <= week_end):
+            continue
         installs_raw = (row.get("Daily Device Installs") or "0").strip() or "0"
         try:
             installs = int(installs_raw)
         except ValueError:
             continue
+        total += installs
         if installs > 0:
-            total += installs
+            country = (row.get("Country") or "").strip().upper()
+            if country:
+                by_country[country] = by_country.get(country, 0) + installs
     if not matched:
-        return 0
-    return total
-
-
-def _parse_country_proxy(
-    csv_bytes: bytes,
-    package: str,
-) -> dict[str, int]:
-    """Parse monthly country breakdown CSV → {country: installs_count} aggregate.
-
-    Used as proxy for `top_country` since daily overview CSVs lack country
-    information. Aggregates across the whole month — приближение, но lучше
-    чем ничего.
-    """
-    if not csv_bytes:
-        return {}
-    text = _decode_gplay_csv(csv_bytes)
-    lines = text.splitlines()
-    if len(lines) <= 1:
-        return {}
-
-    reader = csv.DictReader(io.StringIO(text))
-    pkg_clean = _sanitize_package(package)
-    by_country: dict[str, int] = {}
-    for row in reader:
-        row_pkg = _sanitize_package(row.get("Package Name") or "")
-        if row_pkg != pkg_clean:
-            continue
-        installs_raw = (row.get("Daily Device Installs") or "0").strip() or "0"
-        try:
-            installs = int(installs_raw)
-        except ValueError:
-            continue
-        if installs <= 0:
-            continue
-        country = (row.get("Country") or "").strip().upper()
-        if country:
-            by_country[country] = by_country.get(country, 0) + installs
-    return by_country
+        return (0, {})
+    return (total, by_country)
 
 
 def _top_country(
@@ -449,8 +402,10 @@ def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
     week_start = Monday of the target week (ISO).
     Without all envs → mock snapshot (preserves CLI behaviour in dev).
 
-    On GCS Forbidden (mis-scoped SA) → StoreSnapshot with installs=None and
-    error string. On generic exception — propagate to caller (cli wraps).
+    Installs come from the monthly `_country.csv` blob(s) the week touches
+    (1, or 2 when the week straddles a month boundary). On GCS Forbidden
+    (mis-scoped SA) → StoreSnapshot with installs=None and error string. No
+    in-week data → installs=None + blocker error (renders as «—», never raises).
     """
     if not _is_configured():
         return StoreSnapshot(
@@ -466,7 +421,7 @@ def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
     developer_id = os.environ["GPLAY_DEVELOPER_ID"].strip()
     package = _package_for(product)
     week_start_d, week_end_d = _iso_week_range(week_start)
-    dates = _target_dates(week_start_d, week_end_d)
+    months = _months_spanned(week_start_d, week_end_d)
 
     # Lazy import — only loaded when we hit the real path.
     from google.api_core import exceptions as gcp_exc
@@ -482,39 +437,29 @@ def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
             error=f"credentials build failed: {exc}",
         )
 
-    # ----- Installs (GCS daily overview aggregation) -----
-    # Read 7 daily overview CSVs per week. Each daily CSV содержит installs
-    # на один день. Aggregate → weekly total. Daily generation: ~24h lag,
-    # so this week's data появляется день-в-день.
+    # ----- Installs (monthly country CSV, filtered to the ISO week) -----
+    # Read the monthly `_country.csv` for each month the week touches (1, or 2
+    # when the week straddles a month boundary), filter rows to the week, sum
+    # Daily Device Installs, merge per-country breakdowns.
     total_installs = 0
     any_data_seen = False
+    merged_by_country: dict[str, int] = {}
 
     try:
-        for target_date in dates:
-            csv_bytes = _fetch_daily_overview(
-                credentials, developer_id, package, target_date,
+        for yyyymm in months:
+            csv_bytes = _fetch_installs_csv(
+                credentials, developer_id, package, yyyymm,
             )
             if csv_bytes is None:
-                continue  # Day not generated yet — try other days
-            day_total = _parse_installs_daily(csv_bytes, package)
-            if day_total is not None:
-                any_data_seen = True
-                total_installs += day_total
-
-        # ----- Top country proxy (monthly country CSV from prev closed month) -----
-        # Daily overview CSV doesn't carry country breakdown. Fetch monthly
-        # country CSV from previous closed month как приблизительный split.
-        merged_by_country: dict[str, int] = {}
-        try:
-            country_yyyymm = _last_closed_month_yyyymm(week_start_d)
-            country_bytes = _fetch_monthly_country(
-                credentials, developer_id, package, country_yyyymm,
+                continue  # month CSV not generated yet — try the other month
+            month_total, month_by_cc = _parse_installs_csv(
+                csv_bytes, package, week_start_d, week_end_d,
             )
-            if country_bytes:
-                merged_by_country = _parse_country_proxy(country_bytes, package)
-        except gcp_exc.NotFound:
-            pass  # No prev month data — top_country остаётся None
-
+            if month_total is not None:
+                any_data_seen = True
+                total_installs += month_total
+                for cc, n in month_by_cc.items():
+                    merged_by_country[cc] = merged_by_country.get(cc, 0) + n
     except gcp_exc.Forbidden as exc:
         return StoreSnapshot(
             product=product,
@@ -525,7 +470,6 @@ def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
         )
 
     installs_final: int | None = total_installs if any_data_seen else None
-
     top_cc, share = _top_country(merged_by_country)
 
     # ----- Reviews (androidpublisher) -----
@@ -540,13 +484,7 @@ def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
             f"WARN: Play reviews fetch failed for {package}: {exc!r}\n"
         )
 
-    error = None
-    if installs_final is None:
-        error = (
-            "GPlay daily CSVs not yet available for this week — Google has "
-            "~24h lag, data appears day-after-day. Будет реальное число "
-            "когда дни закроются (типично 2-3 дня после конца недели)."
-        )
+    error = None if installs_final is not None else _NO_DATA_ERROR
 
     return StoreSnapshot(
         product=product,
