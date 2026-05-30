@@ -32,7 +32,7 @@ from .models import ALERT_PCT, ProductReport, StoreSnapshot, WeeklyReport, WeekD
 # External-blocker error patterns — when snap.error matches these, render
 # the row as a clean `—` placeholder (no wall of text in digest). These
 # errors describe known structural limitations (Apple cert recovery,
-# RuStore Mail.ru ограничение, GPlay 24h lag) which are NOT actionable
+# RuStore Mail.ru ограничение, GPlay monthly CSV lag) which are NOT actionable
 # per-week — user already knows. Showing them every Monday is noise.
 _BLOCKER_PATTERNS: tuple[str, ...] = (
     "Apple Integrations",
@@ -40,8 +40,7 @@ _BLOCKER_PATTERNS: tuple[str, ...] = (
     "RuStore Public API не отдаёт",
     "Mail.ru ограничение",
     "Brain Q3",
-    "GPlay daily CSVs not yet available",
-    "Google has ~24h lag",
+    "GPlay installs CSV not yet",
     "reporter auth failed",
     "GCS bucket name invalid",
     "credentials build failed",
@@ -153,8 +152,8 @@ def _gather_alerts(report: WeeklyReport) -> list[str]:
     """Build alert lines: any per-store delta >= ALERT_PCT triggers.
 
     Skips known external limitations (Apple cert recovery, RuStore Mail.ru,
-    GPlay 24h lag) — those aren't per-week actionable and would just duplicate
-    walls of text. Real per-week errors (transient API failures) still show.
+    GPlay monthly CSV lag) — those aren't per-week actionable and would just
+    duplicate walls of text. Real per-week errors (transient API failures) still show.
     """
     alerts: list[str] = list(report.overall_alerts)
     for prod in report.products:
