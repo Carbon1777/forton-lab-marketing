@@ -1,5 +1,13 @@
 name: funnel_metrics
 
+# TG-доставка ОТКЛЮЧЕНА (quick 260530-x7x, 2026-05-31): гибридный отчёт
+# (src/hybrid_report, store_metrics.yml, Пн) шлёт per-app сообщение в канал
+# «Планировщик» и покрывает воронку Diktum. Этот workflow оставлен ЖИВЫМ ради
+# накопления собственного снапшота funnel_snapshots.json (изоляция, без правок
+# кода diktum_funnel), но БЕЗ дублирующего сообщения в канал: TG-creds в шаге
+# обнулены → send_to_planner вернёт False (WARN), сообщение не уйдёт; шаг помечен
+# continue-on-error чтобы rc=1 от пропущенной отправки не валил job.
+#
 # Еженедельный отчёт-воронка Diktum (install → registration → activation).
 # Cron Вт 12:07 UTC = 15:07 МСК. +7 мин offset против GH-cron-drift
 # (тот же приём, что store_metrics). Период отчёта = прошлая неделя Пн–Вс.
@@ -43,10 +51,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Collect + render + send funnel
+      - name: Collect funnel snapshot (TG-send disabled — см. шапку)
+        # TG-доставка отключена: гибридный отчёт (hybrid_report) шлёт per-app в
+        # понедельник. Пустые TG-creds → send_to_planner вернёт False (WARN), но
+        # снапшот/лог отрабатывают. continue-on-error: rc=1 не валит job.
+        continue-on-error: true
         env:
-          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
-          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+          TG_PLANNER_BOT_TOKEN: ""
+          TG_OWNER_CHAT_ID: ""
           APPMETRICA_OAUTH_TOKEN: ${{ secrets.APPMETRICA_OAUTH_TOKEN }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
