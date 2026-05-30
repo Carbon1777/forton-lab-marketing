@@ -73,6 +73,11 @@ jobs:
           # удалить из GH Secrets когда удобно.
           ASC_APP_ID_CENTRY: ${{ secrets.ASC_APP_ID_CENTRY }}
           ASC_APP_ID_DIKTUM: ${{ secrets.ASC_APP_ID_DIKTUM }}
+          # Individual ASC API Key (quick 260530-q69, 2026-05-30): installs
+          # через Analytics Reports API. JWT sub:user, Issuer ID НЕ нужен.
+          # Заглушка cert-recovery снята (PR #82) — installs активны.
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
 
           # ------------ Google Play — full auto (GCS + androidpublisher) ---------
           # Installs via GCS bucket `pubsite_prod_rev_<developer_id>` ->
