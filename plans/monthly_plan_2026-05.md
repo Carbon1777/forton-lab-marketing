@@ -749,15 +749,18 @@ fortonlab.ru
 
 ```yaml
 slug: diktum-may30-confidence
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: diktum
 rubric: philosophy
 media:
-  - path: assets/posts/2026-05/diktum-may30-confidence.png
-    sha256: 0493b037fd0b4050858bbbd0140c6819a7cac1811e0fa3a2ee62179038173280
-    role: image
+- path: assets/posts/2026-05/diktum-may30-confidence.png
+  sha256: 0493b037fd0b4050858bbbd0140c6819a7cac1811e0fa3a2ee62179038173280
+  role: image
 image: assets/posts/2026-05/diktum-may30-confidence.png
-status: draft
+status: published
+published_at: '2026-05-30T10:03:15.313478+00:00'
 ```
 
 Уверенность в речи — это не громкость.
