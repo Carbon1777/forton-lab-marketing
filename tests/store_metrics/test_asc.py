@@ -1,19 +1,24 @@
-"""Unit tests for src/store_metrics/asc.py — installs stub + iTunes RSS.
+"""Unit tests for src/store_metrics/asc.py — Analytics Reports installs + iTunes RSS.
 
-After 2026-05-15 canonical pivot (full-auto mode, drop manual CSV):
-    - Installs path = STUB (always None + blocker error string).
-      Apple Integrations API заблокирован cert recovery; когда починят
-      и появятся ASC_KEY_ID/ASC_ISSUER_ID/ASC_PRIVATE_KEY — добавим JWT
-      path и снимем stub.
-    - Ratings path keeps iTunes Customer Reviews RSS (no auth, no blocker).
-    - No more Reporter Token / Vendor Number / CSV reader — все ушли.
+After 2026-05-30 (quick 260530-q69):
+    - Installs path = ASC Analytics Reports API. JWT ES256 Individual Key
+      (sub:"user", aud:"appstoreconnect-v1", NO iss / NO scope). Flow:
+      find-or-create ONGOING analyticsReportRequest → reports
+      (filter[name]=App Downloads Standard) → instances
+      (filter[granularity]=DAILY, processingDate ∈ week) → segments →
+      pre-signed url (no auth) → gzip → TSV → sum count column.
+      Graceful degradation: no key / no instances yet (24-48h) / API error →
+      installs=None + clear error, NEVER raises out of fetch_weekly.
+    - Ratings path keeps iTunes Customer Reviews RSS (no auth).
 
-HTTP calls (RSS only now) are mocked via unittest.mock.patch on
-src.store_metrics._http.fetch_with_retry.
+HTTP calls are mocked via unittest.mock.patch on
+src.store_metrics._http.fetch_with_retry (ASC API + RSS) and
+src.store_metrics.asc.requests.get (segment download — pre-signed url).
 """
 from __future__ import annotations
 
 import datetime as dt
+import gzip
 import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -45,6 +50,37 @@ def _set_envs(monkeypatch, *, all_present: bool = True) -> None:
     else:
         for k in ("ASC_APP_ID_CENTRY", "ASC_APP_ID_DIKTUM"):
             monkeypatch.delenv(k, raising=False)
+
+
+def _gen_ec_p256_pem() -> str:
+    """Throwaway EC P-256 private key (PEM, unencrypted) for JWT signing tests."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    pem = key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    return pem.decode("ascii")
+
+
+def _set_installs_envs(monkeypatch, key_id: str = "TESTKEYID01") -> str:
+    """Set ASC_KEY_ID + a fresh EC P-256 ASC_PRIVATE_KEY. Returns the key_id."""
+    pem = _gen_ec_p256_pem()
+    monkeypatch.setenv("ASC_KEY_ID", key_id)
+    monkeypatch.setenv("ASC_PRIVATE_KEY", pem)
+    asc._reset_jwt_cache()
+    return key_id
+
+
+@pytest.fixture(autouse=True)
+def _clean_jwt_cache():
+    """Each test starts/ends with a clean module-level JWT cache."""
+    asc._reset_jwt_cache()
+    yield
+    asc._reset_jwt_cache()
 
 
 def test_is_configured_all_envs_set(monkeypatch):
@@ -91,18 +127,345 @@ def test_app_id_for_strips_whitespace(monkeypatch):
 
 
 # ===================================================================
-# Installs blocker constant — sanity на shape сообщения
+# installs gate — _installs_configured
 # ===================================================================
 
-def test_installs_blocker_error_mentions_apple_integrations():
-    """Stable error string должен содержать ключевые маркеры для digest."""
-    msg = asc._INSTALLS_BLOCKER_ERROR
-    assert "Apple Integrations" in msg
-    assert "cert recovery" in msg
-    # Указание на 3 будущих secret name — для удобства когда юзер откроет error.
-    assert "ASC_KEY_ID" in msg
-    assert "ASC_ISSUER_ID" in msg
-    assert "ASC_PRIVATE_KEY" in msg
+def test_installs_configured_requires_both_key_envs(monkeypatch):
+    monkeypatch.delenv("ASC_KEY_ID", raising=False)
+    monkeypatch.delenv("ASC_PRIVATE_KEY", raising=False)
+    assert asc._installs_configured() is False
+    monkeypatch.setenv("ASC_KEY_ID", "X")
+    assert asc._installs_configured() is False  # private key still missing
+    monkeypatch.setenv("ASC_PRIVATE_KEY", "pem")
+    assert asc._installs_configured() is True
+
+
+def test_installs_configured_empty_string_counts_as_missing(monkeypatch):
+    monkeypatch.setenv("ASC_KEY_ID", "X")
+    monkeypatch.setenv("ASC_PRIVATE_KEY", "")
+    assert asc._installs_configured() is False
+
+
+# ===================================================================
+# _asc_jwt — Individual API Key schema
+# ===================================================================
+
+def test_asc_jwt_individual_key_schema(monkeypatch):
+    """JWT must be sub:user, aud appstoreconnect-v1, ES256, kid=ASC_KEY_ID, NO iss/scope."""
+    import jwt as pyjwt
+
+    key_id = _set_installs_envs(monkeypatch, key_id="8SSTB54YPBCY")
+    token = asc._asc_jwt()
+
+    payload = pyjwt.decode(token, options={"verify_signature": False})
+    header = pyjwt.get_unverified_header(token)
+
+    assert payload["sub"] == "user"
+    assert payload["aud"] == "appstoreconnect-v1"
+    assert "iss" not in payload
+    assert "scope" not in payload
+    # iat/exp present, exp within 20 min of iat.
+    assert "iat" in payload and "exp" in payload
+    assert 0 < payload["exp"] - payload["iat"] <= 1200
+
+    assert header["kid"] == key_id
+    assert header["alg"] == "ES256"
+    assert header["typ"] == "JWT"
+
+
+def test_asc_jwt_is_cached(monkeypatch):
+    """Second call within margin returns the identical cached token."""
+    _set_installs_envs(monkeypatch)
+    t1 = asc._asc_jwt()
+    t2 = asc._asc_jwt()
+    assert t1 == t2
+
+
+def test_asc_jwt_missing_env_raises(monkeypatch):
+    monkeypatch.delenv("ASC_KEY_ID", raising=False)
+    monkeypatch.delenv("ASC_PRIVATE_KEY", raising=False)
+    asc._reset_jwt_cache()
+    with pytest.raises(RuntimeError, match="ASC_KEY_ID"):
+        asc._asc_jwt()
+
+
+# ===================================================================
+# _fetch_installs — happy path + graceful degradation
+# ===================================================================
+
+def _gzip_tsv(rows: list[str]) -> bytes:
+    """Build a gzip-compressed TSV body from header+data row strings."""
+    return gzip.compress("\n".join(rows).encode("utf-8"))
+
+
+def _mk_resp(status_code: int = 200, json_body: dict | None = None,
+             content: bytes | None = None) -> MagicMock:
+    m = MagicMock()
+    m.status_code = status_code
+    if json_body is not None:
+        m.json.return_value = json_body
+    if content is not None:
+        m.content = content
+    return m
+
+
+def test_fetch_installs_happy_path(monkeypatch):
+    """Full chain mocked: reportRequests(list)→reports→instances→segments,
+    then a gzip-TSV segment with 2 in-week rows → installs == sum."""
+    _set_installs_envs(monkeypatch)
+    REQUEST_ID = "req-123"
+    REPORT_ID = "rep-456"
+    INSTANCE_ID = "inst-789"
+    SEGMENT_URL = "https://s3.example.com/segment.gz"
+
+    # TSV: Date \t Counts ; two days inside W20, one outside.
+    tsv_rows = [
+        "Date\tCounts",
+        "2026-05-12\t7",      # in week
+        "2026-05-13\t5",      # in week
+        "2026-05-30\t100",    # outside week — must be ignored
+    ]
+    gz_body = _gzip_tsv(tsv_rows)
+
+    def fake_fetch(url, method="GET", headers=None, params=None, **kwargs):
+        if url.endswith("/analyticsReportRequests") and method == "GET":
+            return _mk_resp(json_body={
+                "data": [{
+                    "id": REQUEST_ID,
+                    "attributes": {"accessType": "ONGOING",
+                                   "stoppedDueToInactivity": False},
+                }],
+            })
+        if url.endswith(f"/analyticsReportRequests/{REQUEST_ID}/reports"):
+            assert params and params.get("filter[name]") == "App Downloads Standard"
+            return _mk_resp(json_body={"data": [{"id": REPORT_ID}]})
+        if url.endswith(f"/analyticsReports/{REPORT_ID}/instances"):
+            assert params and params.get("filter[granularity]") == "DAILY"
+            return _mk_resp(json_body={"data": [{
+                "id": INSTANCE_ID,
+                "attributes": {"granularity": "DAILY",
+                               "processingDate": "2026-05-13"},
+            }]})
+        if url.endswith(f"/analyticsReportInstances/{INSTANCE_ID}/segments"):
+            return _mk_resp(json_body={"data": [{
+                "id": "seg-1",
+                "attributes": {"url": SEGMENT_URL, "sizeInBytes": len(gz_body)},
+            }]})
+        raise AssertionError(f"unexpected url {url}")
+
+    def fake_get(url, timeout=None, **kwargs):
+        assert url == SEGMENT_URL
+        return _mk_resp(content=gz_body)
+
+    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch), \
+         patch.object(asc.requests, "get", side_effect=fake_get):
+        installs, error = asc._fetch_installs(APPLE_ID_CENTRY, WEEK_W20)
+
+    assert error is None
+    assert installs == 12   # 7 + 5, 100 excluded
+
+
+def test_fetch_installs_creates_request_when_none_exists(monkeypatch):
+    """No ONGOING request in list → POST creates one, flow proceeds."""
+    _set_installs_envs(monkeypatch)
+    NEW_REQUEST_ID = "newly-created"
+
+    posted = {"called": False}
+
+    def fake_fetch(url, method="GET", headers=None, params=None, json_body=None, **kwargs):
+        if url.endswith("/analyticsReportRequests") and method == "GET":
+            return _mk_resp(json_body={"data": []})  # none exist
+        if url.endswith("/analyticsReportRequests") and method == "POST":
+            posted["called"] = True
+            assert json_body["data"]["attributes"]["accessType"] == "ONGOING"
+            return _mk_resp(status_code=201, json_body={"data": {"id": NEW_REQUEST_ID}})
+        if url.endswith(f"/analyticsReportRequests/{NEW_REQUEST_ID}/reports"):
+            return _mk_resp(json_body={"data": []})  # report not ready yet
+        raise AssertionError(f"unexpected url {url} method {method}")
+
+    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch):
+        installs, error = asc._fetch_installs(APPLE_ID_DIKTUM, WEEK_W20)
+
+    assert posted["called"] is True
+    assert installs is None
+    assert "App Downloads Standard" in error
+
+
+def test_fetch_installs_no_instances_graceful(monkeypatch):
+    """instances empty → (None, error contains 'генерируется'), no raise."""
+    _set_installs_envs(monkeypatch)
+    REQUEST_ID = "req-1"
+    REPORT_ID = "rep-1"
+
+    def fake_fetch(url, method="GET", headers=None, params=None, **kwargs):
+        if url.endswith("/analyticsReportRequests") and method == "GET":
+            return _mk_resp(json_body={"data": [{
+                "id": REQUEST_ID,
+                "attributes": {"accessType": "ONGOING",
+                               "stoppedDueToInactivity": False},
+            }]})
+        if url.endswith(f"/analyticsReportRequests/{REQUEST_ID}/reports"):
+            return _mk_resp(json_body={"data": [{"id": REPORT_ID}]})
+        if url.endswith(f"/analyticsReports/{REPORT_ID}/instances"):
+            return _mk_resp(json_body={"data": []})  # not generated yet
+        raise AssertionError(f"unexpected url {url}")
+
+    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch):
+        installs, error = asc._fetch_installs(APPLE_ID_CENTRY, WEEK_W20)
+
+    assert installs is None
+    assert error is not None
+    assert "генерируется" in error
+
+
+def test_fetch_installs_no_report_graceful(monkeypatch):
+    """reports empty → (None, error about App Downloads Standard)."""
+    _set_installs_envs(monkeypatch)
+    REQUEST_ID = "req-1"
+
+    def fake_fetch(url, method="GET", headers=None, params=None, **kwargs):
+        if url.endswith("/analyticsReportRequests") and method == "GET":
+            return _mk_resp(json_body={"data": [{
+                "id": REQUEST_ID,
+                "attributes": {"accessType": "ONGOING",
+                               "stoppedDueToInactivity": False},
+            }]})
+        if url.endswith(f"/analyticsReportRequests/{REQUEST_ID}/reports"):
+            return _mk_resp(json_body={"data": []})
+        raise AssertionError(f"unexpected url {url}")
+
+    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch):
+        installs, error = asc._fetch_installs(APPLE_ID_CENTRY, WEEK_W20)
+
+    assert installs is None
+    assert "App Downloads Standard" in error
+
+
+def test_fetch_installs_request_unavailable_graceful(monkeypatch):
+    """ensure_ongoing fails (list 500-ish then POST fails) → clear error, no raise."""
+    _set_installs_envs(monkeypatch)
+
+    def fake_fetch(url, method="GET", headers=None, params=None, json_body=None, **kwargs):
+        if url.endswith("/analyticsReportRequests") and method == "GET":
+            return _mk_resp(status_code=403, json_body={})
+        if url.endswith("/analyticsReportRequests") and method == "POST":
+            return _mk_resp(status_code=409, json_body={})  # create fails too
+        raise AssertionError(f"unexpected url {url} method {method}")
+
+    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch):
+        installs, error = asc._fetch_installs(APPLE_ID_CENTRY, WEEK_W20)
+
+    assert installs is None
+    assert "ONGOING request" in error
+
+
+def test_fetch_installs_never_raises_on_exception(monkeypatch):
+    """Unexpected exception AFTER ensure_ongoing → (None, 'ASC installs error: ...').
+
+    ensure_ongoing succeeds (request id), then the reports GET raises an
+    unhandled error → caught by the outer guard, never propagates out.
+    """
+    _set_installs_envs(monkeypatch)
+
+    def fake_ensure(app_id):
+        return "req-ok"
+
+    def boom(*a, **k):
+        raise RuntimeError("kaboom")
+
+    with patch.object(asc, "_ensure_ongoing_request", side_effect=fake_ensure), \
+         patch.object(asc, "_asc_get", side_effect=boom):
+        installs, error = asc._fetch_installs(APPLE_ID_CENTRY, WEEK_W20)
+
+    assert installs is None
+    assert error is not None
+    assert "ASC installs error" in error
+
+
+def test_fetch_installs_request_none_returns_ongoing_error(monkeypatch):
+    """ensure_ongoing returns None → (None, 'ASC: не удалось получить ONGOING request')."""
+    _set_installs_envs(monkeypatch)
+
+    with patch.object(asc, "_ensure_ongoing_request", return_value=None):
+        installs, error = asc._fetch_installs(APPLE_ID_CENTRY, WEEK_W20)
+
+    assert installs is None
+    assert "ONGOING request" in error
+
+
+def test_fetch_installs_sums_multiple_segments(monkeypatch):
+    """One instance with two segments → both TSV bodies summed."""
+    _set_installs_envs(monkeypatch)
+    REQUEST_ID, REPORT_ID, INSTANCE_ID = "r", "rep", "inst"
+    URL_A = "https://s3.example.com/a.gz"
+    URL_B = "https://s3.example.com/b.gz"
+    gz_a = _gzip_tsv(["Date\tCounts", "2026-05-12\t3"])
+    gz_b = _gzip_tsv(["Date\tUnits", "2026-05-14\t9"])  # different count column
+
+    def fake_fetch(url, method="GET", headers=None, params=None, **kwargs):
+        if url.endswith("/analyticsReportRequests") and method == "GET":
+            return _mk_resp(json_body={"data": [{
+                "id": REQUEST_ID,
+                "attributes": {"accessType": "ONGOING",
+                               "stoppedDueToInactivity": False}}]})
+        if url.endswith(f"/analyticsReportRequests/{REQUEST_ID}/reports"):
+            return _mk_resp(json_body={"data": [{"id": REPORT_ID}]})
+        if url.endswith(f"/analyticsReports/{REPORT_ID}/instances"):
+            return _mk_resp(json_body={"data": [{
+                "id": INSTANCE_ID,
+                "attributes": {"processingDate": "2026-05-12"}}]})
+        if url.endswith(f"/analyticsReportInstances/{INSTANCE_ID}/segments"):
+            return _mk_resp(json_body={"data": [
+                {"id": "s1", "attributes": {"url": URL_A}},
+                {"id": "s2", "attributes": {"url": URL_B}},
+            ]})
+        raise AssertionError(f"unexpected url {url}")
+
+    def fake_get(url, timeout=None, **kwargs):
+        return _mk_resp(content=gz_a if url == URL_A else gz_b)
+
+    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch), \
+         patch.object(asc.requests, "get", side_effect=fake_get):
+        installs, error = asc._fetch_installs(APPLE_ID_CENTRY, WEEK_W20)
+
+    assert error is None
+    assert installs == 12   # 3 + 9
+
+
+# ===================================================================
+# _parse_segment_tsv — column detection / tolerance
+# ===================================================================
+
+def test_parse_segment_tsv_picks_first_matching_count_column():
+    text = "Date\tCounts\n2026-05-12\t4\n2026-05-13\t6"
+    assert asc._parse_segment_tsv(text, WEEK_W20) == 10
+
+
+def test_parse_segment_tsv_filters_by_week():
+    text = "Date\tCounts\n2026-05-04\t999\n2026-05-12\t4"  # 05-04 is prev week
+    assert asc._parse_segment_tsv(text, WEEK_W20) == 4
+
+
+def test_parse_segment_tsv_tolerates_garbage_rows():
+    text = (
+        "Date\tCounts\n"
+        "not-a-date\t5\n"      # bad date
+        "2026-05-12\tNaN\n"    # bad count
+        "2026-05-12\t8\n"      # good
+        "\n"                    # empty
+        "short\n"               # too few cols
+    )
+    assert asc._parse_segment_tsv(text, WEEK_W20) == 8
+
+
+def test_parse_segment_tsv_missing_columns_returns_zero():
+    text = "Foo\tBar\n2026-05-12\t4"
+    assert asc._parse_segment_tsv(text, WEEK_W20) == 0
+
+
+def test_parse_segment_tsv_accepts_float_counts():
+    text = "Date\tUnits\n2026-05-12\t12.0"
+    assert asc._parse_segment_tsv(text, WEEK_W20) == 12
 
 
 # ===================================================================
@@ -262,11 +625,11 @@ def test_fetch_rss_ratings_non_json_response_skipped():
 
 
 # ===================================================================
-# fetch_weekly — integration (stub mode)
+# fetch_weekly — integration
 # ===================================================================
 
 def test_fetch_weekly_unconfigured_returns_mock(monkeypatch):
-    """Without envs → mock StoreSnapshot, no HTTP / stub calls."""
+    """Without envs → mock StoreSnapshot, no HTTP / API calls."""
     _set_envs(monkeypatch, all_present=False)
     snap = asc.fetch_weekly("centry", WEEK_W20)
     assert snap.product == "centry"
@@ -276,13 +639,12 @@ def test_fetch_weekly_unconfigured_returns_mock(monkeypatch):
     assert snap.top_country == "RU"
 
 
-def test_fetch_weekly_installs_returns_none_with_blocker_message(monkeypatch):
-    """Configured → installs=None + error mentions Apple Integrations blocker.
-
-    Это canonical state до Apple cert recovery — installs физически нельзя
-    получить, RSS rating работает независимо.
-    """
+def test_fetch_weekly_no_key_installs_none_with_keymsg(monkeypatch):
+    """Configured (app-ids) but NO ASC_KEY_ID/ASC_PRIVATE_KEY → installs=None +
+    error про ключ; rating всё равно из RSS (independent axis)."""
     _set_envs(monkeypatch, all_present=True)
+    monkeypatch.delenv("ASC_KEY_ID", raising=False)
+    monkeypatch.delenv("ASC_PRIVATE_KEY", raising=False)
 
     def fake_fetch(url, method="GET", **kwargs):
         m = MagicMock()
@@ -290,50 +652,119 @@ def test_fetch_weekly_installs_returns_none_with_blocker_message(monkeypatch):
         m.json.return_value = RSS_CENTRY
         return m
 
-    with patch.object(
-        asc._http, "fetch_with_retry", side_effect=fake_fetch,
-    ):
+    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch):
         snap = asc.fetch_weekly("centry", WEEK_W20)
 
-    # Installs всегда None — Integrations API заблокирован cert recovery.
     assert snap.installs is None
-    # Error string должен явно говорить про блокер.
     assert snap.error is not None
-    assert "Apple Integrations" in snap.error
-    assert "cert recovery" in snap.error
-    # Rating всё равно подхватывается RSS — независимая axis.
+    assert "ASC_KEY_ID" in snap.error
+    assert "ASC_PRIVATE_KEY" in snap.error
+    # Rating still picked up from RSS — independent axis.
     assert snap.rating is not None
-    # top_country остаётся None — нет installs данных для группировки.
     assert snap.top_country is None
     assert snap.top_country_share is None
 
 
-def test_fetch_weekly_rss_fails_installs_still_blocker(monkeypatch):
-    """RSS network failure → rating=None, installs всё равно None с blocker.
-
-    Failure RSS не должно менять message — installs blocker остаётся
-    primary error, rating падает без отдельной записи (мы лишь warn в stderr).
-    """
+def test_fetch_weekly_integrates_installs(monkeypatch):
+    """Happy-path installs (Analytics) lands in StoreSnapshot.installs, error None."""
     _set_envs(monkeypatch, all_present=True)
+    _set_installs_envs(monkeypatch)
+    REQUEST_ID, REPORT_ID, INSTANCE_ID = "rq", "rp", "in"
+    SEG_URL = "https://s3.example.com/seg.gz"
+    gz = _gzip_tsv(["Date\tCounts", "2026-05-12\t11", "2026-05-15\t9"])
+
+    def fake_fetch(url, method="GET", headers=None, params=None, **kwargs):
+        # RSS calls go through the same fetch_with_retry — route by host.
+        if "itunes.apple.com" in url:
+            m = MagicMock()
+            m.status_code = 200
+            m.json.return_value = RSS_CENTRY
+            return m
+        if url.endswith("/analyticsReportRequests") and method == "GET":
+            return _mk_resp(json_body={"data": [{
+                "id": REQUEST_ID,
+                "attributes": {"accessType": "ONGOING",
+                               "stoppedDueToInactivity": False}}]})
+        if url.endswith(f"/analyticsReportRequests/{REQUEST_ID}/reports"):
+            return _mk_resp(json_body={"data": [{"id": REPORT_ID}]})
+        if url.endswith(f"/analyticsReports/{REPORT_ID}/instances"):
+            return _mk_resp(json_body={"data": [{
+                "id": INSTANCE_ID,
+                "attributes": {"processingDate": "2026-05-15"}}]})
+        if url.endswith(f"/analyticsReportInstances/{INSTANCE_ID}/segments"):
+            return _mk_resp(json_body={"data": [
+                {"id": "s", "attributes": {"url": SEG_URL}}]})
+        raise AssertionError(f"unexpected url {url}")
+
+    def fake_get(url, timeout=None, **kwargs):
+        return _mk_resp(content=gz)
+
+    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch), \
+         patch.object(asc.requests, "get", side_effect=fake_get):
+        snap = asc.fetch_weekly("centry", WEEK_W20)
+
+    assert snap.installs == 20   # 11 + 9
+    assert snap.error is None
+    assert snap.rating is not None  # RSS still works
+
+
+def test_fetch_weekly_installs_no_instances_graceful(monkeypatch):
+    """instances empty → installs=None + 'генерируется', RSS rating still set."""
+    _set_envs(monkeypatch, all_present=True)
+    _set_installs_envs(monkeypatch)
+    REQUEST_ID, REPORT_ID = "rq", "rp"
+
+    def fake_fetch(url, method="GET", headers=None, params=None, **kwargs):
+        if "itunes.apple.com" in url:
+            m = MagicMock()
+            m.status_code = 200
+            m.json.return_value = RSS_CENTRY
+            return m
+        if url.endswith("/analyticsReportRequests") and method == "GET":
+            return _mk_resp(json_body={"data": [{
+                "id": REQUEST_ID,
+                "attributes": {"accessType": "ONGOING",
+                               "stoppedDueToInactivity": False}}]})
+        if url.endswith(f"/analyticsReportRequests/{REQUEST_ID}/reports"):
+            return _mk_resp(json_body={"data": [{"id": REPORT_ID}]})
+        if url.endswith(f"/analyticsReports/{REPORT_ID}/instances"):
+            return _mk_resp(json_body={"data": []})
+        raise AssertionError(f"unexpected url {url}")
+
+    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch):
+        snap = asc.fetch_weekly("centry", WEEK_W20)
+
+    assert snap.installs is None
+    assert snap.error is not None
+    assert "генерируется" in snap.error
+    assert snap.rating is not None
+
+
+def test_fetch_weekly_rss_fails_installs_unaffected(monkeypatch):
+    """RSS network failure → rating=None, but installs path independent.
+
+    With no installs key configured, error is the key message; RSS swallowed."""
+    _set_envs(monkeypatch, all_present=True)
+    monkeypatch.delenv("ASC_KEY_ID", raising=False)
+    monkeypatch.delenv("ASC_PRIVATE_KEY", raising=False)
 
     def fake_fetch(url, method="GET", **kwargs):
         raise RuntimeError("network down")
 
-    with patch.object(
-        asc._http, "fetch_with_retry", side_effect=fake_fetch,
-    ):
+    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch):
         snap = asc.fetch_weekly("centry", WEEK_W20)
 
     assert snap.installs is None
     assert snap.rating is None
-    # Error всё ещё про Integrations blocker (RSS failure swallowed).
     assert snap.error is not None
-    assert "Apple Integrations" in snap.error
+    assert "ASC_KEY_ID" in snap.error
 
 
 def test_fetch_weekly_for_diktum_isolates_correctly(monkeypatch):
     """Same envs, requesting Diktum → snapshot built for diktum app_id."""
     _set_envs(monkeypatch, all_present=True)
+    monkeypatch.delenv("ASC_KEY_ID", raising=False)
+    monkeypatch.delenv("ASC_PRIVATE_KEY", raising=False)
 
     def fake_fetch(url, method="GET", **kwargs):
         m = MagicMock()
@@ -341,9 +772,7 @@ def test_fetch_weekly_for_diktum_isolates_correctly(monkeypatch):
         m.json.return_value = RSS_DIKTUM_EMPTY
         return m
 
-    with patch.object(
-        asc._http, "fetch_with_retry", side_effect=fake_fetch,
-    ):
+    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch):
         snap = asc.fetch_weekly("diktum", WEEK_W20)
 
     assert snap.product == "diktum"
@@ -351,7 +780,6 @@ def test_fetch_weekly_for_diktum_isolates_correctly(monkeypatch):
     assert snap.installs is None
     assert snap.rating is None  # empty RSS fixture for Diktum
     assert snap.error is not None
-    assert "Apple Integrations" in snap.error
 
 
 # ===================================================================
@@ -366,8 +794,10 @@ def test_fetch_previous_unconfigured_returns_mock(monkeypatch):
 
 
 def test_fetch_previous_shifts_week_by_7_days(monkeypatch):
-    """Configured → fetch_weekly called with week_start - 7 days."""
+    """Configured (no installs key) → fetch_weekly called with week_start - 7 days."""
     _set_envs(monkeypatch, all_present=True)
+    monkeypatch.delenv("ASC_KEY_ID", raising=False)
+    monkeypatch.delenv("ASC_PRIVATE_KEY", raising=False)
 
     def fake_fetch(url, method="GET", **kwargs):
         m = MagicMock()
@@ -375,12 +805,9 @@ def test_fetch_previous_shifts_week_by_7_days(monkeypatch):
         m.json.return_value = RSS_DIKTUM_EMPTY
         return m
 
-    with patch.object(
-        asc._http, "fetch_with_retry", side_effect=fake_fetch,
-    ):
+    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch):
         snap = asc.fetch_previous("centry", WEEK_W20)
 
     assert snap.week_start == dt.date(2026, 5, 4)
     assert snap.installs is None
     assert snap.error is not None
-    assert "Apple Integrations" in snap.error
