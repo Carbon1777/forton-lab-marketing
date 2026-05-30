@@ -41,6 +41,7 @@ _BLOCKER_PATTERNS: tuple[str, ...] = (
     "Mail.ru ограничение",
     "Brain Q3",
     "GPlay installs CSV not yet",
+    "отчёт ещё генерируется",
     "reporter auth failed",
     "GCS bucket name invalid",
     "credentials build failed",
