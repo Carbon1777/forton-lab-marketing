@@ -25,6 +25,9 @@ class ProductSpec:
     appmetrica_app_id: str         # Centry "6301660" / Diktum "6301663"
     onboarding_steps: list[tuple[str, str]]
     reg_source: str                # "centry" / "diktum"
+    # raw имя экрана (AppMetrica) → человекочитаемое русское. Незамаппленные
+    # экраны рендерятся как есть (raw), чтобы новый экран не пропал из отчёта.
+    screen_names: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -141,6 +144,45 @@ _DIKTUM_ONBOARDING: list[tuple[str, str]] = [
     ("analysis_succeeded", "получили анализ"),
 ]
 
+# Centry: raw имя экрана AppMetrica → человекочитаемое русское.
+_CENTRY_SCREEN_NAMES: dict[str, str] = {
+    "welcome": "приветствие",
+    "intro": "интро",
+    "agreement": "соглашение",
+    "permissions": "разрешения",
+    "auth": "вход",
+    "otp_verify": "подтверждение кода",
+    "nickname": "выбор никнейма",
+    "activity_feed": "лента активности",
+    "plans": "планы",
+    "plan_details": "детали плана",
+    "places": "места",
+    "profile": "профиль",
+    "friends": "друзья",
+    "leaderboard": "рейтинг участников",
+    "private_chats_list": "список чатов",
+    "private_chat": "личный чат",
+}
+
+# Diktum: ключи — go_router-пути.
+_DIKTUM_SCREEN_NAMES: dict[str, str] = {
+    "/auth": "вход",
+    "register": "регистрация",
+    "forgot-password": "восстановление пароля",
+    "/onboarding-survey": "онбординг-опрос",
+    "/permission-gate": "запрос разрешений",
+    "/analysis/:id": "результат анализа",
+    "/legal/terms": "условия использования",
+    "/legal/privacy": "политика конфиденциальности",
+    "/legal/child-safety": "безопасность детей",
+    "/market": "магазин (тарифы)",
+    "/home": "главная",
+    "/record": "запись",
+    "/history": "история",
+    "/profile": "профиль",
+    "/settings": "настройки",
+}
+
 
 PRODUCTS: list[ProductSpec] = [
     ProductSpec(
@@ -149,6 +191,7 @@ PRODUCTS: list[ProductSpec] = [
         appmetrica_app_id="6301660",
         onboarding_steps=_CENTRY_ONBOARDING,
         reg_source="centry",
+        screen_names=_CENTRY_SCREEN_NAMES,
     ),
     ProductSpec(
         key="diktum",
@@ -156,5 +199,6 @@ PRODUCTS: list[ProductSpec] = [
         appmetrica_app_id="6301663",
         onboarding_steps=_DIKTUM_ONBOARDING,
         reg_source="diktum",
+        screen_names=_DIKTUM_SCREEN_NAMES,
     ),
 ]

@@ -54,8 +54,10 @@ def _report(**over) -> ProductReport:
             FunnelStep("завершили регистрацию", 11),
         ]),
         screens=AppMetricaScreens(screens=[
-            ScreenStat("лента", 40), ScreenStat("план", 22),
-            ScreenStat("профиль", 15),
+            # raw имена экранов AppMetrica — рендер маппит их в русские.
+            ScreenStat("activity_feed", 40), ScreenStat("plan_details", 22),
+            # незамаппленный экран — должен показаться как есть (fallback).
+            ScreenStat("some_new_screen", 15),
         ]),
         reg=RegActivation(registrations=11, activations=8),
         prev_am_installs_total=20,
@@ -118,8 +120,18 @@ def test_render_funnel_block_with_max_dropoff():
 def test_render_screens_block():
     text = render_report(_report())
     assert "Экраны" in text
-    assert "лента — 40" in text
-    assert "план — 22" in text
+    # raw имена замаплены в человекочитаемые русские.
+    assert "лента активности — 40" in text
+    assert "детали плана — 22" in text
+    # сырые имена не должны протечь в отчёт, если для них есть маппинг.
+    assert "activity_feed" not in text
+    assert "plan_details" not in text
+
+
+def test_render_screens_block_fallback_unmapped():
+    # незамаппленный экран показывается как есть (честно, не пусто).
+    text = render_report(_report())
+    assert "some_new_screen — 15" in text
 
 
 def test_render_reg_activation_block():
