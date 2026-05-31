@@ -46,6 +46,19 @@ def test_diktum_onboarding_first_and_last_steps():
     assert diktum.onboarding_steps[-1][0] == "analysis_succeeded"
 
 
+def test_products_have_screen_names_maps():
+    for p in PRODUCTS:
+        assert isinstance(p.screen_names, dict)
+        assert p.screen_names, f"{p.key} screen_names must be non-empty"
+    by_key = {p.key: p for p in PRODUCTS}
+    # Centry — raw имена экранов AppMetrica.
+    assert by_key["centry"].screen_names["agreement"] == "соглашение"
+    assert by_key["centry"].screen_names["activity_feed"] == "лента активности"
+    # Diktum — ключи это go_router-пути.
+    assert by_key["diktum"].screen_names["/auth"] == "вход"
+    assert by_key["diktum"].screen_names["/analysis/:id"] == "результат анализа"
+
+
 def test_dataclasses_are_frozen():
     spec = PRODUCTS[0]
     with pytest.raises(dataclasses.FrozenInstanceError):

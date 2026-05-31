@@ -172,7 +172,9 @@ def _block_screens(r: ProductReport) -> str:
     s = r.screens
     if s.error or not s.screens:
         return "Экраны (топ по заходам): данные собираются."
-    pieces = [f"{sc.name} — {sc.views}" for sc in s.screens]
+    # raw имя экрана → человекочитаемое; незамаппленное показываем как есть.
+    names = r.spec.screen_names
+    pieces = [f"{names.get(sc.name, sc.name)} — {sc.views}" for sc in s.screens]
     return "Экраны (топ по заходам): " + "; ".join(pieces) + "."
 
 
