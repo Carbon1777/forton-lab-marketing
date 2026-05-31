@@ -777,15 +777,18 @@ diktumweb.ru
 
 ```yaml
 slug: forton-may31-may-recap
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: forton-lab
 rubric: monthly_recap
 media:
-  - path: assets/posts/2026-05/forton-may31-may-recap.png
-    sha256: 140ed7dd1382354bbcfc6c9711f3f7d792d9cd3fb2f96c24b4f8f310c864e943
-    role: image
+- path: assets/posts/2026-05/forton-may31-may-recap.png
+  sha256: 140ed7dd1382354bbcfc6c9711f3f7d792d9cd3fb2f96c24b4f8f310c864e943
+  role: image
 image: assets/posts/2026-05/forton-may31-may-recap.png
-status: draft
+status: published
+published_at: '2026-05-31T09:12:17.997930+00:00'
 ```
 
 Май в Forton Lab — 21 пост в каналах, 9 видеороликов, 3 продуктовых трека.
