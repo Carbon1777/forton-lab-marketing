@@ -12,11 +12,14 @@ strategy: lucea_launch_funnel
 
 ```yaml
 slug: forton-jun1-leto-start
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: forton-lab
 rubric: announcement
 media: []
-status: draft
+status: published
+published_at: '2026-06-01T09:25:06.870904+00:00'
 ```
 
 Лето пришло.
