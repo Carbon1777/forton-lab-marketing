@@ -34,14 +34,18 @@ fortonlab.ru
 
 ```yaml
 slug: centry-jun2-4-prichiny
-channels: [tg, vk, yt]
+channels:
+- tg
+- vk
+- yt
 product: centry
 rubric: feature_video
 media:
-  - path: assets/posts/2026-06/laurel_centry_4prichini.mp4
-    sha256: d9198e4cd09e5fd071e562314699da65a6ca05dfdf6e5b6764e29d6e19462032
-    role: video
-status: draft
+- path: assets/posts/2026-06/laurel_centry_4prichini.mp4
+  sha256: d9198e4cd09e5fd071e562314699da65a6ca05dfdf6e5b6764e29d6e19462032
+  role: video
+status: published
+published_at: '2026-06-02T09:44:04.478904+00:00'
 ```
 
 Почему компанию проще собирать через Centry?
