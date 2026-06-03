@@ -60,14 +60,18 @@ centryweb.ru
 
 ```yaml
 slug: diktum-jun3-parazit-tipa
-channels: [tg, vk, dzen]
+channels:
+- tg
+- vk
+- dzen
 product: diktum
 rubric: speech_tips
 media:
-  - path: assets/posts/2026-06/diktum-jun3-parazit-tipa.png
-    sha256: bae4e70a230099b17830efe6c5cc6e95aee13a6a7733b0a4198d2b2f4738d807
-    role: image
-status: draft
+- path: assets/posts/2026-06/diktum-jun3-parazit-tipa.png
+  sha256: bae4e70a230099b17830efe6c5cc6e95aee13a6a7733b0a4198d2b2f4738d807
+  role: image
+status: published
+published_at: '2026-06-03T09:05:50.744728+00:00'
 ```
 
 Слово-паразит недели: «типа».
