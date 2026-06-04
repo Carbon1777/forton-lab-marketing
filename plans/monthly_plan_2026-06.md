@@ -86,14 +86,18 @@ diktumweb.ru
 
 ```yaml
 slug: centry-jun4-test-kto-ty
-channels: [tg, vk, dzen]
+channels:
+- tg
+- vk
+- dzen
 product: centry
 rubric: humor
 media:
-  - path: assets/posts/2026-06/centry-jun4-test-kto-ty.png
-    sha256: 127ded5fabf436c09570e058e48a215a44bef207db75eb703028e04e10f0edbf
-    role: image
-status: draft
+- path: assets/posts/2026-06/centry-jun4-test-kto-ty.png
+  sha256: 127ded5fabf436c09570e058e48a215a44bef207db75eb703028e04e10f0edbf
+  role: image
+status: published
+published_at: '2026-06-04T15:45:03.193966+00:00'
 ```
 
 Тест: кто ты в компании?
