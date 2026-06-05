@@ -115,14 +115,18 @@ centryweb.ru
 
 ```yaml
 slug: diktum-jun5-pochemu
-channels: [tg, vk, yt]
+channels:
+- tg
+- vk
+- yt
 product: diktum
 rubric: feature_video
 media:
-  - path: assets/posts/2026-06/laurel_diktum_prichini_scachat.mp4
-    sha256: 06d3876e7cf8c0769915f5b4767e1ec425dd8ff8f1b3c9875d5151e054253015
-    role: video
-status: draft
+- path: assets/posts/2026-06/laurel_diktum_prichini_scachat.mp4
+  sha256: 06d3876e7cf8c0769915f5b4767e1ec425dd8ff8f1b3c9875d5151e054253015
+  role: video
+status: published
+published_at: '2026-06-05T09:31:43.730335+00:00'
 ```
 
 Зачем вообще тренировать речь?
