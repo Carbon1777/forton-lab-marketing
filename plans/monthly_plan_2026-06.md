@@ -141,11 +141,14 @@ diktumweb.ru
 
 ```yaml
 slug: lucea-jun6-namek
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: forton-lab
 rubric: teaser
 media: []
-status: draft
+status: published
+published_at: '2026-06-06T09:37:54.712786+00:00'
 ```
 
 Ты умеешь собирать друзей и говорить уверенно.
