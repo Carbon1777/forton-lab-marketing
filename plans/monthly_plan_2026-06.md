@@ -163,14 +163,18 @@ fortonlab.ru
 
 ```yaml
 slug: forton-jun7-weekend
-channels: [tg, vk, dzen]
+channels:
+- tg
+- vk
+- dzen
 product: forton-lab
 rubric: holiday
 media:
-  - path: assets/posts/2026-06/forton-jun7-weekend.png
-    sha256: 2b5c18bd6ba3b402b73d8e5008c34e960a5b54f008b69cd4382553d0ae0769a2
-    role: image
-status: draft
+- path: assets/posts/2026-06/forton-jun7-weekend.png
+  sha256: 2b5c18bd6ba3b402b73d8e5008c34e960a5b54f008b69cd4382553d0ae0769a2
+  role: image
+status: published
+published_at: '2026-06-07T10:10:10.405850+00:00'
 ```
 
 Воскресенье. Лучшее время ничего не планировать.
