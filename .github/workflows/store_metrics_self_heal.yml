@@ -28,7 +28,7 @@ jobs:
     timeout-minutes: 3
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # fetch-depth: 0 нужен чтобы git log -1 --format=%ct мог найти
           # commit, изменивший .metrics/store_snapshots.json (CR-01 fix).
@@ -37,7 +37,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -50,7 +50,7 @@ jobs:
           TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
           TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
         run: |
-          # CR-01 fix: actions/checkout@v4 сбрасывает file mtime ко времени
+          # CR-01 fix: actions/checkout@v5 сбрасывает file mtime ко времени
           # запуска runner — `stat().st_mtime` бесполезен. Используем git log
           # commit time последнего изменения файла как ground truth: это
           # commit от `store_metrics.yml` (auto: update snapshot…) последнего

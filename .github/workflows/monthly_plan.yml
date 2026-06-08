@@ -43,12 +43,12 @@ jobs:
     timeout-minutes: 10   # API call ≤120s, commit+push ≤30s, install ≤120s; 5x запас
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0   # full history для безопасного git push
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
