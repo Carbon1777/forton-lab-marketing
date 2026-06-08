@@ -23,9 +23,7 @@ import sys
 
 from src.store_metrics import asc, play, rustore
 from src.store_metrics.models import StoreSnapshot
-from src.centry_funnel import appmetrica as centry_installs
 from src.centry_funnel import supabase_src as centry_db
-from src.diktum_funnel import appmetrica as diktum_installs
 from src.diktum_funnel import supabase_src as diktum_db
 
 from . import appmetrica
@@ -82,10 +80,11 @@ def _ads_publisher(by_publisher: dict[str, int]) -> str | None:
 
 
 def _collect_installs(spec: ProductSpec, week_start: dt.date, week_end: dt.date):
-    """AppMetrica installs-источник (ym:ts:*) из соответствующего funnel."""
-    module = centry_installs if spec.reg_source == "centry" else diktum_installs
+    """AppMetrica installs (ym:ts:*) по appmetrica_app_id продукта — generic."""
     try:
-        inst = module.fetch_installs(week_start, week_end)
+        inst = appmetrica.fetch_installs(
+            spec.appmetrica_app_id, week_start, week_end
+        )
         return (
             inst.total, inst.organic, inst.ads,
             _ads_publisher(inst.by_publisher), None,
@@ -97,14 +96,21 @@ def _collect_installs(spec: ProductSpec, week_start: dt.date, week_end: dt.date)
 
 
 def _collect_reg(spec: ProductSpec, week_start: dt.date, week_end: dt.date) -> RegActivation:
-    """Supabase регистрации → активация. Семантика per продукт (см. модуль-doc)."""
+    """Supabase регистрации → активация. Семантика per продукт (см. модуль-doc).
+
+    Только Centry/Diktum имеют Supabase-RPC. Новые продукты (reg_source не
+    centry/diktum) → None: их RPC ещё нет, Лапуля вообще без сервера. Render
+    покажет «данные собираются»; рег/актив видна в воронке онбординга AppMetrica.
+    """
     try:
         if spec.reg_source == "centry":
             db = centry_db.fetch_funnel(week_start, week_end)
             # registrations = users (завершившие регистрацию, state=USER)
             return RegActivation(registrations=db.users, activations=db.activations)
-        db = diktum_db.fetch_registrations(week_start, week_end)
-        return RegActivation(registrations=db.registrations, activations=db.activated)
+        if spec.reg_source == "diktum":
+            db = diktum_db.fetch_registrations(week_start, week_end)
+            return RegActivation(registrations=db.registrations, activations=db.activated)
+        return RegActivation(registrations=None, activations=None)
     except Exception as exc:  # noqa: BLE001
         sys.stderr.write(
             f"WARN: Supabase reg failed: {type(exc).__name__}: {str(exc)[:80]}\n"
@@ -147,7 +153,8 @@ def gather_product(
         spec.appmetrica_app_id, spec.onboarding_steps, week_start, week_end
     )
     screens = appmetrica.fetch_top_screens(
-        spec.appmetrica_app_id, week_start, week_end
+        spec.appmetrica_app_id, week_start, week_end,
+        event_label=spec.screen_event_label,
     )
 
     reg = _collect_reg(spec, week_start, week_end)

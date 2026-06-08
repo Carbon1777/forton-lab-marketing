@@ -14,9 +14,8 @@ from src.hybrid_report.models import (
     ScreenStat,
 )
 from src.store_metrics.models import StoreSnapshot
-from src.centry_funnel.appmetrica import InstallsBySource as CInstalls
+from src.hybrid_report.appmetrica import InstallsBySource
 from src.centry_funnel.supabase_src import FunnelDB as CFunnel
-from src.diktum_funnel.appmetrica import InstallsBySource as DInstalls
 from src.diktum_funnel.supabase_src import FunnelDB as DFunnel
 
 CENTRY = next(p for p in PRODUCTS if p.key == "centry")
@@ -39,8 +38,8 @@ def _patch_all_success():
                      return_value=_snap("google_play", 12)),
         patch.object(gather.rustore, "fetch_weekly",
                      return_value=_snap("rustore", None)),
-        patch.object(gather.centry_installs, "fetch_installs",
-                     return_value=CInstalls(
+        patch.object(gather.appmetrica, "fetch_installs",
+                     return_value=InstallsBySource(
                          total=24, organic=18, ads=6,
                          by_publisher={"Органика": 18, "VK Ads": 6})),
         patch.object(gather.centry_db, "fetch_funnel",
@@ -94,9 +93,9 @@ def test_gather_diktum_reg_maps_directly():
         patch.object(gather.asc, "fetch_weekly", return_value=_snap("app_store", 1)),
         patch.object(gather.play, "fetch_weekly", return_value=_snap("google_play", 2)),
         patch.object(gather.rustore, "fetch_weekly", return_value=_snap("rustore", None)),
-        patch.object(gather.diktum_installs, "fetch_installs",
-                     return_value=DInstalls(total=121, organic=100, ads=21,
-                                            by_publisher={"Органика": 100, "VK Ads": 21})),
+        patch.object(gather.appmetrica, "fetch_installs",
+                     return_value=InstallsBySource(total=121, organic=100, ads=21,
+                                                   by_publisher={"Органика": 100, "VK Ads": 21})),
         patch.object(gather.diktum_db, "fetch_registrations",
                      return_value=DFunnel(registrations=30, activated=12)),
         patch.object(gather.appmetrica, "fetch_activity",
@@ -147,7 +146,7 @@ def test_gather_never_raises_on_appmetrica_activity_failure():
 def test_gather_never_raises_on_installs_failure():
     from contextlib import ExitStack
     cms = _patch_all_success()
-    cms[3] = patch.object(gather.centry_installs, "fetch_installs",
+    cms[3] = patch.object(gather.appmetrica, "fetch_installs",
                           side_effect=RuntimeError("installs down"))
     with ExitStack() as stack:
         for cm in cms:
