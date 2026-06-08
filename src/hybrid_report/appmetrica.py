@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+from dataclasses import dataclass
 
 from src.store_metrics._http import fetch_with_retry
 from .models import (
@@ -27,6 +28,16 @@ from .models import (
 )
 
 STAT_URL = "https://api.appmetrica.yandex.ru/stat/v1/data"
+ORGANIC_NAME = "Органика"
+
+
+@dataclass(frozen=True)
+class InstallsBySource:
+    """Установки за период с разбивкой по источнику (publisher)."""
+    total: int
+    organic: int
+    ads: int
+    by_publisher: dict[str, int]
 
 
 def _token(token: str | None) -> str:
@@ -38,6 +49,49 @@ def _token(token: str | None) -> str:
 
 def _totals(payload: dict) -> list:
     return payload.get("totals") or []
+
+
+def fetch_installs(
+    app_id: str,
+    week_start: dt.date,
+    week_end: dt.date,
+    token: str | None = None,
+) -> InstallsBySource:
+    """Установки за период [week_start, week_end] с разбивкой по источнику.
+
+    Метрика ym:ts:installDevices, разбивка ym:ts:publisher (Органика / реклама).
+    Generic по app_id — один путь для всех 5 продуктов. Чистый ym:ts: namespace
+    (НЕ смешивать с ym:s:* / ym:ce:* — ошибка 4011). Без рекламных кампаний всё
+    падает в «Органика» (ads=0), что норма для новых приложений.
+    """
+    tok = _token(token)
+    resp = fetch_with_retry(
+        STAT_URL,
+        method="GET",
+        headers={"Authorization": f"OAuth {tok}"},
+        params={
+            "id": app_id,
+            "date1": week_start.isoformat(),
+            "date2": week_end.isoformat(),
+            "metrics": "ym:ts:installDevices",
+            "dimensions": "ym:ts:publisher",
+            "accuracy": "full",
+            "lang": "ru",
+        },
+    )
+    resp.raise_for_status()
+    payload = resp.json()
+    by_publisher: dict[str, int] = {}
+    for row in payload.get("data", []):
+        name = row["dimensions"][0]["name"]
+        value = int(row["metrics"][0] or 0)
+        by_publisher[name] = value
+    total = sum(by_publisher.values())
+    organic = by_publisher.get(ORGANIC_NAME, 0)
+    ads = total - organic
+    return InstallsBySource(
+        total=total, organic=organic, ads=ads, by_publisher=by_publisher
+    )
 
 
 def fetch_activity(
@@ -124,11 +178,16 @@ def fetch_top_screens(
     app_id: str,
     week_start: dt.date,
     week_end: dt.date,
+    event_label: str = "screen_view",
     token: str | None = None,
     top_n: int = 7,
 ) -> AppMetricaScreens:
     """Топ-N экранов по заходам: ym:ce:devices, dim ym:ce:paramsLevel2,
-    фильтр eventLabel=='screen_view'. Сортировка по views убыв., срез [:top_n].
+    фильтр eventLabel==event_label. Сортировка по views убыв., срез [:top_n].
+
+    event_label: "screen_view" (Centry/Diktum — paramsLevel2 = строковое имя
+    экрана) либо "screen_entered" (Lucea/Unia/Лапуля — paramsLevel2 = int
+    screen_id, который render маппит в screen_names).
 
     paramsLevel1 = КЛЮЧ параметра ("screen"); имя экрана лежит в paramsLevel2
     (verified живым вызовом 25-31.05: Centry agreement/permissions/auth/...,
@@ -149,7 +208,7 @@ def fetch_top_screens(
                 "date2": week_end.isoformat(),
                 "metrics": "ym:ce:devices",
                 "dimensions": "ym:ce:paramsLevel2",
-                "filters": "ym:ce:eventLabel=='screen_view'",
+                "filters": f"ym:ce:eventLabel=='{event_label}'",
                 "accuracy": "full",
                 "lang": "ru",
             },
