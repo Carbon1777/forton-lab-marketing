@@ -23,7 +23,7 @@ def test_report_week_is_previous_iso_week():
     assert we == dt.date(2026, 5, 31)
 
 
-def test_main_sends_two_messages(tmp_path):
+def test_main_sends_one_message_per_product(tmp_path):
     snap = tmp_path / "hybrid_snapshots.json"
     with (
         patch.object(cli.gather, "gather_product",
@@ -33,7 +33,7 @@ def test_main_sends_two_messages(tmp_path):
         rc = cli.main(today=dt.date(2026, 6, 1), snapshots_path=snap, dry_run=False)
     assert rc == 0
     # ОТДЕЛЬНОЕ сообщение на каждый продукт → ровно len(PRODUCTS) вызовов
-    assert send.call_count == len(PRODUCTS) == 2
+    assert send.call_count == len(PRODUCTS) == 5
     # снапшот сохранён (не dry-run)
     assert snap.exists()
 
@@ -51,6 +51,9 @@ def test_main_dry_run_prints_not_sends(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "Centry — отчёт за неделю" in out
     assert "Diktum — отчёт за неделю" in out
+    assert "Lucea — отчёт за неделю" in out
+    assert "Лапуля — отчёт за неделю" in out
+    assert "Unia — отчёт за неделю" in out
     # снапшот НЕ сохраняется в dry-run
     assert not snap.exists()
 
@@ -63,8 +66,8 @@ def test_main_returns_1_if_send_fails(tmp_path):
         patch.object(cli, "send_to_planner", return_value=False) as send,
     ):
         rc = cli.main(today=dt.date(2026, 6, 1), snapshots_path=snap, dry_run=False)
-    # оба продукта всё равно обработаны (loop не прерывается), но rc=1
-    assert send.call_count == 2
+    # все продукты всё равно обработаны (loop не прерывается), но rc=1
+    assert send.call_count == len(PRODUCTS)
     assert rc == 1
 
 

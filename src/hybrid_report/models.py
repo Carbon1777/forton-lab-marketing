@@ -187,6 +187,72 @@ _DIKTUM_SCREEN_NAMES: dict[str, str] = {
     "/settings": "настройки",
 }
 
+# --- Новые продукты студии (wire-события и int screen_id из их
+# analytics_service.dart). Экраны шлются как screen_entered + int screen_id,
+# поэтому screen_event_label="screen_entered", а screen_names мапит "<id>". ---
+
+# Lucea воронка онбординга (drop-off от запуска до первого портрета).
+_LUCEA_ONBOARDING: list[tuple[str, str]] = [
+    ("app_opened_first", "открыли приложение"),
+    ("intro_seen", "посмотрели интро"),
+    ("onboarding_started", "начали онбординг"),
+    ("onboarding_completed", "прошли онбординг"),
+    ("consent_accepted", "приняли согласие"),
+    ("email_submitted", "ввели email"),
+    ("otp_verified", "подтвердили код"),
+    ("account_activated", "активировали аккаунт"),
+    ("home_first_shown", "дошли до главной"),
+    ("first_checkin_submitted", "сделали первый чек-ин"),
+    ("first_portrait_shown", "увидели первый портрет"),
+]
+
+# Лапуля воронка активации (без сервера/аккаунта — ключевой порог = первый питомец).
+_LAPULYA_ONBOARDING: list[tuple[str, str]] = [
+    ("app_opened_first", "открыли приложение"),
+    ("onboarding_started", "начали онбординг"),
+    ("first_pet_created", "добавили первого питомца"),
+    ("notif_permission_granted", "разрешили уведомления"),
+    ("schedule_generated", "построили план"),
+    ("home_first_shown", "дошли до ленты дел"),
+]
+
+# Unia воронка онбординга пары.
+_UNIA_ONBOARDING: list[tuple[str, str]] = [
+    ("app_opened_first", "открыли приложение"),
+    ("intro_seen", "посмотрели интро"),
+    ("onboarding_ai_named", "задали имя помощнику"),
+    ("pair_invite_created", "создали приглашение"),
+    ("pair_linked", "связали пару"),
+    ("onboarding_completed", "завершили онбординг"),
+    ("home_first_shown", "дошли до главной"),
+]
+
+# Lucea: int screen_id (как строка) → человекочитаемое (LuceaScreen 1..19).
+_LUCEA_SCREEN_NAMES: dict[str, str] = {
+    "1": "интро", "2": "онбординг", "3": "согласие", "4": "вход",
+    "5": "подтверждение кода", "6": "главная", "7": "чек-ин", "8": "портрет",
+    "9": "разбор недели", "10": "профиль", "11": "рефералы", "12": "настройки",
+    "13": "подписка", "14": "новости", "15": "новость",
+    "16": "редактирование профиля", "17": "портрет в профиле", "18": "ранги",
+    "19": "достижения",
+}
+
+# Лапуля: int screen_id → человекочитаемое (LapulyaScreen 1..13).
+_LAPULYA_SCREEN_NAMES: dict[str, str] = {
+    "1": "лента дел", "2": "питомцы", "3": "карточка питомца", "4": "ещё",
+    "5": "онбординг приветствие", "6": "онбординг вид", "7": "онбординг имя",
+    "8": "онбординг пол", "9": "онбординг дата рождения",
+    "10": "онбординг детали", "11": "онбординг история",
+    "12": "онбординг уведомления", "13": "онбординг готово",
+}
+
+# Unia: int screen_id → человекочитаемое (UniaScreen 1..10).
+_UNIA_SCREEN_NAMES: dict[str, str] = {
+    "1": "интро", "2": "главная", "3": "ИИ-помощник", "4": "чат", "5": "вместе",
+    "6": "организатор", "7": "профиль", "8": "настройки", "9": "подписка",
+    "10": "онбординг",
+}
+
 
 PRODUCTS: list[ProductSpec] = [
     ProductSpec(
@@ -204,5 +270,32 @@ PRODUCTS: list[ProductSpec] = [
         onboarding_steps=_DIKTUM_ONBOARDING,
         reg_source="diktum",
         screen_names=_DIKTUM_SCREEN_NAMES,
+    ),
+    ProductSpec(
+        key="lucea",
+        display="Lucea",
+        appmetrica_app_id="6303610",
+        onboarding_steps=_LUCEA_ONBOARDING,
+        reg_source="lucea",  # Supabase-RPC ещё нет → reg-блок «данные собираются»
+        screen_names=_LUCEA_SCREEN_NAMES,
+        screen_event_label="screen_entered",
+    ),
+    ProductSpec(
+        key="lapulya",
+        display="Лапуля",
+        appmetrica_app_id="6307939",
+        onboarding_steps=_LAPULYA_ONBOARDING,
+        reg_source="lapulya",  # on-device, без сервера → reg-блок «данные собираются»
+        screen_names=_LAPULYA_SCREEN_NAMES,
+        screen_event_label="screen_entered",
+    ),
+    ProductSpec(
+        key="unia",
+        display="Unia",
+        appmetrica_app_id="6308782",
+        onboarding_steps=_UNIA_ONBOARDING,
+        reg_source="unia",  # Supabase-RPC ещё нет → reg-блок «данные собираются»
+        screen_names=_UNIA_SCREEN_NAMES,
+        screen_event_label="screen_entered",
     ),
 ]
