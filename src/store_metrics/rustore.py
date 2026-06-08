@@ -136,7 +136,7 @@ def _package_for(product: Product) -> str:
     HOTFIX 2026-05-15: strip env values — GH Secret storage may include
     trailing whitespace that breaks URL path matching at the reviews endpoint.
     """
-    key = "RUSTORE_PACKAGE_CENTRY" if product == "centry" else "RUSTORE_PACKAGE_DIKTUM"
+    key = f"RUSTORE_PACKAGE_{product.upper()}"
     val = os.environ.get(key, "").strip()
     if not val:
         raise RuntimeError(f"{key} not set")

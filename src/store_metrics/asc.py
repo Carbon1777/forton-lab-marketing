@@ -137,8 +137,13 @@ def _installs_configured() -> bool:
 
 
 def _app_id_for(product: Product) -> str:
-    """Resolve numeric Apple app id per product, stripping whitespace."""
-    key = "ASC_APP_ID_CENTRY" if product == "centry" else "ASC_APP_ID_DIKTUM"
+    """Resolve numeric Apple app id per product, stripping whitespace.
+
+    Key-based (ASC_APP_ID_<KEY>) — поддерживает любое число продуктов. Нет env
+    для продукта → raise; gather._collect_stores ловит → StoreSnapshot(
+    installs=None, error) (мягкая деградация), остальные продукты не страдают.
+    """
+    key = f"ASC_APP_ID_{product.upper()}"
     val = os.environ.get(key, "").strip()
     if not val:
         raise RuntimeError(f"{key} not set")

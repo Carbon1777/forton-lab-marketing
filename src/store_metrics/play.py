@@ -102,7 +102,7 @@ def _package_for(product: Product) -> str:
     HOTFIX 2026-05-15: strip env values — GH Secret storage may include
     trailing whitespace that breaks GCS blob path matching.
     """
-    key = "GPLAY_PACKAGE_CENTRY" if product == "centry" else "GPLAY_PACKAGE_DIKTUM"
+    key = f"GPLAY_PACKAGE_{product.upper()}"
     val = os.environ.get(key, "").strip()
     if not val:
         raise RuntimeError(f"{key} not set")
