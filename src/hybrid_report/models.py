@@ -28,6 +28,10 @@ class ProductSpec:
     # raw имя экрана (AppMetrica) → человекочитаемое русское. Незамаппленные
     # экраны рендерятся как есть (raw), чтобы новый экран не пропал из отчёта.
     screen_names: dict[str, str] = field(default_factory=dict)
+    # Событие AppMetrica, по которому считаем экраны. Centry/Diktum шлют
+    # "screen_view" (paramsLevel2 = строковое имя экрана). Lucea/Unia/Лапуля шлют
+    # "screen_entered" (paramsLevel2 = int screen_id; screen_names мапит "<id>").
+    screen_event_label: str = "screen_view"
 
 
 @dataclass(frozen=True)
