@@ -187,14 +187,18 @@ fortonlab.ru
 
 ```yaml
 slug: lucea-jun8-tizer
-channels: [tg, vk, yt]
+channels:
+- tg
+- vk
+- yt
 product: forton-lab
 rubric: teaser_video
 media:
-  - path: assets/posts/2026-06/laurel_lucea_tizer.mp4
-    sha256: c1c3921c5fb08cb8c15af46edd2354cebe2a9b2bcb2d1104cf354d411faa7185
-    role: video
-status: draft
+- path: assets/posts/2026-06/laurel_lucea_tizer.mp4
+  sha256: c1c3921c5fb08cb8c15af46edd2354cebe2a9b2bcb2d1104cf354d411faa7185
+  role: video
+status: published
+published_at: '2026-06-08T09:03:51.643563+00:00'
 ```
 
 Самый сложный разговор — не с друзьями и не на собеседовании. Он с самим собой.
