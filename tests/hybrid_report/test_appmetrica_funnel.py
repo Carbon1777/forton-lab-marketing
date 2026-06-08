@@ -128,3 +128,49 @@ def test_fetch_top_screens_limits_top_n():
     # отсортировано по views убыв.: s0 (100) первый
     assert result.screens[0] == ScreenStat("s0", 100, None)
     assert result.screens[-1] == ScreenStat("s6", 94, None)
+
+
+def test_fetch_top_screens_custom_event_label():
+    # Новые приложения (Lucea/Unia/Лапуля) шлют screen_entered, не screen_view
+    with patch.object(
+        appmetrica, "fetch_with_retry", return_value=_mock_resp({"data": []})
+    ) as f:
+        appmetrica.fetch_top_screens(
+            "6303610", W_START, W_END, event_label="screen_entered", token="t"
+        )
+    params = f.call_args.kwargs["params"]
+    assert params["filters"] == "ym:ce:eventLabel=='screen_entered'"
+
+
+# ------------------------------- installs (ym:ts) ---------------------------
+
+def test_fetch_installs_splits_organic_and_ads():
+    payload = {"data": [
+        {"dimensions": [{"name": "Органика"}], "metrics": [18.0]},
+        {"dimensions": [{"name": "VK Ads — X"}], "metrics": [6.0]},
+    ]}
+    with patch.object(
+        appmetrica, "fetch_with_retry", return_value=_mock_resp(payload)
+    ) as f:
+        result = appmetrica.fetch_installs("6303610", W_START, W_END, token="t")
+    assert result.total == 24
+    assert result.organic == 18
+    assert result.ads == 6
+    assert result.by_publisher == {"Органика": 18, "VK Ads — X": 6}
+    params = f.call_args.kwargs["params"]
+    assert params["metrics"] == "ym:ts:installDevices"
+    assert params["dimensions"] == "ym:ts:publisher"
+    assert params["id"] == "6303610"
+
+
+def test_fetch_installs_all_organic_when_no_ads():
+    payload = {"data": [
+        {"dimensions": [{"name": "Органика"}], "metrics": [10.0]},
+    ]}
+    with patch.object(
+        appmetrica, "fetch_with_retry", return_value=_mock_resp(payload)
+    ):
+        result = appmetrica.fetch_installs("6307939", W_START, W_END, token="t")
+    assert result.total == 10
+    assert result.organic == 10
+    assert result.ads == 0
