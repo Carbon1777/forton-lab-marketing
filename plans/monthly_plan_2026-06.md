@@ -213,14 +213,18 @@ fortonlab.ru
 
 ```yaml
 slug: diktum-jun9-star
-channels: [tg, vk, dzen]
+channels:
+- tg
+- vk
+- dzen
 product: diktum
 rubric: speech_tips
 media:
-  - path: assets/posts/2026-06/diktum-jun9-star.png
-    sha256: 8daada5f0bdbd1c8dd305fee79768ec62534087246a9481b662ef31969976431
-    role: image
-status: draft
+- path: assets/posts/2026-06/diktum-jun9-star.png
+  sha256: 8daada5f0bdbd1c8dd305fee79768ec62534087246a9481b662ef31969976431
+  role: image
+status: published
+published_at: '2026-06-09T09:36:42.329982+00:00'
 ```
 
 Как ответить почти на любой вопрос собеседования — метод STAR.
