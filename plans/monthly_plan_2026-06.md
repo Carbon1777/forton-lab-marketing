@@ -239,11 +239,14 @@ diktumweb.ru
 
 ```yaml
 slug: centry-jun10-istoriya-plana
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: centry
 rubric: use_case
 media: []
-status: draft
+status: published
+published_at: '2026-06-10T09:09:14.147203+00:00'
 ```
 
 История одного плана.
