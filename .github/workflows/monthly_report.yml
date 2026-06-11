@@ -55,6 +55,36 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_URL_CENTRY: ${{ secrets.SUPABASE_URL_CENTRY }}
           SUPABASE_SERVICE_ROLE_KEY_CENTRY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CENTRY }}
+
+          # ------------ Apple App Store — Analytics Reports installs + RSS -------
+          # Стор-блок месячного отчёта (260611-8za). Секреты те же, что в
+          # store_metrics.yml — новых не заводим.
+          ASC_APP_ID_CENTRY: ${{ secrets.ASC_APP_ID_CENTRY }}
+          ASC_APP_ID_DIKTUM: ${{ secrets.ASC_APP_ID_DIKTUM }}
+          ASC_APP_ID_LUCEA: ${{ secrets.ASC_APP_ID_LUCEA }}
+          ASC_APP_ID_LAPULYA: ${{ secrets.ASC_APP_ID_LAPULYA }}
+          ASC_APP_ID_UNIA: ${{ secrets.ASC_APP_ID_UNIA }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+
+          # ------------ Google Play — GCS monthly CSV + androidpublisher ---------
+          GOOGLE_PLAY_SA_JSON: ${{ secrets.GOOGLE_PLAY_SA_JSON }}
+          GPLAY_DEVELOPER_ID: ${{ secrets.GPLAY_DEVELOPER_ID }}
+          GPLAY_PACKAGE_CENTRY: ${{ secrets.GPLAY_PACKAGE_CENTRY }}
+          GPLAY_PACKAGE_DIKTUM: ${{ secrets.GPLAY_PACKAGE_DIKTUM }}
+          GPLAY_PACKAGE_LUCEA: ${{ secrets.GPLAY_PACKAGE_LUCEA }}
+          GPLAY_PACKAGE_LAPULYA: ${{ secrets.GPLAY_PACKAGE_LAPULYA }}
+          GPLAY_PACKAGE_UNIA: ${{ secrets.GPLAY_PACKAGE_UNIA }}
+
+          # ------------ RuStore — reviews via JWS API (installs N/A, Mail.ru) ----
+          RUSTORE_PRIVATE_KEY: ${{ secrets.RUSTORE_PRIVATE_KEY }}
+          RUSTORE_KEY_ID: ${{ secrets.RUSTORE_KEY_ID }}
+          RUSTORE_COMPANY_ID: ${{ secrets.RUSTORE_COMPANY_ID }}
+          RUSTORE_PACKAGE_CENTRY: ${{ secrets.RUSTORE_PACKAGE_CENTRY }}
+          RUSTORE_PACKAGE_DIKTUM: ${{ secrets.RUSTORE_PACKAGE_DIKTUM }}
+          RUSTORE_PACKAGE_LUCEA: ${{ secrets.RUSTORE_PACKAGE_LUCEA }}
+          RUSTORE_PACKAGE_LAPULYA: ${{ secrets.RUSTORE_PACKAGE_LAPULYA }}
+          RUSTORE_PACKAGE_UNIA: ${{ secrets.RUSTORE_PACKAGE_UNIA }}
         run: PYTHONPATH=. python -m src.monthly_report.cli
 
       - name: Commit updated monthly snapshots
