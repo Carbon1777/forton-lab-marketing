@@ -71,8 +71,8 @@ _RSS_URL_TEMPLATE: Final[str] = (
 )
 _RSS_COUNTRIES: Final[tuple[str, ...]] = ("ru", "us", "kz", "by", "ua")
 
-_MOCK_INSTALLS: dict[Product, int] = {"centry": 23, "diktum": 18}
-_MOCK_PREV: dict[Product, int] = {"centry": 19, "diktum": 22}
+_MOCK_INSTALLS: dict[Product, int] = {"centry": 23, "diktum": 18, "lucea": 5, "lapulya": 7, "unia": 3}
+_MOCK_PREV: dict[Product, int] = {"centry": 19, "diktum": 22, "lucea": 4, "lapulya": 5, "unia": 2}
 
 # Only app-id envs are needed для RSS path.
 _REQUIRED_ENVS: Final[tuple[str, ...]] = (
@@ -314,13 +314,12 @@ def _ensure_ongoing_request(app_id: str) -> str | None:
 # Analytics Reports — TSV segment parsing
 # ===================================================================
 
-def _parse_segment_tsv(text: str, week_start: dt.date) -> int:
-    """Суммировать колонку числа по строкам, чья дата ∈ [week_start, +6].
+def _parse_segment_tsv(text: str, target_date: dt.date) -> int:
+    """Суммировать колонку числа по строкам, чья дата == target_date (конкретный день instance).
 
     TSV (Apple analytics — табуляция). Толерантно к мусору: кривые строки
     пропускаются, не валятся.
     """
-    week_end = week_start + dt.timedelta(days=6)
     lines = text.splitlines()
     if not lines:
         return 0
@@ -356,7 +355,7 @@ def _parse_segment_tsv(text: str, week_start: dt.date) -> int:
             row_date = dt.date.fromisoformat(date_str)
         except ValueError:
             continue
-        if not (week_start <= row_date <= week_end):
+        if row_date != target_date:
             continue
         count_str = cols[count_idx].strip().replace(",", "")
         try:
@@ -442,7 +441,7 @@ def _fetch_installs(
         all_instances = (instances_resp.json() or {}).get("data", []) or []
 
         week_end = week_start + dt.timedelta(days=6)
-        wanted_instances: list[str] = []
+        wanted_instances: list[tuple[str, dt.date]] = []
         for inst in all_instances:
             if not isinstance(inst, dict):
                 continue
@@ -457,7 +456,7 @@ def _fetch_installs(
             if week_start <= proc_date <= week_end:
                 inst_id = inst.get("id")
                 if inst_id:
-                    wanted_instances.append(str(inst_id))
+                    wanted_instances.append((str(inst_id), proc_date))
 
         if not wanted_instances:
             return (
@@ -468,7 +467,7 @@ def _fetch_installs(
 
         # --- segments → download → TSV → sum ---
         total_installs = 0
-        for inst_id in wanted_instances:
+        for inst_id, proc_date in wanted_instances:
             seg_url = (
                 f"{_ASC_BASE}/v1/analyticsReportInstances/{inst_id}/segments"
             )
@@ -488,7 +487,7 @@ def _fetch_installs(
                 if not download_url:
                     continue
                 tsv_text = _download_segment(download_url)
-                total_installs += _parse_segment_tsv(tsv_text, week_start)
+                total_installs += _parse_segment_tsv(tsv_text, proc_date)
 
         return (total_installs, None)
 
@@ -599,7 +598,16 @@ def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
             top_country_share=0.78,
         )
 
-    app_id = _app_id_for(product)
+    try:
+        app_id = _app_id_for(product)
+    except RuntimeError:
+        return StoreSnapshot(
+            product=product,
+            store="app_store",
+            week_start=week_start,
+            installs=None,
+            error=f"ASC_APP_ID_{product.upper()} не задан — добавьте в GH Secrets",
+        )
 
     # ----- Installs (ASC Analytics Reports API) -----
     if _installs_configured():
