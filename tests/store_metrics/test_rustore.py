@@ -716,3 +716,57 @@ def test_fetch_weekly_missing_package_env_degrades_gracefully(monkeypatch):
     assert snap.installs is None
     assert snap.error is not None
     assert "RUSTORE_PACKAGE_LAPULYA" in snap.error
+
+
+# ===================================================================
+# fetch_monthly — месячный контур (260611-8za)
+# ===================================================================
+
+def test_fetch_monthly_unconfigured_returns_mock(monkeypatch, rsa_keypair):
+    """Without envs → mock snapshot, week_start = первое число месяца."""
+    pem, _ = rsa_keypair
+    _set_envs(monkeypatch, pem, mode="none")
+    snap = rustore.fetch_monthly("centry", 2026, 5)
+    assert snap.product == "centry"
+    assert snap.store == "rustore"
+    assert snap.week_start == dt.date(2026, 5, 1)
+    assert snap.installs == 4    # _MOCK_INSTALLS[centry]
+    assert snap.rating == 4.8
+
+
+def test_fetch_monthly_installs_none_mail_ru_limitation(monkeypatch, rsa_keypair):
+    """Configured → installs=None + Mail.ru constraint, rating из reviews API."""
+    pem, _ = rsa_keypair
+    _set_envs(monkeypatch, pem, mode="raw")
+
+    auth_resp = _mock_response(AUTH_RESPONSE)
+    reviews_resp = _mock_response(REVIEWS_CENTRY)
+    with patch.object(
+        rustore._http, "fetch_with_retry", side_effect=[auth_resp, reviews_resp],
+    ):
+        snap = rustore.fetch_monthly("centry", 2026, 5)
+
+    assert snap.week_start == dt.date(2026, 5, 1)
+    assert snap.installs is None
+    assert snap.error is not None
+    assert "не отдаёт installs" in snap.error
+    assert snap.rating == pytest.approx(4.5)
+    assert snap.top_country is None
+
+
+def test_fetch_monthly_reviews_failure_keeps_blocker(monkeypatch, rsa_keypair):
+    """Auth fails → rating=None, installs всё равно None + оба error."""
+    pem, _ = rsa_keypair
+    _set_envs(monkeypatch, pem, mode="raw")
+
+    auth_resp = _mock_response({"err": "bad signature"}, status=401)
+    with patch.object(
+        rustore._http, "fetch_with_retry", return_value=auth_resp,
+    ):
+        snap = rustore.fetch_monthly("centry", 2026, 5)
+
+    assert snap.installs is None
+    assert snap.rating is None
+    assert snap.error is not None
+    assert "Mail.ru" in snap.error
+    assert "RuStore reviews API" in snap.error

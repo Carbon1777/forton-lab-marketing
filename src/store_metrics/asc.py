@@ -390,10 +390,14 @@ def _download_segment(url: str) -> str:
 # Analytics Reports — main installs fetch
 # ===================================================================
 
-def _fetch_installs(
-    app_id: str, week_start: dt.date,
+def _fetch_installs_range(
+    app_id: str, start_date: dt.date, end_date: dt.date,
 ) -> tuple[int | None, str | None]:
-    """Получить installs (App Store downloads) за ISO-неделю.
+    """Получить installs (App Store downloads) за произвольный диапазон дат.
+
+    Диапазон [start_date, end_date] включительно — DAILY instances фильтруются
+    по processingDate ∈ диапазону, каждый instance суммируется per-day через
+    :func:`_parse_segment_tsv` (per-instance target_date, fix 260611-7sc).
 
     Returns:
         (installs, error). installs=None при любой не-успешной ветке;
@@ -440,7 +444,6 @@ def _fetch_installs(
             )
         all_instances = (instances_resp.json() or {}).get("data", []) or []
 
-        week_end = week_start + dt.timedelta(days=6)
         wanted_instances: list[tuple[str, dt.date]] = []
         for inst in all_instances:
             if not isinstance(inst, dict):
@@ -453,7 +456,7 @@ def _fetch_installs(
                 proc_date = dt.date.fromisoformat(str(proc_str))
             except ValueError:
                 continue
-            if week_start <= proc_date <= week_end:
+            if start_date <= proc_date <= end_date:
                 inst_id = inst.get("id")
                 if inst_id:
                     wanted_instances.append((str(inst_id), proc_date))
@@ -494,6 +497,26 @@ def _fetch_installs(
     except Exception as exc:  # noqa: BLE001 — никогда не падаем наружу
         sys.stderr.write(f"WARN: ASC installs error for {app_id}: {exc!r}\n")
         return (None, f"ASC installs error: {exc}")
+
+
+def _fetch_installs(
+    app_id: str, week_start: dt.date,
+) -> tuple[int | None, str | None]:
+    """Получить installs за ISO-неделю — тонкая обёртка над range-версией.
+
+    Контракт сохранён для недельного контура (hybrid_report) и тестов:
+    [week_start, week_start + 6 дней] включительно.
+    """
+    return _fetch_installs_range(
+        app_id, week_start, week_start + dt.timedelta(days=6),
+    )
+
+
+def _month_range(year: int, month: int) -> tuple[dt.date, dt.date]:
+    """(первое число, последнее число) календарного месяца."""
+    first = dt.date(year, month, 1)
+    last = (first.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+    return first, last
 
 
 # ===================================================================
@@ -627,6 +650,67 @@ def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
         product=product,
         store="app_store",
         week_start=week_start,
+        installs=installs,
+        uninstalls=None,
+        rating=rating,
+        rating_count=None,
+        top_country=None,
+        top_country_share=None,
+        error=installs_error,
+    )
+
+
+def fetch_monthly(product: Product, year: int, month: int) -> StoreSnapshot:
+    """Fetch installs (Analytics Reports) + rating (RSS) за календарный месяц.
+
+    Зеркало :func:`fetch_weekly`, но диапазон = [1-е, последнее число месяца].
+    ``week_start`` снапшота = первое число месяца (семантика «начало периода»).
+    Never raises — деградация идентична недельной.
+    """
+    month_first, month_last = _month_range(year, month)
+
+    if not _is_configured():
+        return StoreSnapshot(
+            product=product,
+            store="app_store",
+            week_start=month_first,
+            installs=_MOCK_INSTALLS.get(product),
+            rating=4.7 if product == "centry" else 4.6,
+            top_country="RU",
+            top_country_share=0.78,
+        )
+
+    try:
+        app_id = _app_id_for(product)
+    except RuntimeError:
+        return StoreSnapshot(
+            product=product,
+            store="app_store",
+            week_start=month_first,
+            installs=None,
+            error=f"ASC_APP_ID_{product.upper()} не задан — добавьте в GH Secrets",
+        )
+
+    # ----- Installs (ASC Analytics Reports API, месячный диапазон) -----
+    if _installs_configured():
+        installs, installs_error = _fetch_installs_range(
+            app_id, month_first, month_last,
+        )
+    else:
+        installs, installs_error = None, _INSTALLS_NO_KEY_ERROR
+
+    # ----- Ratings (iTunes RSS) -----
+    rating: float | None = None
+    try:
+        rating, _count = _fetch_rss_ratings(app_id)
+    except Exception as exc:  # noqa: BLE001 — RSS не критичен для отчёта
+        sys.stderr.write(f"WARN: ASC RSS fetch failed for {app_id}: {exc!r}\n")
+        rating = None
+
+    return StoreSnapshot(
+        product=product,
+        store="app_store",
+        week_start=month_first,
         installs=installs,
         uninstalls=None,
         rating=rating,

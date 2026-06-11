@@ -711,3 +711,122 @@ def test_fetch_weekly_missing_package_env_degrades_gracefully(monkeypatch):
     assert snap.installs is None
     assert snap.error is not None
     assert "GPLAY_PACKAGE_LAPULYA" in snap.error
+
+
+# ===================================================================
+# fetch_monthly — месячный контур (260611-8za)
+# ===================================================================
+
+def test_fetch_monthly_unconfigured_returns_mock(monkeypatch):
+    """Without envs → mock snapshot, week_start = первое число месяца."""
+    _set_envs(monkeypatch, mode="none")
+    snap = play.fetch_monthly("centry", 2026, 5)
+    assert snap.product == "centry"
+    assert snap.store == "google_play"
+    assert snap.week_start == dt.date(2026, 5, 1)
+    assert snap.installs == 11   # _MOCK_INSTALLS
+    assert snap.rating == 4.6
+
+
+def test_play_month_range():
+    assert play._month_range(2026, 5) == (dt.date(2026, 5, 1), dt.date(2026, 5, 31))
+    assert play._month_range(2028, 2) == (dt.date(2028, 2, 1), dt.date(2028, 2, 29))
+
+
+def test_fetch_monthly_sums_all_days_of_month(monkeypatch):
+    """Один блоб _202605_, сумма ВСЕХ дней месяца; чужой пакет отфильтрован.
+
+    Fixture rows centry 05-12..05-18: 3+2+1+2+1+1+1 = 11 (недельное окно
+    05-11..05-17 даёт 10 — месяц захватывает и 05-18).
+    """
+    _set_envs(monkeypatch, mode="raw")
+    fake_creds = MagicMock(name="creds")
+    fake_client = MagicMock()
+    fake_bucket = MagicMock()
+    fake_blob = MagicMock()
+    fake_blob.exists.return_value = True
+    fake_blob.download_as_bytes.return_value = INSTALLS_CSV_BYTES
+    fake_bucket.blob.return_value = fake_blob
+    fake_client.bucket.return_value = fake_bucket
+    fake_service = _make_play_service_mock(REVIEWS_SAMPLE)
+
+    with patch(
+        "google.oauth2.service_account.Credentials.from_service_account_info",
+        return_value=fake_creds,
+    ), patch(
+        "google.cloud.storage.Client", return_value=fake_client,
+    ), patch(
+        "googleapiclient.discovery.build", return_value=fake_service,
+    ):
+        snap = play.fetch_monthly("centry", 2026, 5)
+
+    # Ровно один блоб — месячный.
+    assert fake_bucket.blob.call_count == 1
+    assert "_202605_" in fake_bucket.blob.call_args.args[0]
+    assert snap.week_start == dt.date(2026, 5, 1)
+    assert snap.installs == 11
+    assert snap.top_country == "RU"
+    assert snap.rating == pytest.approx(4.5)
+    assert snap.error is None
+
+
+def test_fetch_monthly_missing_blob_returns_monthly_error(monkeypatch):
+    """Блоба нет → installs=None + НОВАЯ месячная error-строка (не недельная)."""
+    _set_envs(monkeypatch, mode="raw")
+    fake_creds = MagicMock(name="creds")
+    fake_client = MagicMock()
+    fake_bucket = MagicMock()
+    fake_blob = MagicMock()
+    fake_blob.exists.return_value = False
+    fake_bucket.blob.return_value = fake_blob
+    fake_client.bucket.return_value = fake_bucket
+    fake_service = _make_play_service_mock(REVIEWS_EMPTY)
+
+    with patch(
+        "google.oauth2.service_account.Credentials.from_service_account_info",
+        return_value=fake_creds,
+    ), patch(
+        "google.cloud.storage.Client", return_value=fake_client,
+    ), patch(
+        "googleapiclient.discovery.build", return_value=fake_service,
+    ):
+        snap = play.fetch_monthly("centry", 2026, 5)
+
+    assert snap.installs is None
+    assert snap.error is not None
+    assert "месячный CSV" in snap.error
+    assert "2026-05" in snap.error
+    # Недельную blocker-строку не переиспользуем (digest contract).
+    assert snap.error != play._NO_DATA_ERROR
+
+
+def test_fetch_monthly_header_only_csv_returns_monthly_error(monkeypatch):
+    """Header-only CSV (парсер даёт (None, {})) → installs=None + месячный error."""
+    _set_envs(monkeypatch, mode="raw")
+    header_only = (
+        "Date,Package Name,Country,Daily Device Installs,"
+        "Daily Device Uninstalls,Active Device Installs\n"
+    ).encode("utf-16")
+    fake_creds = MagicMock(name="creds")
+    fake_client = MagicMock()
+    fake_bucket = MagicMock()
+    fake_blob = MagicMock()
+    fake_blob.exists.return_value = True
+    fake_blob.download_as_bytes.return_value = header_only
+    fake_bucket.blob.return_value = fake_blob
+    fake_client.bucket.return_value = fake_bucket
+    fake_service = _make_play_service_mock(REVIEWS_EMPTY)
+
+    with patch(
+        "google.oauth2.service_account.Credentials.from_service_account_info",
+        return_value=fake_creds,
+    ), patch(
+        "google.cloud.storage.Client", return_value=fake_client,
+    ), patch(
+        "googleapiclient.discovery.build", return_value=fake_service,
+    ):
+        snap = play.fetch_monthly("centry", 2026, 5)
+
+    assert snap.installs is None
+    assert snap.error is not None
+    assert "месячный CSV" in snap.error

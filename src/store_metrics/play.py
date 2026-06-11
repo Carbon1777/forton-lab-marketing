@@ -77,6 +77,13 @@ _NO_DATA_ERROR: Final[str] = (
     "дни недели закроются."
 )
 
+# Monthly-path error (новая строка — _NO_DATA_ERROR завязан на blocker-паттерны
+# недельного digest и НЕ переиспользуется для месячного отчёта).
+_MONTHLY_NO_DATA_ERROR_TEMPLATE: Final[str] = (
+    "GPlay: месячный CSV за {ym} ещё не сгенерирован — Google публикует "
+    "monthly _country.csv с задержкой в несколько дней."
+)
+
 
 # ===================================================================
 # Configuration
@@ -149,6 +156,13 @@ def _get_credentials():
 def _iso_week_range(week_start: dt.date) -> tuple[dt.date, dt.date]:
     """ISO Monday → (Monday, Sunday) inclusive 7-day range."""
     return (week_start, week_start + dt.timedelta(days=6))
+
+
+def _month_range(year: int, month: int) -> tuple[dt.date, dt.date]:
+    """(первое число, последнее число) календарного месяца."""
+    first = dt.date(year, month, 1)
+    last = (first.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+    return first, last
 
 
 def _months_spanned(week_start: dt.date, week_end: dt.date) -> list[str]:
@@ -499,6 +513,109 @@ def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
         product=product,
         store="google_play",
         week_start=week_start,
+        installs=installs_final,
+        uninstalls=None,
+        rating=rating,
+        rating_count=None,
+        top_country=top_cc,
+        top_country_share=share,
+        error=error,
+    )
+
+
+def fetch_monthly(product: Product, year: int, month: int) -> StoreSnapshot:
+    """Fetch installs + rating за календарный месяц (Google Play).
+
+    Месяц = ровно ОДИН месячный CSV-блоб ``installs_<pkg>_<YYYYMM>_country.csv``;
+    парсится существующим :func:`_parse_installs_csv` с диапазоном
+    [1-е, последнее число месяца]. Блоб отсутствует / header-only →
+    installs=None + месячная error-строка (НЕ недельный ``_NO_DATA_ERROR``).
+    ``week_start`` снапшота = первое число месяца. Never raises.
+    """
+    month_first, month_last = _month_range(year, month)
+    yyyymm = f"{year}{month:02d}"
+
+    if not _is_configured():
+        return StoreSnapshot(
+            product=product,
+            store="google_play",
+            week_start=month_first,
+            installs=_MOCK_INSTALLS.get(product),
+            rating=4.6 if product == "centry" else 4.5,
+            top_country="RU",
+            top_country_share=0.72,
+        )
+
+    developer_id = os.environ["GPLAY_DEVELOPER_ID"].strip()
+    try:
+        package = _package_for(product)
+    except RuntimeError:
+        return StoreSnapshot(
+            product=product,
+            store="google_play",
+            week_start=month_first,
+            installs=None,
+            error=f"GPLAY_PACKAGE_{product.upper()} не задан — добавьте в GH Secrets",
+        )
+
+    # Lazy import — only loaded when we hit the real path.
+    from google.api_core import exceptions as gcp_exc
+
+    try:
+        credentials = _get_credentials()
+    except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+        return StoreSnapshot(
+            product=product,
+            store="google_play",
+            week_start=month_first,
+            installs=None,
+            error=f"credentials build failed: {exc}",
+        )
+
+    # ----- Installs (один месячный country CSV) -----
+    installs_final: int | None = None
+    merged_by_country: dict[str, int] = {}
+    try:
+        csv_bytes = _fetch_installs_csv(
+            credentials, developer_id, package, yyyymm,
+        )
+        if csv_bytes is not None:
+            month_total, month_by_cc = _parse_installs_csv(
+                csv_bytes, package, month_first, month_last,
+            )
+            if month_total is not None:
+                installs_final = month_total
+                merged_by_country = month_by_cc
+    except gcp_exc.Forbidden as exc:
+        return StoreSnapshot(
+            product=product,
+            store="google_play",
+            week_start=month_first,
+            installs=None,
+            error=f"GCS access denied (check SA permissions): {exc}",
+        )
+
+    top_cc, share = _top_country(merged_by_country)
+
+    # ----- Reviews (androidpublisher) — мягкая деградация -----
+    rating: float | None = None
+    try:
+        rating, _count = _fetch_reviews(credentials, package)
+    except Exception as exc:  # noqa: BLE001 — degrade per-call
+        sys.stderr.write(
+            f"WARN: Play reviews fetch failed for {package}: {exc!r}\n"
+        )
+
+    error = (
+        None
+        if installs_final is not None
+        else _MONTHLY_NO_DATA_ERROR_TEMPLATE.format(ym=f"{year}-{month:02d}")
+    )
+
+    return StoreSnapshot(
+        product=product,
+        store="google_play",
+        week_start=month_first,
         installs=installs_final,
         uninstalls=None,
         rating=rating,

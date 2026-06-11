@@ -895,3 +895,140 @@ def test_fetch_weekly_missing_app_id_env_degrades_gracefully(monkeypatch):
     assert snap.installs is None
     assert snap.error is not None
     assert "ASC_APP_ID_LAPULYA" in snap.error
+
+
+# ===================================================================
+# fetch_monthly + _fetch_installs_range — месячный контур (260611-8za)
+# ===================================================================
+
+def test_fetch_monthly_unconfigured_returns_mock(monkeypatch):
+    """Without envs → mock snapshot, week_start = первое число месяца."""
+    _set_envs(monkeypatch, all_present=False)
+    snap = asc.fetch_monthly("centry", 2026, 5)
+    assert snap.product == "centry"
+    assert snap.store == "app_store"
+    assert snap.week_start == dt.date(2026, 5, 1)
+    assert snap.installs == asc._MOCK_INSTALLS["centry"]
+    assert snap.rating == 4.7
+
+
+def test_month_range_regular_and_leap():
+    assert asc._month_range(2026, 5) == (dt.date(2026, 5, 1), dt.date(2026, 5, 31))
+    assert asc._month_range(2026, 2) == (dt.date(2026, 2, 1), dt.date(2026, 2, 28))
+    assert asc._month_range(2028, 2) == (dt.date(2028, 2, 1), dt.date(2028, 2, 29))
+    assert asc._month_range(2026, 12) == (dt.date(2026, 12, 1), dt.date(2026, 12, 31))
+
+
+def test_fetch_installs_range_filters_instances_by_month(monkeypatch):
+    """Instances вне месяца не качаются; in-month суммируются per-day."""
+    _set_installs_envs(monkeypatch)
+    REQUEST_ID = "req-m"
+    REPORT_ID = "rep-m"
+    IN_MONTH_ID = "inst-may"
+    OUT_MONTH_ID = "inst-june"
+    SEGMENT_URL = "https://s3.example.com/seg-may.gz"
+
+    tsv_rows = [
+        "Date\tCounts",
+        "2026-05-15\t7",      # matches instance proc_date → counted
+        "2026-05-16\t3",      # другой день — per-instance фильтр отбросит
+    ]
+    gz_body = _gzip_tsv(tsv_rows)
+    segment_calls: list[str] = []
+
+    def fake_fetch(url, method="GET", headers=None, params=None, **kwargs):
+        if url.endswith("/analyticsReportRequests") and method == "GET":
+            return _mk_resp(json_body={"data": [{
+                "id": REQUEST_ID,
+                "attributes": {"accessType": "ONGOING",
+                               "stoppedDueToInactivity": False},
+            }]})
+        if url.endswith(f"/analyticsReportRequests/{REQUEST_ID}/reports"):
+            return _mk_resp(json_body={"data": [{"id": REPORT_ID}]})
+        if url.endswith(f"/analyticsReports/{REPORT_ID}/instances"):
+            return _mk_resp(json_body={"data": [
+                {"id": IN_MONTH_ID,
+                 "attributes": {"granularity": "DAILY",
+                                "processingDate": "2026-05-15"}},
+                {"id": OUT_MONTH_ID,
+                 "attributes": {"granularity": "DAILY",
+                                "processingDate": "2026-06-02"}},
+            ]})
+        if url.endswith(f"/analyticsReportInstances/{IN_MONTH_ID}/segments"):
+            segment_calls.append(IN_MONTH_ID)
+            return _mk_resp(json_body={"data": [{
+                "id": "seg-1",
+                "attributes": {"url": SEGMENT_URL, "sizeInBytes": len(gz_body)},
+            }]})
+        if url.endswith(f"/analyticsReportInstances/{OUT_MONTH_ID}/segments"):
+            raise AssertionError("out-of-month instance must not be downloaded")
+        raise AssertionError(f"unexpected url {url}")
+
+    def fake_get(url, timeout=None, **kwargs):
+        assert url == SEGMENT_URL
+        return _mk_resp(content=gz_body)
+
+    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch), \
+         patch.object(asc.requests, "get", side_effect=fake_get):
+        installs, error = asc._fetch_installs_range(
+            APPLE_ID_CENTRY, dt.date(2026, 5, 1), dt.date(2026, 5, 31),
+        )
+
+    assert error is None
+    assert installs == 7   # только строка за proc_date instance (2026-05-15)
+    assert segment_calls == [IN_MONTH_ID]
+
+
+def test_fetch_installs_week_wrapper_delegates_seven_day_range(monkeypatch):
+    """_fetch_installs(week_start) == range(week_start, week_start+6) — контракт недельного контура."""
+    captured: dict[str, object] = {}
+
+    def fake_range(app_id, start_date, end_date):
+        captured["args"] = (app_id, start_date, end_date)
+        return (42, None)
+
+    with patch.object(asc, "_fetch_installs_range", side_effect=fake_range):
+        installs, error = asc._fetch_installs(APPLE_ID_CENTRY, WEEK_W20)
+
+    assert installs == 42
+    assert error is None
+    assert captured["args"] == (
+        APPLE_ID_CENTRY, WEEK_W20, WEEK_W20 + dt.timedelta(days=6),
+    )
+
+
+def test_fetch_monthly_no_installs_key_returns_error(monkeypatch):
+    """App-id envs есть, ключа installs нет → installs=None + no-key error."""
+    _set_envs(monkeypatch, all_present=True)
+    monkeypatch.delenv("ASC_KEY_ID", raising=False)
+    monkeypatch.delenv("ASC_PRIVATE_KEY", raising=False)
+
+    with patch.object(asc, "_fetch_rss_ratings", return_value=(4.5, 10)):
+        snap = asc.fetch_monthly("centry", 2026, 5)
+
+    assert snap.week_start == dt.date(2026, 5, 1)
+    assert snap.installs is None
+    assert snap.error == asc._INSTALLS_NO_KEY_ERROR
+    assert snap.rating == pytest.approx(4.5)
+
+
+def test_fetch_monthly_configured_uses_month_range(monkeypatch):
+    """Configured → _fetch_installs_range зовётся с [1-е, последнее число месяца]."""
+    _set_envs(monkeypatch, all_present=True)
+    _set_installs_envs(monkeypatch)
+    captured: dict[str, object] = {}
+
+    def fake_range(app_id, start_date, end_date):
+        captured["args"] = (app_id, start_date, end_date)
+        return (55, None)
+
+    with patch.object(asc, "_fetch_installs_range", side_effect=fake_range), \
+         patch.object(asc, "_fetch_rss_ratings", return_value=(None, 0)):
+        snap = asc.fetch_monthly("centry", 2026, 5)
+
+    assert captured["args"] == (
+        APPLE_ID_CENTRY, dt.date(2026, 5, 1), dt.date(2026, 5, 31),
+    )
+    assert snap.installs == 55
+    assert snap.error is None
+    assert snap.week_start == dt.date(2026, 5, 1)

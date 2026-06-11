@@ -489,6 +489,81 @@ def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
     )
 
 
+def _month_range(year: int, month: int) -> tuple[dt.date, dt.date]:
+    """(первое число, последнее число) календарного месяца."""
+    first = dt.date(year, month, 1)
+    last = (first.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+    return first, last
+
+
+def fetch_monthly(product: Product, year: int, month: int) -> StoreSnapshot:
+    """Fetch installs (stub) + rating за календарный месяц (RuStore).
+
+    installs всегда None + ``_INSTALLS_LIMITATION_ERROR`` (Mail.ru constraint —
+    Public API не отдаёт статистику, Brain Q3 2026-05-14). Рейтинг через
+    JWS auth + reviews API; данные от дат не зависят (текущий рейтинг).
+    ``week_start`` снапшота = первое число месяца. Never raises.
+    """
+    month_first, _month_last = _month_range(year, month)
+
+    if not _is_configured():
+        return StoreSnapshot(
+            product=product,
+            store="rustore",
+            week_start=month_first,
+            installs=_MOCK_INSTALLS.get(product),
+            rating=4.8 if product == "centry" else 4.7,
+            top_country="RU",
+            top_country_share=0.95,
+        )
+
+    try:
+        package = _package_for(product)
+    except RuntimeError:
+        return StoreSnapshot(
+            product=product,
+            store="rustore",
+            week_start=month_first,
+            installs=None,
+            error=f"RUSTORE_PACKAGE_{product.upper()} не задан — добавьте в GH Secrets",
+        )
+
+    # ----- Installs — Mail.ru limitation (см. fetch_weekly) -----
+    installs: int | None = None
+    installs_error = _INSTALLS_LIMITATION_ERROR
+
+    # ----- Rating (JWS reviews API) -----
+    rating: float | None = None
+    rating_error: str | None = None
+    try:
+        bearer = _cached_token()
+        rating, _count = _fetch_reviews(bearer, package)
+    except Exception as exc:  # noqa: BLE001 — degrade gracefully
+        rating = None
+        rating_error = f"RuStore reviews API: {exc}"
+        sys.stderr.write(
+            f"WARN: RuStore rating fetch failed for {package}: {exc!r}\n"
+        )
+
+    if rating_error:
+        error = f"{installs_error}; {rating_error}"
+    else:
+        error = installs_error
+
+    return StoreSnapshot(
+        product=product,
+        store="rustore",
+        week_start=month_first,
+        installs=installs,
+        uninstalls=None,
+        rating=rating,
+        rating_count=None,
+        top_country=None,
+        top_country_share=None,
+        error=error,
+    )
+
+
 def fetch_previous(product: Product, week_start: dt.date) -> StoreSnapshot:
     """Same as fetch_weekly but shifted one week back."""
     if not _is_configured():
