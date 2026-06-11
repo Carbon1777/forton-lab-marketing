@@ -11,7 +11,7 @@ name: monthly_report
 # Snapshot коммитится обратно в repo через BOT_DISPATCH_PAT.
 on:
   schedule:
-    - cron: "0 6 5 * *"
+    - cron: "0 14 5 * *"
   workflow_dispatch: {}
 
 permissions:
