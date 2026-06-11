@@ -261,14 +261,18 @@ centryweb.ru
 
 ```yaml
 slug: centry-jun11-leto-gorod
-channels: [tg, vk, yt]
+channels:
+- tg
+- vk
+- yt
 product: centry
 rubric: feature_video
 media:
-  - path: assets/posts/2026-06/laurel_centry_leto.mp4
-    sha256: 9641da6e6cbfca2f3f32ad39e7feae180e284c8e93c2e0b3e2336125ed0d0afd
-    role: video
-status: draft
+- path: assets/posts/2026-06/laurel_centry_leto.mp4
+  sha256: 9641da6e6cbfca2f3f32ad39e7feae180e284c8e93c2e0b3e2336125ed0d0afd
+  role: video
+status: published
+published_at: '2026-06-11T10:04:33.020667+00:00'
 ```
 
 Летом в городе хочется выбираться чаще — бар, кафе, новое место.
