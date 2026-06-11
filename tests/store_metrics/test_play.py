@@ -694,3 +694,20 @@ def test_fetch_installs_csv_strips_developer_id_for_bucket_name(monkeypatch):
     blob_path = fake_bucket.blob.call_args[0][0]
     assert "\n" not in blob_path
     assert "website.centry.app" in blob_path
+
+
+# ===================================================================
+# fetch_weekly — missing package env degrades gracefully
+# ===================================================================
+
+def test_fetch_weekly_missing_package_env_degrades_gracefully(monkeypatch):
+    """GPLAY_PACKAGE_LAPULYA not set → StoreSnapshot(installs=None, error с именем env)."""
+    _set_envs(monkeypatch, mode="raw")
+    monkeypatch.delenv("GPLAY_PACKAGE_LAPULYA", raising=False)
+
+    snap = play.fetch_weekly("lapulya", dt.date(2026, 5, 11))
+    assert snap.product == "lapulya"
+    assert snap.store == "google_play"
+    assert snap.installs is None
+    assert snap.error is not None
+    assert "GPLAY_PACKAGE_LAPULYA" in snap.error

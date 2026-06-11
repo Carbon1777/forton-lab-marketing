@@ -695,3 +695,24 @@ def test_authenticate_strips_key_id_for_signing(monkeypatch, tmp_path):
     assert captured["body"]["keyId"] == "2351028465"
     assert "\n" not in captured["body"]["keyId"]
     assert " " not in captured["body"]["keyId"]
+
+
+# ===================================================================
+# fetch_weekly — missing package env degrades gracefully
+# ===================================================================
+
+def test_fetch_weekly_missing_package_env_degrades_gracefully(monkeypatch):
+    """RUSTORE_PACKAGE_LAPULYA not set → StoreSnapshot(installs=None, error с именем env)."""
+    monkeypatch.setenv("RUSTORE_PRIVATE_KEY", "-----BEGIN RSA PRIVATE KEY-----\nFAKE\n-----END RSA PRIVATE KEY-----\n")
+    monkeypatch.setenv("RUSTORE_KEY_ID", "123456")
+    monkeypatch.setenv("RUSTORE_COMPANY_ID", "789")
+    monkeypatch.setenv("RUSTORE_PACKAGE_CENTRY", "website.centry.app")
+    monkeypatch.setenv("RUSTORE_PACKAGE_DIKTUM", "ru.diktumweb.diktum")
+    monkeypatch.delenv("RUSTORE_PACKAGE_LAPULYA", raising=False)
+
+    snap = rustore.fetch_weekly("lapulya", dt.date(2026, 5, 11))
+    assert snap.product == "lapulya"
+    assert snap.store == "rustore"
+    assert snap.installs is None
+    assert snap.error is not None
+    assert "RUSTORE_PACKAGE_LAPULYA" in snap.error

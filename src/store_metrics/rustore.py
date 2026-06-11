@@ -92,8 +92,8 @@ _TOKEN_CACHE: dict[str, object] = {"token": None, "expires_at": None}
 # Mock fallbacks (CLI / local dev)
 # ===================================================================
 
-_MOCK_INSTALLS: dict[Product, int] = {"centry": 4, "diktum": 2}
-_MOCK_PREV: dict[Product, int] = {"centry": 3, "diktum": 5}
+_MOCK_INSTALLS: dict[Product, int] = {"centry": 4, "diktum": 2, "lucea": 1, "lapulya": 2, "unia": 1}
+_MOCK_PREV: dict[Product, int] = {"centry": 3, "diktum": 5, "lucea": 0, "lapulya": 1, "unia": 0}
 
 _REQUIRED_BASE_ENVS: Final[tuple[str, ...]] = (
     "RUSTORE_KEY_ID",
@@ -435,7 +435,16 @@ def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
             top_country_share=0.95,
         )
 
-    package = _package_for(product)
+    try:
+        package = _package_for(product)
+    except RuntimeError:
+        return StoreSnapshot(
+            product=product,
+            store="rustore",
+            week_start=week_start,
+            installs=None,
+            error=f"RUSTORE_PACKAGE_{product.upper()} не задан — добавьте в GH Secrets",
+        )
 
     # ----- Installs (RuStore Public API — Mail.ru limitation) -----
     # RuStore Public API НЕ предоставляет installs/stats endpoints

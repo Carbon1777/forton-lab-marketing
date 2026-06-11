@@ -59,8 +59,8 @@ _PLAY_REVIEWS_SCOPE: Final[str] = "https://www.googleapis.com/auth/androidpublis
 # Last-7-days volume для двух продуктов студии far below this.
 _REVIEWS_PAGE_CAP: Final[int] = 200
 
-_MOCK_INSTALLS: dict[Product, int] = {"centry": 11, "diktum": 9}
-_MOCK_PREV: dict[Product, int] = {"centry": 16, "diktum": 15}
+_MOCK_INSTALLS: dict[Product, int] = {"centry": 11, "diktum": 9, "lucea": 3, "lapulya": 5, "unia": 2}
+_MOCK_PREV: dict[Product, int] = {"centry": 16, "diktum": 15, "lucea": 2, "lapulya": 3, "unia": 1}
 
 _REQUIRED_BASE_ENVS: Final[tuple[str, ...]] = (
     "GPLAY_DEVELOPER_ID",
@@ -419,7 +419,16 @@ def fetch_weekly(product: Product, week_start: dt.date) -> StoreSnapshot:
         )
 
     developer_id = os.environ["GPLAY_DEVELOPER_ID"].strip()
-    package = _package_for(product)
+    try:
+        package = _package_for(product)
+    except RuntimeError:
+        return StoreSnapshot(
+            product=product,
+            store="google_play",
+            week_start=week_start,
+            installs=None,
+            error=f"GPLAY_PACKAGE_{product.upper()} не задан — добавьте в GH Secrets",
+        )
     week_start_d, week_end_d = _iso_week_range(week_start)
     months = _months_spanned(week_start_d, week_end_d)
 
