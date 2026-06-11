@@ -1,0 +1,74 @@
+name: monthly_report
+
+# Ежемесячный per-app отчёт за предыдущий полный месяц с MoM-сравнением.
+# Отправляет отдельное сообщение на каждый продукт в TG-канал «Планировщик».
+# Источники: AppMetrica (installs/активность/воронка/экраны) + Supabase
+# (регистрации→активация для Centry/Diktum).
+#
+# Cron: 5-е число каждого месяца 06:00 UTC = 09:00 МСК.
+# Sub-hour offset не нужен (0 мин) — нет конкурентных ежемесячных запусков.
+#
+# Snapshot коммитится обратно в repo через BOT_DISPATCH_PAT.
+on:
+  schedule:
+    - cron: "0 6 5 * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: monthly-report
+  cancel-in-progress: false
+
+jobs:
+  collect-and-send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.BOT_DISPATCH_PAT }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Collect + render + send monthly per-app report
+        env:
+          # ------------ TG ------------
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+
+          # ------------ AppMetrica — installs/активность/воронка/экраны ----------
+          APPMETRICA_OAUTH_TOKEN: ${{ secrets.APPMETRICA_OAUTH_TOKEN }}
+
+          # ------------ Supabase — регистрации → активация (Centry + Diktum) ----
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL_CENTRY: ${{ secrets.SUPABASE_URL_CENTRY }}
+          SUPABASE_SERVICE_ROLE_KEY_CENTRY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CENTRY }}
+        run: PYTHONPATH=. python -m src.monthly_report.cli
+
+      - name: Commit updated monthly snapshots
+        env:
+          GIT_AUTHOR_NAME: forton-metrics-bot
+          GIT_AUTHOR_EMAIL: forton-metrics-bot@users.noreply.github.com
+          GIT_COMMITTER_NAME: forton-metrics-bot
+          GIT_COMMITTER_EMAIL: forton-metrics-bot@users.noreply.github.com
+        run: |
+          git add .metrics/monthly_snapshots.json
+          if git diff --cached --quiet -- .metrics/monthly_snapshots.json; then
+            echo "snapshot unchanged — no commit"
+            exit 0
+          fi
+          git commit -m "auto: monthly report snapshot [skip ci]"
+          git pull --rebase
+          git push
