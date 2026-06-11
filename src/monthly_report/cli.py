@@ -24,6 +24,8 @@ from src.hybrid_report.models import (
     ProductReport,
     RegActivation,
 )
+from src.store_metrics import asc, play, rustore
+from src.store_metrics.models import StoreSnapshot
 from src.centry_funnel import supabase_src as centry_db
 from src.diktum_funnel import supabase_src as diktum_db
 from . import snapshot
@@ -32,6 +34,47 @@ from .render import render_monthly_report
 SNAPSHOTS_PATH: Final[Path] = Path(".metrics/monthly_snapshots.json")
 
 _ORGANIC_NAME = "Органика"
+
+# Имя стора → модуль — функцию fetch_monthly берём по атрибуту в момент
+# вызова, чтобы patch.object(cli.<mod>, "fetch_monthly") работал в тестах
+# (паттерн hybrid_report/gather.py::_STORE_MODULES).
+_STORE_MODULES = [
+    ("app_store", asc),
+    ("google_play", play),
+    ("rustore", rustore),
+]
+
+
+def _collect_stores(
+    product_key: str, month_start: dt.date
+) -> tuple[list[StoreSnapshot], str | None]:
+    """Каждый стор в своём try. error — если ВСЕ упали.
+
+    Копия hybrid_report/gather.py::_collect_stores, но месячный контур:
+    module.fetch_monthly(product, year, month). Недельный gather не трогаем
+    (изоляция контуров).
+    """
+    snaps: list[StoreSnapshot] = []
+    failures = 0
+    for store_name, module in _STORE_MODULES:
+        try:
+            snaps.append(module.fetch_monthly(
+                product_key, month_start.year, month_start.month,
+            ))
+        except Exception as exc:  # noqa: BLE001
+            failures += 1
+            sys.stderr.write(
+                f"WARN: store {store_name} monthly failed: "
+                f"{type(exc).__name__}: {str(exc)[:80]}\n"
+            )
+            snaps.append(StoreSnapshot(
+                product=product_key,  # type: ignore[arg-type]
+                store=store_name,  # type: ignore[arg-type]
+                week_start=month_start, installs=None,
+                error=f"{type(exc).__name__}: {str(exc)[:80]}",
+            ))
+    store_error = "all stores failed" if failures == len(_STORE_MODULES) else None
+    return snaps, store_error
 
 
 def _report_month(today: dt.date) -> tuple[dt.date, dt.date]:
@@ -85,6 +128,7 @@ def _collect_reg(spec, start: dt.date, end: dt.date) -> RegActivation:
 
 def _gather_product_monthly(spec, month_start: dt.date, month_end: dt.date, data: dict) -> ProductReport:
     """Собрать все источники за месяц. Never-raises per источник."""
+    store_snaps, store_error = _collect_stores(spec.key, month_start)
     am_total, am_organic, am_ads, am_pub, am_err = _collect_installs(
         spec, month_start, month_end
     )
@@ -104,8 +148,8 @@ def _gather_product_monthly(spec, month_start: dt.date, month_end: dt.date, data
         spec=spec,
         week_start=month_start,
         week_end=month_end,
-        store_snaps=[],
-        store_error=None,
+        store_snaps=store_snaps,
+        store_error=store_error,
         am_installs_total=am_total,
         am_installs_organic=am_organic,
         am_installs_ads=am_ads,

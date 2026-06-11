@@ -3,7 +3,8 @@
 Идентичен hybrid_report.render по стилю (plain text, без эмодзи, без %).
 Отличия:
   - Заголовок: «App — отчёт за [месяц] [год]»
-  - Блок 1 (сторы): заглушка «в недельных отчётах»
+  - Блок 1 (сторы): реальные установки за месяц (ASC Analytics + GPlay CSV)
+    + честная фраза про RuStore (Mail.ru не отдаёт installs через API)
   - Блок 8: MoM вместо WoW
 """
 from __future__ import annotations
@@ -43,8 +44,57 @@ def _month_label(d: dt.date) -> str:
     return f"{_MONTHS_RU_NOM[d.month]} {d.year}"
 
 
-def _block_stores(_r: ProductReport) -> str:
-    return "Скачивания по сторам: разбивка по сторам доступна в недельных отчётах."
+_STORE_ORDER = [
+    ("app_store", "App Store"),
+    ("google_play", "Google Play"),
+    ("rustore", "RuStore"),
+]
+
+_RUSTORE_LIMITATION_PHRASE = (
+    "RuStore не отдаёт установки через API (ограничение Mail.ru)"
+)
+
+
+def _block_stores(r: ProductReport) -> str:
+    """Установки за месяц по сторам — word-based, без эмодзи и знака %.
+
+    RuStore без числа → честная фраза-констрейнт (не «нет данных»). Если
+    RuStore вдруг даст число (mock-режим / будущий API) — рендерим число.
+    Суффикс «(без RuStore)» у итога — только когда RuStore без числа.
+    """
+    if not r.store_snaps:
+        return "Скачивания по сторам: данные собираются."
+    by_store = {s.store: s for s in r.store_snaps}
+    parts: list[str] = []
+    total = 0
+    have_any = False
+    rustore_counted = False
+    for store_key, label in _STORE_ORDER:
+        snap = by_store.get(store_key)
+        installs = snap.installs if snap else None
+        if installs is None:
+            if store_key == "rustore":
+                parts.append(_RUSTORE_LIMITATION_PHRASE)
+            else:
+                parts.append(f"{label} — нет данных")
+        else:
+            parts.append(f"{label} — {installs}")
+            total += installs
+            have_any = True
+            if store_key == "rustore":
+                rustore_counted = True
+    line = "Скачивания по сторам: " + ", ".join(parts) + "."
+    if have_any:
+        suffix = "" if rustore_counted else " (без RuStore)"
+        line += f" Всего за месяц {total}{suffix}."
+    ratings: list[str] = []
+    for store_key, label in _STORE_ORDER:
+        snap = by_store.get(store_key)
+        if snap and snap.rating is not None:
+            ratings.append(f"{label} {round(snap.rating, 1)}")
+    if ratings:
+        line += " Рейтинг: " + ", ".join(ratings) + "."
+    return line
 
 
 def _block_am_installs(r: ProductReport) -> str:
