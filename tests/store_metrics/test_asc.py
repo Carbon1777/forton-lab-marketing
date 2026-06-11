@@ -262,7 +262,7 @@ def test_fetch_installs_happy_path(monkeypatch):
         installs, error = asc._fetch_installs(APPLE_ID_CENTRY, WEEK_W20)
 
     assert error is None
-    assert installs == 12   # 7 + 5, 100 excluded
+    assert installs == 5   # processingDate=05-13 → only row for 05-13; 05-12 and 100 excluded
 
 
 def test_fetch_installs_creates_request_when_none_exists(monkeypatch):
@@ -429,7 +429,7 @@ def test_fetch_installs_sums_multiple_segments(monkeypatch):
         installs, error = asc._fetch_installs(APPLE_ID_CENTRY, WEEK_W20)
 
     assert error is None
-    assert installs == 12   # 3 + 9
+    assert installs == 3   # processingDate=05-12 → seg A(05-12)=3, seg B(05-14) ignored
 
 
 # ===================================================================
@@ -438,12 +438,13 @@ def test_fetch_installs_sums_multiple_segments(monkeypatch):
 
 def test_parse_segment_tsv_picks_first_matching_count_column():
     text = "Date\tCounts\n2026-05-12\t4\n2026-05-13\t6"
-    assert asc._parse_segment_tsv(text, WEEK_W20) == 10
+    # Only 05-12 matches target_date → 4, not 10
+    assert asc._parse_segment_tsv(text, dt.date(2026, 5, 12)) == 4
 
 
-def test_parse_segment_tsv_filters_by_week():
-    text = "Date\tCounts\n2026-05-04\t999\n2026-05-12\t4"  # 05-04 is prev week
-    assert asc._parse_segment_tsv(text, WEEK_W20) == 4
+def test_parse_segment_tsv_filters_by_target_date():
+    text = "Date\tCounts\n2026-05-04\t999\n2026-05-12\t4"  # 05-04 is a different date
+    assert asc._parse_segment_tsv(text, dt.date(2026, 5, 12)) == 4
 
 
 def test_parse_segment_tsv_tolerates_garbage_rows():
@@ -455,17 +456,17 @@ def test_parse_segment_tsv_tolerates_garbage_rows():
         "\n"                    # empty
         "short\n"               # too few cols
     )
-    assert asc._parse_segment_tsv(text, WEEK_W20) == 8
+    assert asc._parse_segment_tsv(text, dt.date(2026, 5, 12)) == 8
 
 
 def test_parse_segment_tsv_missing_columns_returns_zero():
     text = "Foo\tBar\n2026-05-12\t4"
-    assert asc._parse_segment_tsv(text, WEEK_W20) == 0
+    assert asc._parse_segment_tsv(text, dt.date(2026, 5, 12)) == 0
 
 
 def test_parse_segment_tsv_accepts_float_counts():
     text = "Date\tUnits\n2026-05-12\t12.0"
-    assert asc._parse_segment_tsv(text, WEEK_W20) == 12
+    assert asc._parse_segment_tsv(text, dt.date(2026, 5, 12)) == 12
 
 
 # ===================================================================
@@ -703,7 +704,7 @@ def test_fetch_weekly_integrates_installs(monkeypatch):
          patch.object(asc.requests, "get", side_effect=fake_get):
         snap = asc.fetch_weekly("centry", WEEK_W20)
 
-    assert snap.installs == 20   # 11 + 9
+    assert snap.installs == 9   # processingDate=05-15 → only row for 05-15; 05-12 excluded
     assert snap.error is None
     assert snap.rating is not None  # RSS still works
 
@@ -811,3 +812,86 @@ def test_fetch_previous_shifts_week_by_7_days(monkeypatch):
     assert snap.week_start == dt.date(2026, 5, 4)
     assert snap.installs is None
     assert snap.error is not None
+
+
+# ===================================================================
+# Regression: no duplicate count across instances (per-date filtering)
+# ===================================================================
+
+def test_fetch_installs_no_duplicate_count_across_instances(monkeypatch):
+    """Two instances, each TSV has rows for BOTH processing dates.
+
+    Without per-date filtering, each instance would count the other
+    instance's rows too → 36 instead of correct 18.
+    With per-date filtering: inst-1(proc=06-01) → only 06-01 row = 10;
+    inst-2(proc=06-02) → only 06-02 row = 8; total = 18.
+    """
+    _set_installs_envs(monkeypatch)
+    REQUEST_ID = "req-reg"
+    REPORT_ID = "rep-reg"
+    INST_ID_1 = "inst-reg-1"
+    INST_ID_2 = "inst-reg-2"
+    URL_1 = "https://s3.example.com/reg1.gz"
+    URL_2 = "https://s3.example.com/reg2.gz"
+
+    # Both TSVs contain rows for BOTH dates (simulating Apple including all days)
+    gz_both = _gzip_tsv(["Date\tCounts", "2026-06-01\t10", "2026-06-02\t8"])
+
+    WEEK_START = dt.date(2026, 6, 1)   # Mon 2026-06-01; 06-01 and 06-02 are Mon+Tue of this week
+
+    def fake_fetch(url, method="GET", headers=None, params=None, **kwargs):
+        if url.endswith("/analyticsReportRequests") and method == "GET":
+            return _mk_resp(json_body={"data": [{
+                "id": REQUEST_ID,
+                "attributes": {"accessType": "ONGOING",
+                               "stoppedDueToInactivity": False},
+            }]})
+        if url.endswith(f"/analyticsReportRequests/{REQUEST_ID}/reports"):
+            return _mk_resp(json_body={"data": [{"id": REPORT_ID}]})
+        if url.endswith(f"/analyticsReports/{REPORT_ID}/instances"):
+            return _mk_resp(json_body={"data": [
+                {"id": INST_ID_1, "attributes": {"processingDate": "2026-06-01"}},
+                {"id": INST_ID_2, "attributes": {"processingDate": "2026-06-02"}},
+            ]})
+        if url.endswith(f"/analyticsReportInstances/{INST_ID_1}/segments"):
+            return _mk_resp(json_body={"data": [
+                {"id": "s1", "attributes": {"url": URL_1}},
+            ]})
+        if url.endswith(f"/analyticsReportInstances/{INST_ID_2}/segments"):
+            return _mk_resp(json_body={"data": [
+                {"id": "s2", "attributes": {"url": URL_2}},
+            ]})
+        raise AssertionError(f"unexpected url {url}")
+
+    def fake_get(url, timeout=None, **kwargs):
+        return _mk_resp(content=gz_both)  # same body for both instances
+
+    with patch.object(asc._http, "fetch_with_retry", side_effect=fake_fetch), \
+         patch.object(asc.requests, "get", side_effect=fake_get):
+        installs, error = asc._fetch_installs(APPLE_ID_CENTRY, WEEK_START)
+
+    assert error is None
+    assert installs == 18  # 10 (06-01) + 8 (06-02), NOT 36
+
+
+# ===================================================================
+# fetch_weekly — missing app_id env degrades gracefully
+# ===================================================================
+
+def test_fetch_weekly_missing_app_id_env_degrades_gracefully(monkeypatch):
+    """ASC_APP_ID_LAPULYA not set → StoreSnapshot(installs=None, error с именем env).
+
+    Base envs (CENTRY/DIKTUM app-ids) are set, but lapulya is absent.
+    fetch_weekly("lapulya", ...) must return a snapshot, not raise RuntimeError.
+    """
+    _set_envs(monkeypatch, all_present=True)
+    _set_installs_envs(monkeypatch)
+    monkeypatch.delenv("ASC_APP_ID_LAPULYA", raising=False)
+
+    snap = asc.fetch_weekly("lapulya", WEEK_W20)
+
+    assert snap.product == "lapulya"
+    assert snap.store == "app_store"
+    assert snap.installs is None
+    assert snap.error is not None
+    assert "ASC_APP_ID_LAPULYA" in snap.error
