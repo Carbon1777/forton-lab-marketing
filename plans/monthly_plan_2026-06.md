@@ -285,14 +285,18 @@ centryweb.ru
 
 ```yaml
 slug: forton-jun12-den-rossii
-channels: [tg, vk, dzen]
+channels:
+- tg
+- vk
+- dzen
 product: forton-lab
 rubric: holiday
 media:
-  - path: assets/posts/2026-06/forton-jun12-den-rossii.png
-    sha256: fec244cb31fc7e1c1060352fab037a2ca057f824361b7401e6d370186d05f84c
-    role: image
-status: draft
+- path: assets/posts/2026-06/forton-jun12-den-rossii.png
+  sha256: fec244cb31fc7e1c1060352fab037a2ca057f824361b7401e6d370186d05f84c
+  role: image
+status: published
+published_at: '2026-06-12T12:47:46.796239+00:00'
 ```
 
 С Днём России.
