@@ -309,11 +309,14 @@ fortonlab.ru
 
 ```yaml
 slug: lucea-jun13-namek2
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: forton-lab
 rubric: teaser
 media: []
-status: draft
+status: published
+published_at: '2026-06-13T10:54:15.853843+00:00'
 ```
 
 Представь собеседника, которому можно проговорить что угодно вслух.
