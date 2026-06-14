@@ -331,14 +331,18 @@ fortonlab.ru
 
 ```yaml
 slug: diktum-jun14-zvuchish-slabo
-channels: [tg, vk, yt]
+channels:
+- tg
+- vk
+- yt
 product: diktum
 rubric: feature_video
 media:
-  - path: assets/posts/2026-06/diktum_zvuchish_slabo.mp4
-    sha256: 3ba2e15b8905933d10a37f22fe78c04e53102a6e6be530da135f3b9b7a014c77
-    role: video
-status: draft
+- path: assets/posts/2026-06/diktum_zvuchish_slabo.mp4
+  sha256: 3ba2e15b8905933d10a37f22fe78c04e53102a6e6be530da135f3b9b7a014c77
+  role: video
+status: published
+published_at: '2026-06-14T09:44:28.604902+00:00'
 ```
 
 «Ты звучишь слабо» — слышать это неприятно. Но обычно мы просто не замечаем, как звучим со стороны.
