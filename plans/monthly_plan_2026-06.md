@@ -418,7 +418,7 @@ status: draft
 
 luceaweb.ru
 
-## 2026-06-22
+## 2026-06-23
 
 ```yaml
 slug: lucea-jun18-kak-rabotaet
@@ -443,6 +443,26 @@ luceaweb.ru
 ## 2026-06-19
 
 ```yaml
+slug: forton-jun19-osnova-5-app
+channels: [tg, vk, yt]
+product: forton-lab
+rubric: announcement_video
+media:
+  - path: assets/posts/2026-06/forton_osnova_5_app.mp4
+    sha256: e83d489fad3efacc31cf80c92669860038656f5f9eea65484be8310c9eeca2c3
+    role: video
+status: draft
+```
+
+Основатель Forton Lab — о пяти приложениях студии.
+
+Centry, Diktum, Lucea, Unia, Лапуля. Что это, как возникло и куда движется.
+
+fortonlab.ru
+
+## 2026-06-20
+
+```yaml
 slug: centry-jun19-plan-za-2-min
 channels: [tg, vk]
 product: centry
@@ -459,7 +479,7 @@ status: draft
 
 centryweb.ru
 
-## 2026-06-20
+## 2026-06-21
 
 ```yaml
 slug: diktum-jun20-uslysh-sebya
@@ -481,7 +501,7 @@ status: draft
 
 diktumweb.ru
 
-## 2026-06-21
+## 2026-06-22
 
 ```yaml
 slug: centry-jun21-kogo-pozvat
@@ -502,7 +522,7 @@ status: draft
 centryweb.ru
 
 
-## 2026-06-23
+## 2026-06-24
 
 ```yaml
 slug: diktum-jun23-golos-drozhit
@@ -524,7 +544,7 @@ Diktum даёт это повторение — спокойно, наедине
 
 diktumweb.ru
 
-## 2026-06-24
+## 2026-06-25
 
 ```yaml
 slug: centry-jun24-reyting-mest
@@ -546,7 +566,7 @@ status: draft
 
 centryweb.ru
 
-## 2026-06-25
+## 2026-06-26
 
 ```yaml
 slug: diktum-jun25-vpechatlenie
@@ -566,24 +586,6 @@ status: draft
 
 diktumweb.ru
 
-## 2026-06-26
-
-```yaml
-slug: forton-jun26-3-produkta
-channels: [tg, vk]
-product: forton-lab
-rubric: philosophy
-media: []
-status: draft
-```
-
-Почему студия делает три разных приложения, а не одно большое.
-
-Centry — про встречи. Diktum — про речь. Третье — про тебя самого.
-
-Каждое решает одну задачу и делает это хорошо. Мы верим в инструменты, а не в комбайны, которые умеют всё и ничего.
-
-fortonlab.ru
 
 
 ## 2026-06-28
