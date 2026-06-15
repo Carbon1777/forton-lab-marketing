@@ -23,5 +23,22 @@
     "unia": {
       "am_installs_total": 6
     }
+  },
+  "2026-W24": {
+    "centry": {
+      "am_installs_total": 3
+    },
+    "diktum": {
+      "am_installs_total": 34
+    },
+    "lapulya": {
+      "am_installs_total": 20
+    },
+    "lucea": {
+      "am_installs_total": 25
+    },
+    "unia": {
+      "am_installs_total": 58
+    }
   }
 }
