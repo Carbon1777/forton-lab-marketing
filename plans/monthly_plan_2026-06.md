@@ -377,7 +377,7 @@ published_at: '2026-06-15T09:05:39.399751+00:00'
 
 centryweb.ru
 
-## 2026-06-16
+## 2026-06-17
 
 ```yaml
 slug: diktum-jun16-trend-hr
@@ -396,7 +396,7 @@ status: draft
 
 diktumweb.ru
 
-## 2026-06-17
+## 2026-06-16
 
 ```yaml
 slug: lucea-jun17-anons
@@ -418,7 +418,7 @@ status: draft
 
 luceaweb.ru
 
-## 2026-06-18
+## 2026-06-22
 
 ```yaml
 slug: lucea-jun18-kak-rabotaet
@@ -501,24 +501,6 @@ status: draft
 
 centryweb.ru
 
-## 2026-06-22
-
-```yaml
-slug: lucea-jun22-5-dney
-channels: [tg, vk]
-product: forton-lab
-rubric: feature_explainer
-media: []
-status: draft
-```
-
-В Lucea первые дни — бесплатно.
-
-Несколько разговоров, чтобы понять, твоё это или нет. Без карты на старте, без обязательств.
-
-Запуск совсем близко. Следи здесь.
-
-luceaweb.ru
 
 ## 2026-06-23
 
@@ -603,27 +585,6 @@ Centry — про встречи. Diktum — про речь. Третье — �
 
 fortonlab.ru
 
-## 2026-06-27
-
-```yaml
-slug: lucea-jun27-skoro
-channels: [tg, vk, dzen]
-product: forton-lab
-rubric: teaser
-media:
-  - path: assets/posts/2026-06/lucea-jun27-skoro.png
-    sha256: ab6cd35bba579eeb5ce27b0215158b3d1ea3db21959081d8dec4757f2d75700b
-    role: image
-status: draft
-```
-
-Lucea — совсем скоро.
-
-Голос, который помогает понять себя. Уже на финишной прямой.
-
-Подпишись, чтобы быть среди первых.
-
-luceaweb.ru
 
 ## 2026-06-28
 
@@ -645,7 +606,7 @@ status: draft
 
 fortonlab.ru
 
-## 2026-06-29
+## 2026-06-18
 
 ```yaml
 slug: lucea-jun29-zapusk
