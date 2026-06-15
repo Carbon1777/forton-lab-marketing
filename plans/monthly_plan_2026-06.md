@@ -355,14 +355,18 @@ diktumweb.ru
 
 ```yaml
 slug: centry-jun15-tipy-mest
-channels: [tg, vk, dzen]
+channels:
+- tg
+- vk
+- dzen
 product: centry
 rubric: feature_carousel
 media:
-  - path: assets/posts/2026-06/centry-jun15-tipy-mest.png
-    sha256: 998b8d0bc6d2b9dc2cd3b49cd537c0b35e18e9ecb9ef0ba1268488f369004f30
-    role: image
-status: draft
+- path: assets/posts/2026-06/centry-jun15-tipy-mest.png
+  sha256: 998b8d0bc6d2b9dc2cd3b49cd537c0b35e18e9ecb9ef0ba1268488f369004f30
+  role: image
+status: published
+published_at: '2026-06-15T09:05:39.399751+00:00'
 ```
 
 Лето в городе: куда звать компанию.
