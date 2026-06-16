@@ -242,6 +242,61 @@ def _move_to_published(post_path: Path) -> Path:
     return new_path
 
 
+def _is_transient_send_error(exc: BaseException) -> bool:
+    """True if a requests error on a TG send is transient/server-side — a case
+    where the message was *likely still delivered* (or where it's unsafe to
+    assume it wasn't). Telegram's hosted Bot API routinely returns 502/504 (or
+    the connection times out) on large ``sendVideo`` uploads *after* the file
+    has already been accepted and posted to the channel; blindly retrying would
+    duplicate the post.
+
+    Transient (return True): read/connect timeout, connection error,
+    chunked-encoding abort, or any HTTP 5xx.
+    Hard (return False): HTTP 4xx — 400 bad request, 413 too large, 429
+    rate-limit — these mean the message genuinely did NOT post.
+    """
+    if isinstance(exc, (
+        requests.exceptions.Timeout,
+        requests.exceptions.ConnectionError,
+        requests.exceptions.ChunkedEncodingError,
+    )):
+        return True
+    if isinstance(exc, requests.exceptions.HTTPError):
+        resp = getattr(exc, "response", None)
+        code = getattr(resp, "status_code", None)
+        return isinstance(code, int) and code >= 500
+    return False
+
+
+def _move_uncertain_to_published(
+    post: frontmatter.Post, post_path: Path, kind: str, exc: BaseException
+) -> Path:
+    """Handle a transient send error: move the queue file to published/ (so
+    VK/YouTube/commit/report downstream still run), tag the frontmatter with
+    ``tg_delivery: uncertain`` + a short reason, and warn loudly so the channel
+    is verified by hand. Does NOT raise — this post is not counted as a failure.
+
+    Incident 2026-06-16: a 504 on sendVideo (the video had actually delivered)
+    used to raise → main() returned 1 → GH Actions skipped VK/YouTube/commit/
+    report. This path keeps the pipeline alive on transient TG hiccups.
+    """
+    new_path = _move_to_published(post_path)
+    post.metadata["tg_delivery"] = "uncertain"
+    post.metadata["tg_uncertain_reason"] = f"{type(exc).__name__}: {str(exc)[:180]}"
+    with new_path.open("w", encoding="utf-8") as f:
+        f.write(frontmatter.dumps(post))
+    sys.stderr.write(
+        f"WARN: {post_path.name}: transient TG error on {kind} send "
+        f"({type(exc).__name__}); assuming delivered, moved to "
+        f"published/{new_path.name}. VERIFY the channel manually.\n"
+    )
+    print(
+        f"⚠ {post_path.name} → published/{new_path.name} "
+        f"(tg_delivery=uncertain, kind={kind}) — проверь канал вручную"
+    )
+    return new_path
+
+
 def publish_one(post_path: Path, token: str, chat_id: str) -> Path:
     """Publish a single queue file. Returns its new path under published/.
 
@@ -280,32 +335,43 @@ def publish_one(post_path: Path, token: str, chat_id: str) -> Path:
             "using video, ignoring image.\n"
         )
 
-    if video_rel:
-        video_path = (REPO_ROOT / video_rel).resolve()
-        if not video_path.exists():
-            raise FileNotFoundError(f"video not found: {video_path}")
-        if len(body) > TG_CAPTION_LIMIT:
-            sys.stderr.write(
-                f"WARN: {post_path.name}: caption {len(body)} > {TG_CAPTION_LIMIT}; "
-                "Telegram will reject. Consider splitting body into a follow-up text post.\n"
-            )
-        result = tg_post_video(token, chat_id, video_path, body)
-    elif image_rel:
-        image_path = (REPO_ROOT / image_rel).resolve()
-        if not image_path.exists():
-            raise FileNotFoundError(f"image not found: {image_path}")
-        if len(body) > TG_CAPTION_LIMIT:
-            sys.stderr.write(
-                f"WARN: {post_path.name}: caption {len(body)} > {TG_CAPTION_LIMIT}; "
-                "Telegram will reject. Consider splitting body and image into two posts.\n"
-            )
-        result = tg_post_photo(token, chat_id, image_path, body)
-    else:
-        if len(body) > TG_TEXT_LIMIT:
-            raise ValueError(
-                f"{post_path.name}: body {len(body)} > {TG_TEXT_LIMIT}; split into multiple posts"
-            )
-        result = tg_post_text(token, chat_id, body)
+    kind = "video" if video_rel else ("photo" if image_rel else "text")
+
+    try:
+        if video_rel:
+            video_path = (REPO_ROOT / video_rel).resolve()
+            if not video_path.exists():
+                raise FileNotFoundError(f"video not found: {video_path}")
+            if len(body) > TG_CAPTION_LIMIT:
+                sys.stderr.write(
+                    f"WARN: {post_path.name}: caption {len(body)} > {TG_CAPTION_LIMIT}; "
+                    "Telegram will reject. Consider splitting body into a follow-up text post.\n"
+                )
+            result = tg_post_video(token, chat_id, video_path, body)
+        elif image_rel:
+            image_path = (REPO_ROOT / image_rel).resolve()
+            if not image_path.exists():
+                raise FileNotFoundError(f"image not found: {image_path}")
+            if len(body) > TG_CAPTION_LIMIT:
+                sys.stderr.write(
+                    f"WARN: {post_path.name}: caption {len(body)} > {TG_CAPTION_LIMIT}; "
+                    "Telegram will reject. Consider splitting body and image into two posts.\n"
+                )
+            result = tg_post_photo(token, chat_id, image_path, body)
+        else:
+            if len(body) > TG_TEXT_LIMIT:
+                raise ValueError(
+                    f"{post_path.name}: body {len(body)} > {TG_TEXT_LIMIT}; split into multiple posts"
+                )
+            result = tg_post_text(token, chat_id, body)
+    except requests.exceptions.RequestException as exc:
+        # Transient TG-side failure (HTTP 5xx / timeout / connection drop): the
+        # message was very likely still delivered. Don't retry (would duplicate)
+        # and don't hard-fail (would abort VK/YouTube/commit/report downstream —
+        # incident 2026-06-16). Assume delivered, move on, flag for manual check.
+        if _is_transient_send_error(exc):
+            return _move_uncertain_to_published(post, post_path, kind, exc)
+        raise   # genuine 4xx (bad request / 413 too large / 429) → hard fail
 
     if not result.get("ok"):
         raise RuntimeError(f"Telegram API returned not-ok: {result}")
@@ -316,7 +382,6 @@ def publish_one(post_path: Path, token: str, chat_id: str) -> Path:
     PUBLISHED_DIR.mkdir(parents=True, exist_ok=True)
     post_path.rename(new_path)
     msg_id = result["result"]["message_id"]
-    kind = "video" if video_rel else ("photo" if image_rel else "text")
     print(f"✓ {post_path.name} → published/{new_name} (msg_id={msg_id}, kind={kind})")
     return new_path
 
