@@ -381,11 +381,14 @@ centryweb.ru
 
 ```yaml
 slug: diktum-jun16-trend-hr
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: diktum
 rubric: speech_tips
 media: []
-status: draft
+status: published
+published_at: '2026-06-17T09:19:12.730724+00:00'
 ```
 
 Вопрос, который всё чаще задают первым на собеседовании:
