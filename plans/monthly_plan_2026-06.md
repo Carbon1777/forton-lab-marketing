@@ -615,14 +615,19 @@ fortonlab.ru
 
 ```yaml
 slug: lucea-jun29-zapusk
-channels: [tg, vk, yt]
+channels:
+- tg
+- vk
+- yt
 product: forton-lab
 rubric: launch_video
 media:
-  - path: assets/posts/2026-06/lucea_launch.mp4
-    sha256: 5feb1dec3f7a40daaf00b5aadbc8dbde97164fdfae75d934e2c4673dd8b2a7be
-    role: video
-status: draft
+- path: assets/posts/2026-06/lucea_launch.mp4
+  sha256: 5feb1dec3f7a40daaf00b5aadbc8dbde97164fdfae75d934e2c4673dd8b2a7be
+  role: video
+status: skipped
+skipped_at: '2026-06-18T09:14:29.457661+00:00'
+skipped_via: forton-via-tg-bot
 ```
 
 Lucea — уже в сторах.
