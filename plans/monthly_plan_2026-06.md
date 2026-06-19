@@ -447,14 +447,19 @@ luceaweb.ru
 
 ```yaml
 slug: forton-jun19-osnova-5-app
-channels: [tg, vk, yt]
+channels:
+- tg
+- vk
+- yt
 product: forton-lab
 rubric: announcement_video
 media:
-  - path: assets/posts/2026-06/forton_osnova_5_app.mp4
-    sha256: e83d489fad3efacc31cf80c92669860038656f5f9eea65484be8310c9eeca2c3
-    role: video
-status: draft
+- path: assets/posts/2026-06/forton_osnova_5_app.mp4
+  sha256: e83d489fad3efacc31cf80c92669860038656f5f9eea65484be8310c9eeca2c3
+  role: video
+status: skipped
+skipped_at: '2026-06-19T09:20:58.651492+00:00'
+skipped_via: forton-via-tg-bot
 ```
 
 Основатель Forton Lab — о пяти приложениях студии.
