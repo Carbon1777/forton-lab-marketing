@@ -479,7 +479,7 @@ product: centry
 rubric: use_case
 media: []
 status: skipped
-skipped_at: '2026-06-20T17:10:02.120945+00:00'
+skipped_at: '2026-06-20T17:13:12.565625+00:00'
 skipped_via: forton-via-tg-bot
 ```
 
