@@ -472,11 +472,15 @@ fortonlab.ru
 
 ```yaml
 slug: centry-jun19-plan-za-2-min
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: centry
 rubric: use_case
 media: []
-status: draft
+status: skipped
+skipped_at: '2026-06-20T17:10:02.120945+00:00'
+skipped_via: forton-via-tg-bot
 ```
 
 Пятница. План на вечер за 2 минуты:
