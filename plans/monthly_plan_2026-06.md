@@ -495,14 +495,18 @@ centryweb.ru
 
 ```yaml
 slug: diktum-jun20-uslysh-sebya
-channels: [tg, vk, dzen]
+channels:
+- tg
+- vk
+- dzen
 product: diktum
 rubric: speech_tips
 media:
-  - path: assets/posts/2026-06/diktum-jun20-uslysh-sebya.png
-    sha256: fe4a52c3b1befdd16f018de87ed450d784f708aa939597e39431b1330fb249ca
-    role: image
-status: draft
+- path: assets/posts/2026-06/diktum-jun20-uslysh-sebya.png
+  sha256: fe4a52c3b1befdd16f018de87ed450d784f708aa939597e39431b1330fb249ca
+  role: image
+status: published
+published_at: '2026-06-21T09:58:28.095741+00:00'
 ```
 
 Попробуй сегодня: запиши себя на 30 секунд.
