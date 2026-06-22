@@ -521,14 +521,18 @@ diktumweb.ru
 
 ```yaml
 slug: centry-jun21-kogo-pozvat
-channels: [tg, vk, yt]
+channels:
+- tg
+- vk
+- yt
 product: centry
 rubric: feature_video
 media:
-  - path: assets/posts/2026-06/centry_kogo_pozvat.mp4
-    sha256: 166dd5d0b3455162ec8d3912082dbd1af79d1da68924cde00a2b5d55299a112c
-    role: video
-status: draft
+- path: assets/posts/2026-06/centry_kogo_pozvat.mp4
+  sha256: 166dd5d0b3455162ec8d3912082dbd1af79d1da68924cde00a2b5d55299a112c
+  role: video
+status: published
+published_at: '2026-06-22T11:19:03.199308+00:00'
 ```
 
 «Кого позвать?» — и снова зависание в чате.
