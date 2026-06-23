@@ -156,6 +156,7 @@ class PlanEntry:
     media: list[Media]
     status: str
     content: str
+    verbatim: bool = False  # если True — публиковать content как есть, без Claude-генерации
 
 
 @dataclasses.dataclass(frozen=True)
@@ -279,6 +280,7 @@ def parse_plan_text(text: str, plan_path_for_meta: Path) -> Plan:
                 media=media,
                 status=str(meta.get("status", "draft")),
                 content=content,
+                verbatim=bool(meta.get("verbatim", False)),
             )
         )
 

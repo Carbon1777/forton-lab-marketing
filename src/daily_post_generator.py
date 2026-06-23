@@ -188,12 +188,15 @@ def generate_one(entry: PlanEntry, repo_root: Path,
         BrandViolationError    — output failed brand-lint
         GenerationError        — Claude API outage / sanitize fail / media sha mismatch
     """
-    # 1. Pre-flight budget (single post is small — 1500 tokens × $15/M = $0.0225 max output)
-    est = estimate_call_cost(
-        prompt_tokens=_ESTIMATED_PROMPT_TOKENS,
-        max_tokens=MAX_TOKENS_SINGLE_POST,
-    )
-    preflight_budget_check(spend_file, est)
+    verbatim = getattr(entry, "verbatim", False)
+
+    # 1. Pre-flight budget — только если будет вызов Claude (verbatim не тратит токены)
+    if not verbatim:
+        est = estimate_call_cost(
+            prompt_tokens=_ESTIMATED_PROMPT_TOKENS,
+            max_tokens=MAX_TOKENS_SINGLE_POST,
+        )
+        preflight_budget_check(spend_file, est)
 
     # 2. Verify media sha256 BEFORE generation (defends MAJ-9; cheap precondition)
     try:
@@ -210,20 +213,30 @@ def generate_one(entry: PlanEntry, repo_root: Path,
             )
         )
 
-    # 3. Claude API call (wraps Anthropic exceptions in GenerationError)
-    try:
-        client = make_client()
-        text, in_tok, out_tok = generate(
-            client, SYSTEM_PROMPT_DAILY, build_user_prompt(entry),
-            MAX_TOKENS_SINGLE_POST,
-        )
-        sanitize_output(text)
-    except BudgetExceededError:
-        raise
-    except Exception as exc:
-        raise GenerationError(
-            f"Claude API call failed for {entry.slug}: {exc!r}"
-        ) from exc
+    # 3. Текст поста: verbatim (из плана как есть) ИЛИ генерация Claude.
+    if verbatim:
+        # Утверждённый финальный текст — публикуем дословно, без перегенерации.
+        text, in_tok, out_tok = entry.content, 0, 0
+        try:
+            sanitize_output(text)
+        except Exception as exc:
+            raise GenerationError(
+                f"verbatim sanitize failed for {entry.slug}: {exc!r}"
+            ) from exc
+    else:
+        try:
+            client = make_client()
+            text, in_tok, out_tok = generate(
+                client, SYSTEM_PROMPT_DAILY, build_user_prompt(entry),
+                MAX_TOKENS_SINGLE_POST,
+            )
+            sanitize_output(text)
+        except BudgetExceededError:
+            raise
+        except Exception as exc:
+            raise GenerationError(
+                f"Claude API call failed for {entry.slug}: {exc!r}"
+            ) from exc
 
     # 4. Brand-lint hard-fail (Phase 1 D-04 — lint only post.content)
     violations = lint(text)
@@ -258,8 +271,9 @@ def generate_one(entry: PlanEntry, repo_root: Path,
     draft_path = drafts_dir / f"{entry.slug}.md"
     _atomic_write_text(draft_path, frontmatter.dumps(draft))
 
-    # 6. Record spend
-    record_spend(spend_file, in_tok, out_tok, purpose=DAILY_GENERATOR_PURPOSE)
+    # 6. Record spend (verbatim не тратит токены — пропускаем)
+    if not verbatim:
+        record_spend(spend_file, in_tok, out_tok, purpose=DAILY_GENERATOR_PURPOSE)
     return draft_path
 
 
