@@ -425,14 +425,18 @@ luceaweb.ru
 
 ```yaml
 slug: lucea-jun18-kak-rabotaet
-channels: [tg, vk, dzen]
+channels:
+- tg
+- vk
+- dzen
 product: forton-lab
 rubric: feature_explainer
 media:
-  - path: assets/posts/2026-06/lucea-jun18-kak-rabotaet.png
-    sha256: 11eb52de6c78a3369248a73d4119c0960d8814c894adaf6a262698c8e51499f7
-    role: image
-status: draft
+- path: assets/posts/2026-06/lucea-jun18-kak-rabotaet.png
+  sha256: 11eb52de6c78a3369248a73d4119c0960d8814c894adaf6a262698c8e51499f7
+  role: image
+status: published
+published_at: '2026-06-23T09:03:21.071735+00:00'
 ```
 
 Как работает Lucea.
