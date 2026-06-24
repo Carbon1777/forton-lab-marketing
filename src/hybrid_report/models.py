@@ -93,7 +93,16 @@ class ProductReport:
     week_start: dt.date
     week_end: dt.date
 
-    # Блок 1 — store-снапшоты (тип из store_metrics)
+    # Блок 1 — разбивка установок по магазинам из AppMetrica (ym:ts:appInstaller).
+    # Надёжный источник стор-блока: SDK пишет installer на каждой установке.
+    # rows: [(человекочитаемый_магазин, число), ...] в порядке приоритета.
+    am_installs_by_store: list[tuple[str, int]] = field(default_factory=list)
+    am_store_error: str | None = None
+
+    # Блок 1 (опциональная сверка) — прямые store-снапшоты ASC/Play/RuStore.
+    # БОЛЬШЕ НЕ источник витрины (часто врут нулём при сбое доступа) — держим
+    # только ради рейтингов и возможной ручной сверки. Рендер берёт магазины из
+    # am_installs_by_store.
     store_snaps: list[StoreSnapshot] = field(default_factory=list)
     store_error: str | None = None
 

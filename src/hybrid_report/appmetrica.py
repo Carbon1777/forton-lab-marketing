@@ -40,6 +40,44 @@ class InstallsBySource:
     by_publisher: dict[str, int]
 
 
+@dataclass(frozen=True)
+class InstallsByStore:
+    """Установки за период с разбивкой по магазину-установщику (appInstaller).
+
+    rows — упорядоченный список (человекочитаемый_магазин, число_устройств).
+    Порядок: основные сторы по приоритету, затем прочее по убыванию.
+    """
+    rows: list[tuple[str, int]]
+    total: int
+
+
+# Стабильный appInstaller id (НЕ зависит от lang ответа) → витринное имя магазина.
+# id "android" = Android-установка, у которой installer не определился
+# (sideload / неизвестный стор), а НЕ «все Android». iOS-установка всегда из
+# App Store (других магазинов на iOS нет).
+_STORE_LABEL_BY_INSTALLER: dict[str, str] = {
+    "ios": "App Store",
+    "com.android.vending": "Google Play",
+    "ru.vk.store": "RuStore",
+    "com.sec.android.app.samsungapps": "Galaxy Store",
+    "com.huawei.appmarket": "AppGallery",
+    "com.amazon.venezia": "Amazon Appstore",
+    "android": "Android (источник неизвестен)",
+}
+
+# Приоритет вывода основных магазинов (меньше = выше). Остальное — после, по
+# убыванию установок. Гарантирует стабильный порядок строк отчёта.
+_STORE_ORDER_PRIORITY: dict[str, int] = {
+    "App Store": 0,
+    "Google Play": 1,
+    "RuStore": 2,
+    "Galaxy Store": 3,
+    "AppGallery": 4,
+    "Amazon Appstore": 5,
+    "Android (источник неизвестен)": 90,
+}
+
+
 def _token(token: str | None) -> str:
     t = token or os.environ.get("APPMETRICA_OAUTH_TOKEN")
     if not t:
@@ -92,6 +130,61 @@ def fetch_installs(
     return InstallsBySource(
         total=total, organic=organic, ads=ads, by_publisher=by_publisher
     )
+
+
+def fetch_installs_by_store(
+    app_id: str,
+    week_start: dt.date,
+    week_end: dt.date,
+    token: str | None = None,
+) -> InstallsByStore:
+    """Установки за период с разбивкой по магазину (надёжный источник стор-блока).
+
+    Метрика ym:ts:installDevices, разбивка ym:ts:appInstaller. Заменяет хрупкие
+    прямые стор-API (ASC / Google Play / RuStore), которые молча отдают ноль/«нет
+    данных» при сбое токена/доступа. AppMetrica SDK пишет installer на каждой
+    установке, поэтому iOS→App Store, com.android.vending→Google Play,
+    ru.vk.store→RuStore и т.д. Маппинг по СТАБИЛЬНОМУ id (не по name — оно зависит
+    от lang). Чистый ym:ts: namespace (НЕ мешать с ym:s:* / ym:ce:* — ошибка 4011).
+
+    Verified живым вызовом 2026-06-24 (Diktum 6301663, 15–21 июня): id-значения
+    ios / com.android.vending / android / com.sec.android.app.samsungapps /
+    ru.vk.store; total сходится с ym:ts:publisher и веб-UI AppMetrica.
+    """
+    tok = _token(token)
+    resp = fetch_with_retry(
+        STAT_URL,
+        method="GET",
+        headers={"Authorization": f"OAuth {tok}"},
+        params={
+            "id": app_id,
+            "date1": week_start.isoformat(),
+            "date2": week_end.isoformat(),
+            "metrics": "ym:ts:installDevices",
+            "dimensions": "ym:ts:appInstaller",
+            "accuracy": "full",
+            "lang": "ru",
+        },
+    )
+    resp.raise_for_status()
+    payload = resp.json()
+    by_label: dict[str, int] = {}
+    for row in payload.get("data", []):
+        dim = row["dimensions"][0]
+        installer_id = dim.get("id")
+        # маппим по стабильному id; незнакомый installer — показываем его name
+        label = _STORE_LABEL_BY_INSTALLER.get(
+            installer_id, dim.get("name") or installer_id or "неизвестно"
+        )
+        value = int(row["metrics"][0] or 0)
+        by_label[label] = by_label.get(label, 0) + value
+    # порядок: приоритет основных сторов, затем прочее по убыванию установок
+    rows = sorted(
+        by_label.items(),
+        key=lambda kv: (_STORE_ORDER_PRIORITY.get(kv[0], 50), -kv[1]),
+    )
+    total = sum(by_label.values())
+    return InstallsByStore(rows=rows, total=total)
 
 
 def fetch_activity(

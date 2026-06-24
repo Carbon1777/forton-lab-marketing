@@ -66,23 +66,16 @@ def _date_range(week_start: dt.date, week_end: dt.date) -> str:
 
 
 def _block_stores(r: ProductReport) -> str:
+    # Источник — AppMetrica appInstaller (надёжно). Прямые стор-API (store_snaps)
+    # больше не дают числа (часто врут нулём), но из них берём рейтинги для сверки.
+    rows = r.am_installs_by_store
+    if not rows:
+        return "Установки по магазинам: данные собираются."
+    parts = [f"{label} — {n}" for label, n in rows]
+    total = sum(n for _, n in rows)
+    line = "Установки по магазинам: " + ", ".join(parts) + f". Всего {total}."
+    # рейтинги — опциональная сверка из прямых стор-снапшотов (если доступны)
     by_store = {s.store: s for s in r.store_snaps}
-    parts: list[str] = []
-    total = 0
-    have_any = False
-    for store_key, label in _STORE_ORDER:
-        snap = by_store.get(store_key)
-        installs = snap.installs if snap else None
-        if installs is None:
-            parts.append(f"{label} — нет данных")
-        else:
-            parts.append(f"{label} — {installs}")
-            total += installs
-            have_any = True
-    line = "Скачивания из сторов: " + ", ".join(parts) + "."
-    if have_any:
-        line += f" Всего {total}."
-    # рейтинги — если есть, добавить словами (опционально)
     ratings: list[str] = []
     for store_key, label in _STORE_ORDER:
         snap = by_store.get(store_key)
@@ -107,7 +100,8 @@ def _block_am_installs(r: ProductReport) -> str:
         src = r.am_ads_publisher or "реклама"
         line += f" Из рекламы {src} — {r.am_installs_ads}{suffix}."
     line += (
-        " Цифры сторов и AppMetrica считаются по-разному и не складываются."
+        " Разбивка по магазинам и по источнику — это одни и те же установки "
+        "в двух разрезах."
     )
     return line
 

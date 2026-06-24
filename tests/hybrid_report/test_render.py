@@ -25,6 +25,7 @@ FORBIDDEN = "→←↑↓⬆⬇📈📉📊•·└├▸%⭐🎯🚨💡🌍⚠
 
 
 def _stores() -> list[StoreSnapshot]:
+    # store_snaps больше не источник чисел — нужны только для рейтингов (сверка).
     return [
         StoreSnapshot(product="centry", store="app_store", week_start=W_START,
                       installs=5, rating=4.5),
@@ -35,11 +36,17 @@ def _stores() -> list[StoreSnapshot]:
     ]
 
 
+def _installs_by_store() -> list[tuple[str, int]]:
+    # Источник стор-блока — AppMetrica appInstaller (rows уже упорядочены).
+    return [("App Store", 5), ("Google Play", 12), ("RuStore", 3)]
+
+
 def _report(**over) -> ProductReport:
     base = dict(
         spec=CENTRY,
         week_start=W_START,
         week_end=W_END,
+        am_installs_by_store=_installs_by_store(),
         store_snaps=_stores(),
         am_installs_total=24,
         am_installs_organic=18,
@@ -76,10 +83,25 @@ def test_render_has_no_emoji_or_arrows():
 
 def test_render_stores_block():
     text = render_report(_report())
+    assert "Установки по магазинам:" in text
     assert "App Store — 5" in text
     assert "Google Play — 12" in text
-    assert "RuStore — нет данных" in text
-    assert "Всего 17" in text
+    assert "RuStore — 3" in text
+    assert "Всего 20" in text
+    # рейтинг подтягивается из store_snaps (опциональная сверка)
+    assert "рейтинг App Store 4.5" in text
+
+
+def test_render_stores_block_order_and_unknown():
+    # порядок и витринные имена магазинов из appInstaller (вкл. Galaxy/Unknown)
+    rows = [("App Store", 47), ("Google Play", 19), ("RuStore", 3),
+            ("Galaxy Store", 3), ("Android (источник неизвестен)", 8)]
+    text = render_report(_report(am_installs_by_store=rows))
+    assert (
+        "Установки по магазинам: App Store — 47, Google Play — 19, "
+        "RuStore — 3, Galaxy Store — 3, "
+        "Android (источник неизвестен) — 8. Всего 80." in text
+    )
 
 
 def test_render_appmetrica_installs_block():
@@ -88,7 +110,9 @@ def test_render_appmetrica_installs_block():
     assert "18 (75 процентов)" in text
     assert "VK Ads" in text
     assert "6 (25 процентов)" in text
-    assert "не складываются" in text
+    # старое ложное примечание про несложение убрано — теперь это разрезы одних данных
+    assert "не складываются" not in text
+    assert "одни и те же установки" in text
 
 
 def test_render_activity_block():
@@ -187,19 +211,12 @@ def test_render_degraded_screens():
     assert "данные собираются" in text
 
 
-def test_render_degraded_stores_all_none():
-    snaps = [
-        StoreSnapshot(product="centry", store="app_store", week_start=W_START,
-                      installs=None),
-        StoreSnapshot(product="centry", store="google_play", week_start=W_START,
-                      installs=None),
-        StoreSnapshot(product="centry", store="rustore", week_start=W_START,
-                      installs=None),
-    ]
-    text = render_report(_report(store_snaps=snaps))
-    assert "App Store — нет данных" in text
-    assert "Google Play — нет данных" in text
-    assert "RuStore — нет данных" in text
+def test_render_degraded_stores_empty():
+    # нет разбивки по магазинам из AppMetrica → секция деградирует мягко,
+    # остальное сообщение живёт
+    text = render_report(_report(am_installs_by_store=[]))
+    assert "Установки по магазинам: данные собираются" in text
+    assert "Установки по данным AppMetrica: 24" in text
 
 
 def test_render_degraded_am_installs_none():

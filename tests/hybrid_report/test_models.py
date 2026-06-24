@@ -120,6 +120,8 @@ def test_product_report_defaults():
         week_end=dt.date(2026, 5, 29),
     )
     assert report.store_snaps == []
+    assert report.am_installs_by_store == []
+    assert report.am_store_error is None
     assert report.am_installs_total is None
     assert report.activity.sessions is None
     assert report.funnel.steps == []

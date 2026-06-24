@@ -79,6 +79,25 @@ def _ads_publisher(by_publisher: dict[str, int]) -> str | None:
     return None
 
 
+def _collect_installs_by_store(
+    spec: ProductSpec, week_start: dt.date, week_end: dt.date
+) -> tuple[list[tuple[str, int]], str | None]:
+    """AppMetrica разбивка установок по магазинам (ym:ts:appInstaller) — generic.
+
+    Надёжный источник стор-блока вместо хрупких ASC/Play/RuStore. never-raises:
+    ошибка → ([], error) и render деградирует секцию мягко.
+    """
+    try:
+        res = appmetrica.fetch_installs_by_store(
+            spec.appmetrica_app_id, week_start, week_end
+        )
+        return res.rows, None
+    except Exception as exc:  # noqa: BLE001
+        err = f"{type(exc).__name__}: {str(exc)[:80]}"
+        sys.stderr.write(f"WARN: AppMetrica installs-by-store failed: {err}\n")
+        return [], err
+
+
 def _collect_installs(spec: ProductSpec, week_start: dt.date, week_end: dt.date):
     """AppMetrica installs (ym:ts:*) по appmetrica_app_id продукта — generic."""
     try:
@@ -141,6 +160,11 @@ def gather_product(
     сбойном источнике — его блок деградирует, остальные живут."""
     from . import snapshot  # локальный импорт чтобы не плодить циклы
 
+    # Витрина стор-блока — AppMetrica appInstaller (надёжно). ASC/Play/RuStore
+    # ещё собираем для рейтингов + опц. сверки, но они больше не источник чисел.
+    am_by_store, am_store_err = _collect_installs_by_store(
+        spec, week_start, week_end
+    )
     store_snaps, store_error = _collect_stores(spec.key, week_start)
 
     am_total, am_organic, am_ads, am_pub, am_err = _collect_installs(
@@ -165,6 +189,8 @@ def gather_product(
         spec=spec,
         week_start=week_start,
         week_end=week_end,
+        am_installs_by_store=am_by_store,
+        am_store_error=am_store_err,
         store_snaps=store_snaps,
         store_error=store_error,
         am_installs_total=am_total,

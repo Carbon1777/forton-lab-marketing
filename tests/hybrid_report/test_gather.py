@@ -14,7 +14,7 @@ from src.hybrid_report.models import (
     ScreenStat,
 )
 from src.store_metrics.models import StoreSnapshot
-from src.hybrid_report.appmetrica import InstallsBySource
+from src.hybrid_report.appmetrica import InstallsBySource, InstallsByStore
 from src.centry_funnel.supabase_src import FunnelDB as CFunnel
 from src.diktum_funnel.supabase_src import FunnelDB as DFunnel
 
@@ -53,6 +53,12 @@ def _patch_all_success():
         patch.object(gather.appmetrica, "fetch_top_screens",
                      return_value=AppMetricaScreens(
                          screens=[ScreenStat("лента", 40)])),
+        # ВАЖНО: новый патч добавляется В КОНЕЦ — индексы cms[0..7] в тестах
+        # ниже завязаны на позицию, не сдвигать.
+        patch.object(gather.appmetrica, "fetch_installs_by_store",
+                     return_value=InstallsByStore(
+                         rows=[("App Store", 5), ("Google Play", 12),
+                               ("RuStore", 3)], total=20)),
     ]
 
 
@@ -74,6 +80,10 @@ def test_gather_assembles_all_sources():
     assert report.reg == RegActivation(registrations=11, activations=8)
     assert len(report.store_snaps) == 3
     assert report.store_error is None
+    # стор-блок теперь из AppMetrica appInstaller
+    assert report.am_installs_by_store == [
+        ("App Store", 5), ("Google Play", 12), ("RuStore", 3)]
+    assert report.am_store_error is None
 
 
 def test_gather_centry_reg_maps_users_not_new_profiles():
@@ -104,6 +114,10 @@ def test_gather_diktum_reg_maps_directly():
                      return_value=AppMetricaFunnel(steps=[])),
         patch.object(gather.appmetrica, "fetch_top_screens",
                      return_value=AppMetricaScreens(screens=[])),
+        patch.object(gather.appmetrica, "fetch_installs_by_store",
+                     return_value=InstallsByStore(
+                         rows=[("App Store", 47), ("Google Play", 19),
+                               ("RuStore", 3)], total=69)),
     ]
     with ExitStack() as stack:
         for cm in cms:
@@ -111,6 +125,7 @@ def test_gather_diktum_reg_maps_directly():
         report = gather.gather_product(DIKTUM, W_START, W_END, {})
     assert report.reg == RegActivation(registrations=30, activations=12)
     assert report.am_installs_total == 121
+    assert report.am_installs_by_store[0] == ("App Store", 47)
 
 
 def test_gather_never_raises_on_store_failure():
@@ -155,6 +170,21 @@ def test_gather_never_raises_on_installs_failure():
     assert report.am_installs_total is None
     assert report.am_installs_error is not None
     assert report.activity.sessions == 50  # остальное собрано
+
+
+def test_gather_never_raises_on_installs_by_store_failure():
+    from contextlib import ExitStack
+    cms = _patch_all_success()
+    # fetch_installs_by_store — последний в списке (см. _patch_all_success)
+    cms[-1] = patch.object(gather.appmetrica, "fetch_installs_by_store",
+                           side_effect=RuntimeError("appInstaller down"))
+    with ExitStack() as stack:
+        for cm in cms:
+            stack.enter_context(cm)
+        report = gather.gather_product(CENTRY, W_START, W_END, {})
+    assert report.am_installs_by_store == []
+    assert report.am_store_error is not None
+    assert report.am_installs_total == 24  # остальное собрано
 
 
 def test_gather_never_raises_on_supabase_failure():
