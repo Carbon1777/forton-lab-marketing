@@ -550,14 +550,18 @@ centryweb.ru
 
 ```yaml
 slug: diktum-jun23-golos-drozhit
-channels: [tg, vk, dzen]
+channels:
+- tg
+- vk
+- dzen
 product: diktum
 rubric: speech_tips
 media:
-  - path: assets/posts/2026-06/diktum-jun23-golos-drozhit.png
-    sha256: d381337722b59a52277a3ee50f25507b68a478b276c80515dd1bbd6087165153
-    role: image
-status: draft
+- path: assets/posts/2026-06/diktum-jun23-golos-drozhit.png
+  sha256: d381337722b59a52277a3ee50f25507b68a478b276c80515dd1bbd6087165153
+  role: image
+status: published
+published_at: '2026-06-24T10:57:57.314793+00:00'
 ```
 
 Голос дрожит перед важным разговором?
