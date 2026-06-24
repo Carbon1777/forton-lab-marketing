@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 Store = Literal["app_store", "google_play", "rustore"]
-Product = Literal["centry", "diktum", "lucea", "lapulya", "unia"]
+Product = Literal["centry", "diktum", "lucea", "lapulya", "unia", "listvia"]
 
 
 @dataclass(frozen=True)

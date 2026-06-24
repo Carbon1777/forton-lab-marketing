@@ -257,6 +257,28 @@ _LAPULYA_SCREEN_NAMES: dict[str, str] = {
     "12": "онбординг уведомления", "13": "онбординг готово",
 }
 
+# Листвия воронка активации (offline care-first, без сервера/регистрации; после
+# пивота 2026-06-18 распознавание по фото убрано → ключевой порог = первое
+# растение из каталога + первый отмеченный уход).
+_LISTVIA_ONBOARDING: list[tuple[str, str]] = [
+    ("app_opened_first", "открыли приложение"),
+    ("onboarding_started", "начали онбординг"),
+    ("onboarding_completed", "прошли онбординг"),
+    ("first_plant_added", "добавили первое растение"),
+    ("first_care_checkoff", "отметили первый уход"),
+]
+
+# Листвия: int screen_id (как строка) → человекочитаемое (ListviaScreen 1..20).
+_LISTVIA_SCREEN_NAMES: dict[str, str] = {
+    "1": "главная", "2": "скан", "3": "результат скана",
+    "4": "диагностика болезни", "5": "результат диагностики",
+    "6": "коллекция", "7": "карточка растения", "8": "замер света",
+    "9": "калькулятор горшка", "10": "журнал растения", "11": "дача",
+    "12": "добавление в дачу", "13": "карточка культуры", "14": "профиль",
+    "15": "каталог", "16": "карточка вида", "17": "онбординг",
+    "18": "подготовка данных", "19": "Pro подписка", "20": "симптомы болезни",
+}
+
 # Unia: int screen_id → человекочитаемое (UniaScreen 1..10).
 _UNIA_SCREEN_NAMES: dict[str, str] = {
     "1": "интро", "2": "главная", "3": "ИИ-помощник", "4": "чат", "5": "вместе",
@@ -310,6 +332,15 @@ PRODUCTS: list[ProductSpec] = [
         onboarding_steps=_UNIA_ONBOARDING,
         reg_source="unia",  # Supabase-RPC ещё нет → reg-блок «данные собираются»
         screen_names=_UNIA_SCREEN_NAMES,
+        screen_event_label="screen_entered",
+    ),
+    ProductSpec(
+        key="listvia",
+        display="Листвия",
+        appmetrica_app_id="6316003",
+        onboarding_steps=_LISTVIA_ONBOARDING,
+        reg_source="listvia",  # offline (drift), без Supabase → reg «данные собираются»
+        screen_names=_LISTVIA_SCREEN_NAMES,
         screen_event_label="screen_entered",
     ),
 ]

@@ -33,7 +33,7 @@ def test_main_sends_one_message_per_product(tmp_path):
         rc = cli.main(today=dt.date(2026, 6, 1), snapshots_path=snap, dry_run=False)
     assert rc == 0
     # ОТДЕЛЬНОЕ сообщение на каждый продукт → ровно len(PRODUCTS) вызовов
-    assert send.call_count == len(PRODUCTS) == 5
+    assert send.call_count == len(PRODUCTS) == 6
     # снапшот сохранён (не dry-run)
     assert snap.exists()
 
@@ -54,6 +54,7 @@ def test_main_dry_run_prints_not_sends(tmp_path, capsys):
     assert "Lucea — отчёт за неделю" in out
     assert "Лапуля — отчёт за неделю" in out
     assert "Unia — отчёт за неделю" in out
+    assert "Листвия — отчёт за неделю" in out
     # снапшот НЕ сохраняется в dry-run
     assert not snap.exists()
 

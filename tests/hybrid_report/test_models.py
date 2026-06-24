@@ -17,12 +17,12 @@ from src.hybrid_report.models import (
 )
 
 
-def test_products_has_all_five_studio_apps():
-    assert len(PRODUCTS) == 5
+def test_products_has_all_six_studio_apps():
+    assert len(PRODUCTS) == 6
     keys = [p.key for p in PRODUCTS]
-    assert keys == ["centry", "diktum", "lucea", "lapulya", "unia"]
+    assert keys == ["centry", "diktum", "lucea", "lapulya", "unia", "listvia"]
     assert {p.display for p in PRODUCTS} == {
-        "Centry", "Diktum", "Lucea", "Лапуля", "Unia"
+        "Centry", "Diktum", "Lucea", "Лапуля", "Unia", "Листвия"
     }
 
 
@@ -33,6 +33,7 @@ def test_products_appmetrica_app_ids():
     assert by_key["lucea"].appmetrica_app_id == "6303610"
     assert by_key["lapulya"].appmetrica_app_id == "6307939"
     assert by_key["unia"].appmetrica_app_id == "6308782"
+    assert by_key["listvia"].appmetrica_app_id == "6316003"
 
 
 def test_screen_event_label_per_product():
@@ -41,7 +42,7 @@ def test_screen_event_label_per_product():
     assert by_key["centry"].screen_event_label == "screen_view"
     assert by_key["diktum"].screen_event_label == "screen_view"
     # Новые приложения шлют screen_entered (int screen_id в paramsLevel2)
-    for k in ("lucea", "lapulya", "unia"):
+    for k in ("lucea", "lapulya", "unia", "listvia"):
         assert by_key[k].screen_event_label == "screen_entered"
         # ключи screen_names — строковые int screen_id
         assert by_key[k].screen_names["1"]
@@ -49,7 +50,7 @@ def test_screen_event_label_per_product():
 
 def test_new_apps_onboarding_starts_with_app_opened_first():
     by_key = {p.key: p for p in PRODUCTS}
-    for k in ("lucea", "lapulya", "unia"):
+    for k in ("lucea", "lapulya", "unia", "listvia"):
         steps = by_key[k].onboarding_steps
         assert steps[0][0] == "app_opened_first"
         assert len(steps) >= 5
