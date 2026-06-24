@@ -82,6 +82,36 @@ def test_installs_by_store_unknown_installer_falls_back_to_name():
     assert res.total == 12
 
 
+def test_installs_by_store_groups_sideload_into_unknown_android():
+    # системный установщик + песочница + «android» → один бакет, суммируются
+    payload = {
+        "data": [
+            {"dimensions": [{"id": "android", "name": "Unknown Android"}],
+             "metrics": [21.0]},
+            {"dimensions": [{"id": "com.google.android.packageinstaller",
+                             "name": "GooglePackageInstaller"}], "metrics": [1.0]},
+            {"dimensions": [{"id": "com.gbox.android", "name": "com.gbox.android"}],
+             "metrics": [1.0]},
+            {"dimensions": [{"id": "com.android.vending", "name": "Google Play"}],
+             "metrics": [26.0]},
+        ],
+        "totals": [49.0],
+    }
+    with patch.object(
+        appmetrica, "fetch_with_retry", return_value=_mock_resp(payload)
+    ):
+        res = appmetrica.fetch_installs_by_store(
+            "6301663", W_START, W_END, token="t"
+        )
+    # три технических id слились в один «Android (источник неизвестен)» = 23
+    assert ("Android (источник неизвестен)", 23) in res.rows
+    assert ("Google Play", 26) in res.rows
+    # один бакет неизвестного андроида, не три отдельные строки
+    unknown_rows = [r for r in res.rows if r[0] == "Android (источник неизвестен)"]
+    assert len(unknown_rows) == 1
+    assert res.total == 49
+
+
 def test_installs_by_store_empty_data():
     with patch.object(
         appmetrica, "fetch_with_retry",

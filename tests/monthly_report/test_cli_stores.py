@@ -19,7 +19,7 @@ from src.hybrid_report.models import (
 )
 from src.monthly_report import cli
 from src.store_metrics.models import StoreSnapshot
-from src.hybrid_report.appmetrica import InstallsBySource
+from src.hybrid_report.appmetrica import InstallsBySource, InstallsByStore
 from src.centry_funnel.supabase_src import FunnelDB as CFunnel
 
 CENTRY = next(p for p in PRODUCTS if p.key == "centry")
@@ -121,6 +121,10 @@ def _patch_all_sources():
         patch.object(cli.appmetrica, "fetch_top_screens",
                      return_value=AppMetricaScreens(
                          screens=[ScreenStat("лента", 40)])),
+        patch.object(cli.appmetrica, "fetch_installs_by_store",
+                     return_value=InstallsByStore(
+                         rows=[("App Store", 25), ("Google Play", 12),
+                               ("RuStore", 3)], total=40)),
     ]
 
 
@@ -136,5 +140,9 @@ def test_gather_product_monthly_passes_store_snaps():
     ]
     assert report.store_snaps[0].installs == 25
     assert report.store_error is None
+    # стор-блок витрины — из AppMetrica appInstaller
+    assert report.am_installs_by_store == [
+        ("App Store", 25), ("Google Play", 12), ("RuStore", 3)]
+    assert report.am_store_error is None
     # Остальные источники не пострадали.
     assert report.am_installs_total == 40

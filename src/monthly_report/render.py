@@ -50,43 +50,21 @@ _STORE_ORDER = [
     ("rustore", "RuStore"),
 ]
 
-_RUSTORE_LIMITATION_PHRASE = (
-    "RuStore не отдаёт установки через API (ограничение Mail.ru)"
-)
-
 
 def _block_stores(r: ProductReport) -> str:
-    """Установки за месяц по сторам — word-based, без эмодзи и знака %.
+    """Установки за месяц по магазинам — word-based, без эмодзи и знака %.
 
-    RuStore без числа → честная фраза-констрейнт (не «нет данных»). Если
-    RuStore вдруг даст число (mock-режим / будущий API) — рендерим число.
-    Суффикс «(без RuStore)» у итога — только когда RuStore без числа.
+    Источник — AppMetrica appInstaller (надёжно; SDK пишет installer на каждой
+    установке, RuStore включён). Прямые стор-API (store_snaps) больше не дают
+    числа — из них берём только рейтинги для сверки.
     """
-    if not r.store_snaps:
-        return "Скачивания по сторам: данные собираются."
+    rows = r.am_installs_by_store
+    if not rows:
+        return "Установки по магазинам: данные собираются."
+    parts = [f"{label} — {n}" for label, n in rows]
+    total = sum(n for _, n in rows)
+    line = "Установки по магазинам: " + ", ".join(parts) + f". Всего за месяц {total}."
     by_store = {s.store: s for s in r.store_snaps}
-    parts: list[str] = []
-    total = 0
-    have_any = False
-    rustore_counted = False
-    for store_key, label in _STORE_ORDER:
-        snap = by_store.get(store_key)
-        installs = snap.installs if snap else None
-        if installs is None:
-            if store_key == "rustore":
-                parts.append(_RUSTORE_LIMITATION_PHRASE)
-            else:
-                parts.append(f"{label} — нет данных")
-        else:
-            parts.append(f"{label} — {installs}")
-            total += installs
-            have_any = True
-            if store_key == "rustore":
-                rustore_counted = True
-    line = "Скачивания по сторам: " + ", ".join(parts) + "."
-    if have_any:
-        suffix = "" if rustore_counted else " (без RuStore)"
-        line += f" Всего за месяц {total}{suffix}."
     ratings: list[str] = []
     for store_key, label in _STORE_ORDER:
         snap = by_store.get(store_key)
@@ -110,7 +88,10 @@ def _block_am_installs(r: ProductReport) -> str:
         suffix = f" ({ads_pct})" if ads_pct else ""
         src = r.am_ads_publisher or "реклама"
         line += f" Из рекламы {src} — {r.am_installs_ads}{suffix}."
-    line += " Цифры сторов и AppMetrica считаются по-разному и не складываются."
+    line += (
+        " Разбивка по магазинам и по источнику — это одни и те же установки "
+        "в двух разрезах."
+    )
     return line
 
 

@@ -1,8 +1,8 @@
 """Entrypoint — ежемесячный per-app отчёт.
 
 5-го числа каждого месяца отправляет в TG-канал «Планировщик» отчёт за
-предыдущий полный месяц для каждого из 5 продуктов студии (Centry, Diktum,
-Lucea, Лапуля, Unia) с MoM-сравнением.
+предыдущий полный месяц для каждого продукта студии (Centry, Diktum, Lucea,
+Лапуля, Unia, Листвия — источник истины PRODUCTS) с MoM-сравнением.
 
 Поддерживает --dry-run (или env MONTHLY_DRY_RUN=1): вывод в STDOUT без TG,
 снапшот НЕ пишется. Вызывается из .github/workflows/monthly_report.yml.
@@ -85,6 +85,22 @@ def _report_month(today: dt.date) -> tuple[dt.date, dt.date]:
     return first_of_prev, last_of_prev
 
 
+def _collect_installs_by_store(spec, start: dt.date, end: dt.date):
+    """AppMetrica разбивка установок по магазинам (ym:ts:appInstaller) за месяц.
+
+    Надёжный источник стор-блока вместо хрупких ASC/Play/RuStore. never-raises:
+    ошибка → ([], error), render деградирует мягко. fetch_installs_by_store
+    generic по датам — месячный диапазон работает без изменений.
+    """
+    try:
+        res = appmetrica.fetch_installs_by_store(spec.appmetrica_app_id, start, end)
+        return res.rows, None
+    except Exception as exc:  # noqa: BLE001
+        err = f"{type(exc).__name__}: {str(exc)[:80]}"
+        sys.stderr.write(f"WARN: AppMetrica monthly installs-by-store failed: {err}\n")
+        return [], err
+
+
 def _collect_installs(spec, start: dt.date, end: dt.date):
     try:
         inst = appmetrica.fetch_installs(spec.appmetrica_app_id, start, end)
@@ -128,6 +144,11 @@ def _collect_reg(spec, start: dt.date, end: dt.date) -> RegActivation:
 
 def _gather_product_monthly(spec, month_start: dt.date, month_end: dt.date, data: dict) -> ProductReport:
     """Собрать все источники за месяц. Never-raises per источник."""
+    # Витрина стор-блока — AppMetrica appInstaller (надёжно). ASC/Play/RuStore
+    # ещё собираем для рейтингов + опц. сверки, но они больше не источник чисел.
+    am_by_store, am_store_err = _collect_installs_by_store(
+        spec, month_start, month_end
+    )
     store_snaps, store_error = _collect_stores(spec.key, month_start)
     am_total, am_organic, am_ads, am_pub, am_err = _collect_installs(
         spec, month_start, month_end
@@ -148,6 +169,8 @@ def _gather_product_monthly(spec, month_start: dt.date, month_end: dt.date, data
         spec=spec,
         week_start=month_start,
         week_end=month_end,
+        am_installs_by_store=am_by_store,
+        am_store_error=am_store_err,
         store_snaps=store_snaps,
         store_error=store_error,
         am_installs_total=am_total,

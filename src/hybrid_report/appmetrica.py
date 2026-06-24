@@ -55,6 +55,8 @@ class InstallsByStore:
 # id "android" = Android-установка, у которой installer не определился
 # (sideload / неизвестный стор), а НЕ «все Android». iOS-установка всегда из
 # App Store (других магазинов на iOS нет).
+_UNKNOWN_ANDROID = "Android (источник неизвестен)"
+
 _STORE_LABEL_BY_INSTALLER: dict[str, str] = {
     "ios": "App Store",
     "com.android.vending": "Google Play",
@@ -62,7 +64,13 @@ _STORE_LABEL_BY_INSTALLER: dict[str, str] = {
     "com.sec.android.app.samsungapps": "Galaxy Store",
     "com.huawei.appmarket": "AppGallery",
     "com.amazon.venezia": "Amazon Appstore",
-    "android": "Android (источник неизвестен)",
+    # sideload / системный установщик / песочницы-клоны — не магазины; сводим в
+    # один бакет «источник неизвестен», чтобы не сорить в отчёте техническими id.
+    "android": _UNKNOWN_ANDROID,
+    "com.google.android.packageinstaller": _UNKNOWN_ANDROID,
+    "com.android.packageinstaller": _UNKNOWN_ANDROID,
+    "com.miui.packageinstaller": _UNKNOWN_ANDROID,
+    "com.gbox.android": _UNKNOWN_ANDROID,
 }
 
 # Приоритет вывода основных магазинов (меньше = выше). Остальное — после, по
@@ -74,7 +82,7 @@ _STORE_ORDER_PRIORITY: dict[str, int] = {
     "Galaxy Store": 3,
     "AppGallery": 4,
     "Amazon Appstore": 5,
-    "Android (источник неизвестен)": 90,
+    _UNKNOWN_ANDROID: 90,
 }
 
 
