@@ -576,14 +576,18 @@ diktumweb.ru
 
 ```yaml
 slug: centry-jun24-reyting-mest
-channels: [tg, vk, dzen]
+channels:
+- tg
+- vk
+- dzen
 product: centry
 rubric: feature_explainer
 media:
-  - path: assets/posts/2026-06/centry-jun24-reyting-mest.png
-    sha256: 668517ad63cc2c7d44ba4ea279bfb1337d07fc6f730dc8b713530ce7a0e29ba8
-    role: image
-status: draft
+- path: assets/posts/2026-06/centry-jun24-reyting-mest.png
+  sha256: 668517ad63cc2c7d44ba4ea279bfb1337d07fc6f730dc8b713530ce7a0e29ba8
+  role: image
+status: published
+published_at: '2026-06-25T09:04:06.813217+00:00'
 ```
 
 Откуда в Centry понятно, куда реально стоит идти.
