@@ -602,14 +602,18 @@ centryweb.ru
 
 ```yaml
 slug: diktum-jun25-vpechatlenie
-channels: [tg, vk, yt]
+channels:
+- tg
+- vk
+- yt
 product: diktum
 rubric: feature_video
 media:
-  - path: assets/posts/2026-06/laurel_diktum_vpechatlenie.mp4
-    sha256: 13b38c0d6b958c822fb97b451348b5de75ab934c2df30f49bd30b0da94a689b0
-    role: video
-status: draft
+- path: assets/posts/2026-06/laurel_diktum_vpechatlenie.mp4
+  sha256: 13b38c0d6b958c822fb97b451348b5de75ab934c2df30f49bd30b0da94a689b0
+  role: video
+status: published
+published_at: '2026-06-26T09:09:02.185048+00:00'
 ```
 
 Первое впечатление складывается за десять секунд — и часто по тому, как ты говоришь, а не что.
