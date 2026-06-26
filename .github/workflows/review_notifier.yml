@@ -78,6 +78,7 @@ jobs:
           GPLAY_PACKAGE_LUCEA: ${{ secrets.GPLAY_PACKAGE_LUCEA }}
           GPLAY_PACKAGE_LAPULYA: ${{ secrets.GPLAY_PACKAGE_LAPULYA }}
           GPLAY_PACKAGE_UNIA: ${{ secrets.GPLAY_PACKAGE_UNIA }}
+          GPLAY_PACKAGE_LISTVIA: ${{ secrets.GPLAY_PACKAGE_LISTVIA }}
 
           # ------------ RuStore — comment API via JWS auth ----------------------
           # Reviews via JWS RSA-SHA512 auth + paginated
@@ -90,6 +91,7 @@ jobs:
           RUSTORE_PACKAGE_LUCEA: ${{ secrets.RUSTORE_PACKAGE_LUCEA }}
           RUSTORE_PACKAGE_LAPULYA: ${{ secrets.RUSTORE_PACKAGE_LAPULYA }}
           RUSTORE_PACKAGE_UNIA: ${{ secrets.RUSTORE_PACKAGE_UNIA }}
+          RUSTORE_PACKAGE_LISTVIA: ${{ secrets.RUSTORE_PACKAGE_LISTVIA }}
         run: PYTHONPATH=. python -m src.review_notifier.cli
 
       - name: Commit updated seen state
