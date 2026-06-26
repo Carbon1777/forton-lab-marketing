@@ -1,8 +1,7 @@
 {
   "centry": {
     "app_store": [],
-    "google_play": [],
-    "rustore": []
+    "google_play": []
   },
   "diktum": {
     "app_store": [
@@ -10,31 +9,26 @@
       "14197278067",
       "14197109285"
     ],
-    "google_play": [],
-    "rustore": []
+    "google_play": []
   },
   "lapulya": {
     "app_store": [
       "14220594578"
     ],
-    "google_play": [],
-    "rustore": []
+    "google_play": []
   },
   "listvia": {
     "app_store": [],
-    "google_play": [],
-    "rustore": []
+    "google_play": []
   },
   "lucea": {
     "app_store": [
       "14202913339"
     ],
-    "google_play": [],
-    "rustore": []
+    "google_play": []
   },
   "unia": {
     "app_store": [],
-    "google_play": [],
-    "rustore": []
+    "google_play": []
   }
 }
