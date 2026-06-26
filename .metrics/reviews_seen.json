@@ -1,0 +1,40 @@
+{
+  "centry": {
+    "app_store": [],
+    "google_play": [],
+    "rustore": []
+  },
+  "diktum": {
+    "app_store": [
+      "14211991974",
+      "14197278067",
+      "14197109285"
+    ],
+    "google_play": [],
+    "rustore": []
+  },
+  "lapulya": {
+    "app_store": [
+      "14220594578"
+    ],
+    "google_play": [],
+    "rustore": []
+  },
+  "listvia": {
+    "app_store": [],
+    "google_play": [],
+    "rustore": []
+  },
+  "lucea": {
+    "app_store": [
+      "14202913339"
+    ],
+    "google_play": [],
+    "rustore": []
+  },
+  "unia": {
+    "app_store": [],
+    "google_play": [],
+    "rustore": []
+  }
+}
