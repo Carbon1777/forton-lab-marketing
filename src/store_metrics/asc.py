@@ -593,6 +593,115 @@ def _fetch_rss_ratings(
 
 
 # ===================================================================
+# Per-review list (review_notifier — quick 260626-ozg)
+# ===================================================================
+
+def _rss_entry_text(entry: dict) -> str:
+    """Extract review body text from RSS entry.
+
+    ``content`` может быть list ([{label,attributes}, ...]) или dict ({label}).
+    Берём первый непустой label; пусто → "".
+    """
+    content = entry.get("content")
+    if isinstance(content, dict):
+        return str(content.get("label") or "")
+    if isinstance(content, list):
+        for node in content:
+            if isinstance(node, dict) and node.get("label"):
+                return str(node["label"])
+    return ""
+
+
+def fetch_reviews_list(app_id: str) -> list[dict]:
+    """Per-review list across RU/US/KZ/BY/UA — для review_notifier.
+
+    Returns list[dict] с единой схемой:
+        {review_id:str, store:"app_store", rating:int, author:str,
+         text:str, date:str|None}
+
+    Толерантно как :func:`_fetch_rss_ratings`: пропускает первый entry-метадату
+    (у app-метадаты нет ``im:rating``), схлопывает дубли review_id между
+    странами. Per-country ошибка → stderr WARN + continue. Никогда не падает
+    наружу: пустой результат → [].
+    """
+    seen: set[str] = set()
+    out: list[dict] = []
+    for cc in _RSS_COUNTRIES:
+        url = _RSS_URL_TEMPLATE.format(cc=cc, app_id=app_id)
+        try:
+            resp = _http.fetch_with_retry(url=url, method="GET")
+        except Exception as exc:  # noqa: BLE001 — RSS не критичен
+            sys.stderr.write(f"WARN: iTunes RSS {cc} reviews-list failed: {exc!r}\n")
+            continue
+        if resp.status_code >= 400:
+            sys.stderr.write(
+                f"WARN: iTunes RSS {cc} reviews-list HTTP {resp.status_code}\n"
+            )
+            continue
+        try:
+            payload = resp.json()
+        except (ValueError, json.JSONDecodeError) as exc:
+            sys.stderr.write(f"WARN: iTunes RSS {cc} reviews-list non-JSON: {exc!r}\n")
+            continue
+        feed = payload.get("feed") if isinstance(payload, dict) else None
+        if not isinstance(feed, dict):
+            continue
+        entries = feed.get("entry")
+        if entries is None:
+            continue
+        if isinstance(entries, dict):
+            entries = [entries]
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            rating_node = entry.get("im:rating")
+            if not isinstance(rating_node, dict):
+                # app-метадата (первый entry фида) — пропускаем.
+                continue
+            try:
+                rating = int(str(rating_node.get("label")).strip())
+            except (TypeError, ValueError):
+                continue
+            if not (1 <= rating <= 5):
+                continue
+            id_node = entry.get("id")
+            review_id = (
+                str(id_node.get("label"))
+                if isinstance(id_node, dict) and id_node.get("label")
+                else None
+            )
+            author_node = entry.get("author") or {}
+            name_node = author_node.get("name") if isinstance(author_node, dict) else {}
+            author = str(name_node.get("label") or "") if isinstance(name_node, dict) else ""
+            title_node = entry.get("title") or {}
+            title = str(title_node.get("label") or "") if isinstance(title_node, dict) else ""
+            body = _rss_entry_text(entry)
+            text = f"{title}\n{body}".strip() if title else body
+            updated_node = entry.get("updated") or {}
+            date = (
+                str(updated_node.get("label"))
+                if isinstance(updated_node, dict) and updated_node.get("label")
+                else None
+            )
+            # Дедуп: review_id если есть, иначе синтетический ключ (author+title+body).
+            dedup_key = review_id or f"{author}|{title}|{body}"
+            if dedup_key in seen:
+                continue
+            seen.add(dedup_key)
+            out.append({
+                "review_id": review_id or dedup_key,
+                "store": "app_store",
+                "rating": rating,
+                "author": author,
+                "text": text,
+                "date": date,
+            })
+    return out
+
+
+# ===================================================================
 # Public API
 # ===================================================================
 

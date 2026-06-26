@@ -407,6 +407,108 @@ def _fetch_reviews(bearer: str, package: str) -> tuple[float | None, int]:
     return (sum(star_ratings) / len(star_ratings), len(star_ratings))
 
 
+# Кандидаты имени поля даты в RuStore comment JSON (порядок = приоритет).
+# Реальный фид использует "commentDate" (verified fixture); остальные —
+# страховка от вариаций API.
+_RUSTORE_DATE_FIELDS: Final[tuple[str, ...]] = (
+    "commentDate", "editedDate", "createdAt", "date", "updatedDate",
+)
+# Кандидаты имени поля идентификатора отзыва.
+_RUSTORE_ID_FIELDS: Final[tuple[str, ...]] = ("commentId", "id")
+
+
+# ===================================================================
+# Per-review list (review_notifier — quick 260626-ozg)
+# ===================================================================
+
+def fetch_reviews_list(bearer: str, package: str) -> list[dict]:
+    """Per-review list via /comment API — для review_notifier.
+
+    Returns list[dict] с единой схемой:
+        {review_id:str, store:"rustore", rating:int, author:str,
+         text:str, date:str|None}
+
+    Только ``commentStatus == "PUBLISHED"``. Пагинация page/size, остановка по
+    ``body.last`` (как :func:`_fetch_reviews`), тот же ``_REVIEWS_PAGE_CAP``.
+    Per-page HTTP/parse error → stderr WARN + break (возврат накопленного).
+    Никогда не падает наружу.
+    """
+    url = _COMMENT_URL_TEMPLATE.format(package=package)
+    headers = {"Public-Token": bearer, "Content-Type": "application/json"}
+
+    out: list[dict] = []
+    for page in range(_REVIEWS_PAGE_CAP):
+        params = {"page": page, "size": _REVIEWS_PAGE_SIZE}
+        try:
+            resp = _http.fetch_with_retry(
+                url=url, method="GET", headers=headers, params=params,
+            )
+        except Exception as exc:  # noqa: BLE001 — один битый стор не валит прогон
+            sys.stderr.write(
+                f"WARN: RuStore reviews-list request failed page={page} "
+                f"package={package}: {exc!r}\n"
+            )
+            break
+        if resp.status_code >= 400:
+            sys.stderr.write(
+                f"WARN: RuStore reviews-list HTTP {resp.status_code} page={page} "
+                f"package={package} — stopping\n"
+            )
+            break
+        try:
+            payload = resp.json()
+        except (ValueError, json.JSONDecodeError) as exc:
+            sys.stderr.write(
+                f"WARN: RuStore reviews-list non-JSON page={page}: {exc!r}\n"
+            )
+            break
+        if not isinstance(payload, dict) or payload.get("code") != "OK":
+            break
+        body = payload.get("body")
+        if not isinstance(body, dict):
+            break
+        content = body.get("content")
+        if not isinstance(content, list) or not content:
+            break
+        for review in content:
+            if not isinstance(review, dict):
+                continue
+            if review.get("commentStatus") != "PUBLISHED":
+                continue
+            star_raw = review.get("appRating")
+            if star_raw is None:
+                continue
+            try:
+                star = int(star_raw)
+            except (TypeError, ValueError):
+                continue
+            if not (1 <= star <= 5):
+                continue
+            review_id = None
+            for f in _RUSTORE_ID_FIELDS:
+                if review.get(f) is not None:
+                    review_id = str(review[f])
+                    break
+            if review_id is None:
+                continue
+            date = None
+            for f in _RUSTORE_DATE_FIELDS:
+                if review.get(f):
+                    date = str(review[f])
+                    break
+            out.append({
+                "review_id": review_id,
+                "store": "rustore",
+                "rating": star,
+                "author": str(review.get("userName") or ""),
+                "text": str(review.get("commentText") or ""),
+                "date": date,
+            })
+        if body.get("last") is True:
+            break
+    return out
+
+
 # ===================================================================
 # Public API
 # ===================================================================

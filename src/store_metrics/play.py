@@ -407,6 +407,109 @@ def _fetch_reviews(
 
 
 # ===================================================================
+# Per-review list (review_notifier — quick 260626-ozg)
+# ===================================================================
+
+def fetch_reviews_list(credentials, package: str) -> list[dict]:
+    """Per-review list via androidpublisher v3 — для review_notifier.
+
+    Returns list[dict] с единой схемой:
+        {review_id:str, store:"google_play", rating:int, author:str,
+         text:str, date:str|None}
+
+    Пагинация ``tokenPagination.nextPageToken`` с тем же ``_REVIEWS_PAGE_CAP``.
+    Строки без ``starRating`` / ``text`` пропускаются. ``date`` — ISO-дата из
+    ``lastModified.seconds`` (UTC) или None. Никогда не падает наружу: любая
+    ошибка (HttpError и пр.) → возврат уже накопленного.
+
+    NB: androidpublisher отдаёт только отзывы С ТЕКСТОМ за ~последние 7 дней —
+    это норма API (как в :func:`_fetch_reviews`).
+    """
+    out: list[dict] = []
+    try:
+        # Lazy import — keeps cold-start light in mock mode.
+        from googleapiclient.discovery import build
+
+        service = build(
+            "androidpublisher", "v3", credentials=credentials,
+            cache_discovery=False,
+        )
+
+        next_token: str | None = None
+        while len(out) < _REVIEWS_PAGE_CAP:
+            if next_token:
+                resp = service.reviews().list(
+                    packageName=package, token=next_token,
+                ).execute()
+            else:
+                resp = service.reviews().list(packageName=package).execute()
+
+            reviews = resp.get("reviews", []) if isinstance(resp, dict) else []
+            for review in reviews:
+                if not isinstance(review, dict):
+                    continue
+                review_id = review.get("reviewId")
+                if not review_id:
+                    continue
+                comments = review.get("comments")
+                if not isinstance(comments, list) or not comments:
+                    continue
+                first = comments[0]
+                if not isinstance(first, dict):
+                    continue
+                uc = first.get("userComment")
+                if not isinstance(uc, dict):
+                    continue
+                star_raw = uc.get("starRating")
+                text = uc.get("text")
+                if star_raw is None or not text:
+                    continue
+                try:
+                    star = int(star_raw)
+                except (TypeError, ValueError):
+                    continue
+                if not (1 <= star <= 5):
+                    continue
+                date: str | None = None
+                last_mod = uc.get("lastModified")
+                if isinstance(last_mod, dict) and last_mod.get("seconds"):
+                    try:
+                        date = (
+                            dt.datetime.fromtimestamp(
+                                int(last_mod["seconds"]), dt.timezone.utc,
+                            )
+                            .date()
+                            .isoformat()
+                        )
+                    except (TypeError, ValueError, OverflowError, OSError):
+                        date = None
+                out.append({
+                    "review_id": str(review_id),
+                    "store": "google_play",
+                    "rating": star,
+                    "author": str(review.get("authorName") or ""),
+                    "text": str(text),
+                    "date": date,
+                })
+                if len(out) >= _REVIEWS_PAGE_CAP:
+                    break
+
+            token_pag = resp.get("tokenPagination") if isinstance(resp, dict) else None
+            next_token = (
+                token_pag.get("nextPageToken")
+                if isinstance(token_pag, dict)
+                else None
+            )
+            if not next_token:
+                break
+    except Exception as exc:  # noqa: BLE001 — один битый стор не валит прогон
+        sys.stderr.write(
+            f"WARN: Play reviews-list failed for {package}: {exc!r}\n"
+        )
+    return out
+
+
+# ===================================================================
 # Public API
 # ===================================================================
 

@@ -1,0 +1,112 @@
+name: review_notifier
+
+# Review notifier (quick 260626-ozg, 2026-06-26).
+#   Несколько раз в день тянет per-review списки по 6 продуктам × 3 сторам
+#   (App Store iTunes RSS, Google Play androidpublisher, RuStore comment API),
+#   определяет НОВЫЕ отзывы (которых ещё не видел через .metrics/reviews_seen.json)
+#   и шлёт каждый новый отзыв отдельной HTML-карточкой в TG-канал «Планировщик».
+#   Первый прогон для каждой пары product+store засеивает seen БЕЗ рассылки
+#   (baseline) — иначе при первом запуске улетели бы ВСЕ исторические отзывы.
+#
+# Cron: каждые 3 часа в окне 9–21 МСК (МСК = UTC+3).
+#   6,9,12,15,18 UTC = 09,12,15,18,21 МСК.
+#   Минута 17 (не ровный час) — анти-drift GH Actions (как минута 37 в
+#   store_metrics.yml: на ровные часы у GH throttling под пиковую нагрузку).
+#
+# Concurrency: group=review-notifier, cancel-in-progress=false — две сборки
+#   никогда не пересекаются (защита от гонок при коммите seen-state).
+#
+# Seen-state commit: .metrics/reviews_seen.json коммитится обратно в repo через
+#   BOT_DISPATCH_PAT (тот же fine-grained PAT, Contents:write, single-repo).
+on:
+  schedule:
+    - cron: "17 6,9,12,15,18 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # commit reviews_seen.json в repo
+
+concurrency:
+  group: review-notifier
+  cancel-in-progress: false
+
+jobs:
+  poll-and-notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.BOT_DISPATCH_PAT }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Poll reviews + send new ones as TG cards
+        env:
+          # ------------ TG (planner bot, Phase 1.5 inheritance) ------------
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+
+          # ------------ Apple App Store — iTunes RSS reviews (no auth) -----------
+          # RSS отзывы не требуют ASC API Key — только numeric app id per продукт.
+          # ASC_APP_ID_LISTVIA — НОВЫЙ опциональный секрет: если не заведён,
+          # Apple-отзывы по Листвии просто пропускаются (мягкая деградация),
+          # остальные 5 продуктов работают.
+          ASC_APP_ID_CENTRY: ${{ secrets.ASC_APP_ID_CENTRY }}
+          ASC_APP_ID_DIKTUM: ${{ secrets.ASC_APP_ID_DIKTUM }}
+          ASC_APP_ID_LUCEA: ${{ secrets.ASC_APP_ID_LUCEA }}
+          ASC_APP_ID_LAPULYA: ${{ secrets.ASC_APP_ID_LAPULYA }}
+          ASC_APP_ID_UNIA: ${{ secrets.ASC_APP_ID_UNIA }}
+          ASC_APP_ID_LISTVIA: ${{ secrets.ASC_APP_ID_LISTVIA }}
+
+          # ------------ Google Play — androidpublisher v3 reviews ---------------
+          # Reviews via androidpublisher v3 (тот же Service Account что
+          # store_metrics). Отдаёт отзывы С ТЕКСТОМ за ~последние 7 дней.
+          GOOGLE_PLAY_SA_JSON: ${{ secrets.GOOGLE_PLAY_SA_JSON }}
+          GPLAY_DEVELOPER_ID: ${{ secrets.GPLAY_DEVELOPER_ID }}
+          GPLAY_PACKAGE_CENTRY: ${{ secrets.GPLAY_PACKAGE_CENTRY }}
+          GPLAY_PACKAGE_DIKTUM: ${{ secrets.GPLAY_PACKAGE_DIKTUM }}
+          GPLAY_PACKAGE_LUCEA: ${{ secrets.GPLAY_PACKAGE_LUCEA }}
+          GPLAY_PACKAGE_LAPULYA: ${{ secrets.GPLAY_PACKAGE_LAPULYA }}
+          GPLAY_PACKAGE_UNIA: ${{ secrets.GPLAY_PACKAGE_UNIA }}
+
+          # ------------ RuStore — comment API via JWS auth ----------------------
+          # Reviews via JWS RSA-SHA512 auth + paginated
+          # /public/v1/application/<package>/comment (только PUBLISHED).
+          RUSTORE_PRIVATE_KEY: ${{ secrets.RUSTORE_PRIVATE_KEY }}
+          RUSTORE_KEY_ID: ${{ secrets.RUSTORE_KEY_ID }}
+          RUSTORE_COMPANY_ID: ${{ secrets.RUSTORE_COMPANY_ID }}
+          RUSTORE_PACKAGE_CENTRY: ${{ secrets.RUSTORE_PACKAGE_CENTRY }}
+          RUSTORE_PACKAGE_DIKTUM: ${{ secrets.RUSTORE_PACKAGE_DIKTUM }}
+          RUSTORE_PACKAGE_LUCEA: ${{ secrets.RUSTORE_PACKAGE_LUCEA }}
+          RUSTORE_PACKAGE_LAPULYA: ${{ secrets.RUSTORE_PACKAGE_LAPULYA }}
+          RUSTORE_PACKAGE_UNIA: ${{ secrets.RUSTORE_PACKAGE_UNIA }}
+        run: PYTHONPATH=. python -m src.review_notifier.cli
+
+      - name: Commit updated seen state
+        env:
+          GIT_AUTHOR_NAME: forton-metrics-bot
+          GIT_AUTHOR_EMAIL: forton-metrics-bot@users.noreply.github.com
+          GIT_COMMITTER_NAME: forton-metrics-bot
+          GIT_COMMITTER_EMAIL: forton-metrics-bot@users.noreply.github.com
+        run: |
+          # git add сначала: на первом запуске файл untracked, и `git diff
+          # --quiet` его НЕ видит (вернул бы 0 → коммит пропускался). Стейджим,
+          # затем проверяем staged-дифф (как в store_metrics.yml).
+          git add .metrics/reviews_seen.json
+          if git diff --cached --quiet -- .metrics/reviews_seen.json; then
+            echo "seen state unchanged — no commit"
+            exit 0
+          fi
+          git commit -m "auto: review notifier seen state [skip ci]"
+          git pull --rebase
+          git push
