@@ -638,8 +638,10 @@ media:
 - path: assets/posts/2026-06/forton-jun28-weekend.png
   sha256: 87c3f1baf6d4df6ab9a4caef9fc8e212d51fdc0267915a729c97b596b43d38ff
   role: image
-status: published
+status: skipped
 published_at: '2026-06-28T11:23:00.864110+00:00'
+skipped_at: '2026-06-28T11:25:44.254088+00:00'
+skipped_via: forton-via-tg-bot
 ```
 
 Воскресенье.
