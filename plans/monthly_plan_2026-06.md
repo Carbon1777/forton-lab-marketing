@@ -681,11 +681,15 @@ luceaweb.ru
 
 ```yaml
 slug: forton-jun30-recap
-channels: [tg, vk]
+channels:
+- tg
+- vk
 product: forton-lab
 rubric: monthly_recap
 media: []
-status: draft
+status: skipped
+skipped_at: '2026-06-30T09:13:49.367651+00:00'
+skipped_via: forton-via-tg-bot
 ```
 
 Июнь в студии: три приложения в работе, новые сценарии в Centry и Diktum и запуск третьего продукта — Lucea.
