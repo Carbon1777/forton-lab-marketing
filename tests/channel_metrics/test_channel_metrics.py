@@ -151,17 +151,66 @@ def test_vk_no_creds(monkeypatch):
 
 
 # --------------------------------------------------------------------------
-# youtube fetcher (optional)
+# youtube fetcher (optional — OAuth path 1 + API-key path 2)
 # --------------------------------------------------------------------------
+_YT_ENV = ("YT_REFRESH_TOKEN", "YT_CLIENT_ID", "YT_CLIENT_SECRET",
+           "YT_API_KEY", "YT_CHANNEL_ID")
+
+
+def _clear_yt(monkeypatch):
+    for k in _YT_ENV:
+        monkeypatch.delenv(k, raising=False)
+
+
 def test_yt_optional_absent(monkeypatch):
-    monkeypatch.delenv("YT_API_KEY", raising=False)
-    monkeypatch.delenv("YT_CHANNEL_ID", raising=False)
+    _clear_yt(monkeypatch)
     snap = youtube.fetch_weekly(WEEK)
     assert snap.subscribers is None and "optional" in snap.error
 
 
+@patch("googleapiclient.discovery.build")
+@patch("google.auth.transport.requests.Request")
+@patch("google.oauth2.credentials.Credentials")
+def test_yt_oauth_ok(m_creds, m_req, m_build, monkeypatch):
+    _clear_yt(monkeypatch)
+    for k in ("YT_REFRESH_TOKEN", "YT_CLIENT_ID", "YT_CLIENT_SECRET"):
+        monkeypatch.setenv(k, "x")
+    service = MagicMock()
+    service.channels.return_value.list.return_value.execute.return_value = {
+        "items": [{"statistics": {"subscriberCount": "89"}}]
+    }
+    m_build.return_value = service
+    snap = youtube.fetch_weekly(WEEK)
+    assert snap.subscribers == 89 and snap.error is None
+
+
+@patch("src.channel_metrics.youtube._fetch_via_apikey")
+@patch("src.channel_metrics.youtube._fetch_via_oauth")
+def test_yt_oauth_fail_falls_back_to_apikey(m_oauth, m_apikey, monkeypatch):
+    _clear_yt(monkeypatch)
+    for k in ("YT_REFRESH_TOKEN", "YT_CLIENT_ID", "YT_CLIENT_SECRET",
+              "YT_API_KEY", "YT_CHANNEL_ID"):
+        monkeypatch.setenv(k, "x")
+    m_oauth.return_value = ChannelSnapshot("youtube", WEEK, None, error="scope denied")
+    m_apikey.return_value = ChannelSnapshot("youtube", WEEK, 89)
+    snap = youtube.fetch_weekly(WEEK)
+    assert snap.subscribers == 89
+    m_apikey.assert_called_once()
+
+
+@patch("src.channel_metrics.youtube._fetch_via_oauth")
+def test_yt_oauth_fail_no_key_returns_error(m_oauth, monkeypatch):
+    _clear_yt(monkeypatch)
+    for k in ("YT_REFRESH_TOKEN", "YT_CLIENT_ID", "YT_CLIENT_SECRET"):
+        monkeypatch.setenv(k, "x")
+    m_oauth.return_value = ChannelSnapshot("youtube", WEEK, None, error="scope denied")
+    snap = youtube.fetch_weekly(WEEK)
+    assert snap.subscribers is None and "scope denied" in snap.error
+
+
 @patch("src.channel_metrics.youtube.fetch_with_retry")
-def test_yt_ok(mock_fetch, monkeypatch):
+def test_yt_apikey_only_ok(mock_fetch, monkeypatch):
+    _clear_yt(monkeypatch)
     monkeypatch.setenv("YT_API_KEY", "k")
     monkeypatch.setenv("YT_CHANNEL_ID", "UC123")
     mock_fetch.return_value = _resp(
@@ -172,7 +221,8 @@ def test_yt_ok(mock_fetch, monkeypatch):
 
 
 @patch("src.channel_metrics.youtube.fetch_with_retry")
-def test_yt_channel_not_found(mock_fetch, monkeypatch):
+def test_yt_apikey_channel_not_found(mock_fetch, monkeypatch):
+    _clear_yt(monkeypatch)
     monkeypatch.setenv("YT_API_KEY", "k")
     monkeypatch.setenv("YT_CHANNEL_ID", "UCbad")
     mock_fetch.return_value = _resp({"items": []})
