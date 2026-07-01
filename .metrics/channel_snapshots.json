@@ -1,0 +1,25 @@
+{
+  "2026-W27": {
+    "telegram": {
+      "error": "TG API: Bad Request: chat_id is empty",
+      "platform": "telegram",
+      "reach": null,
+      "subscribers": null,
+      "week_start": "2026-06-29"
+    },
+    "vk": {
+      "error": null,
+      "platform": "vk",
+      "reach": null,
+      "subscribers": 17,
+      "week_start": "2026-06-29"
+    },
+    "youtube": {
+      "error": "YT_API_KEY/YT_CHANNEL_ID not set (optional)",
+      "platform": "youtube",
+      "reach": null,
+      "subscribers": null,
+      "week_start": "2026-06-29"
+    }
+  }
+}
