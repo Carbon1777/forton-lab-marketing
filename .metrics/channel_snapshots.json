@@ -15,7 +15,7 @@
       "week_start": "2026-06-29"
     },
     "youtube": {
-      "error": "YT_API_KEY/YT_CHANNEL_ID not set (optional)",
+      "error": "YT creds not set (optional)",
       "platform": "youtube",
       "reach": null,
       "subscribers": null,
