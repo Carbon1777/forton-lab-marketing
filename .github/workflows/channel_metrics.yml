@@ -1,0 +1,87 @@
+name: channel_metrics
+
+# Еженедельный дайджест охватов СВОИХ каналов студии (Telegram/VK/YouTube)
+# в TG-канал «Планировщик» — рядом со store/hybrid отчётами.
+#
+# Additive (2026-07): собирает подписчиков на УЖЕ существующих токенах
+# (TG_BOT_TOKEN — бот-админ @fortonlab; VK_GROUP_TOKEN/VK_GROUP_ID). YouTube —
+# опционально через free YT_API_KEY + YT_CHANNEL_ID; если их нет, строка YT
+# рендерится как «нет данных», дайджест не падает. Дзен API не имеет — не входит.
+#
+# Cron Пн 07:07 UTC = 10:07 МСК. Sub-hour offset (07 мин) — та же митигация
+# cron-drift, что в store_metrics; +30 мин от store_metrics (06:37), чтобы два
+# отчёта не толпились в один слот.
+#
+# Snapshot: .metrics/channel_snapshots.json (изолирован от store/hybrid),
+# коммитится обратно через BOT_DISPATCH_PAT (Contents:write, single-repo).
+on:
+  schedule:
+    - cron: "7 7 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # commit snapshot JSON в repo
+
+concurrency:
+  group: channel-metrics
+  cancel-in-progress: false
+
+jobs:
+  collect-and-send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.BOT_DISPATCH_PAT }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Collect + render + send channel digest
+        env:
+          # ------------ TG (planner bot — куда шлём дайджест) ------------
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+
+          # ------------ Telegram-канал (откуда берём подписчиков) --------
+          # Бот @fortonlab_bot уже админ в @fortonlab → getChatMemberCount.
+          # TG_STATS_CHANNEL опционален; default '@fortonlab' зашит в коде.
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_STATS_CHANNEL: ${{ secrets.TG_STATS_CHANNEL }}
+
+          # ------------ VK-сообщество (members + best-effort reach) -------
+          VK_GROUP_TOKEN: ${{ secrets.VK_GROUP_TOKEN }}
+          VK_GROUP_ID: ${{ secrets.VK_GROUP_ID }}
+
+          # ------------ YouTube (ОПЦИОНАЛЬНО — free Data API key) ---------
+          # Существующий YT OAuth refresh_token имеет scope youtube.upload и
+          # НЕ читает статистику; поэтому публичные метрики — через API-ключ.
+          # Если секретов нет — строка YT = «нет данных», без блокера.
+          YT_API_KEY: ${{ secrets.YT_API_KEY }}
+          YT_CHANNEL_ID: ${{ secrets.YT_CHANNEL_ID }}
+        run: PYTHONPATH=. python -m src.channel_metrics.cli
+
+      - name: Commit updated snapshot
+        env:
+          GIT_AUTHOR_NAME: forton-metrics-bot
+          GIT_AUTHOR_EMAIL: forton-metrics-bot@users.noreply.github.com
+          GIT_COMMITTER_NAME: forton-metrics-bot
+          GIT_COMMITTER_EMAIL: forton-metrics-bot@users.noreply.github.com
+        run: |
+          git add .metrics/channel_snapshots.json
+          if git diff --cached --quiet -- .metrics/channel_snapshots.json; then
+            echo "snapshot unchanged — no commit"
+            exit 0
+          fi
+          git commit -m "auto: weekly channel metrics snapshot [skip ci]"
+          git pull --rebase
+          git push
