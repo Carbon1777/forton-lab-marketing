@@ -15,7 +15,7 @@
       "week_start": "2026-06-29"
     },
     "youtube": {
-      "error": "YT creds not set (optional)",
+      "error": "YT OAuth HttpError: <HttpError 403 when requesting https://youtube.googleapis.com/youtube/",
       "platform": "youtube",
       "reach": null,
       "subscribers": null,
