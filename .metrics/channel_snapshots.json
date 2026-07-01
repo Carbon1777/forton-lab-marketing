@@ -1,10 +1,10 @@
 {
   "2026-W27": {
     "telegram": {
-      "error": "TG API: Bad Request: chat_id is empty",
+      "error": null,
       "platform": "telegram",
       "reach": null,
-      "subscribers": null,
+      "subscribers": 46,
       "week_start": "2026-06-29"
     },
     "vk": {
