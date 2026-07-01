@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Final
@@ -21,6 +22,36 @@ from .models import ChannelReport, ChannelSnapshot
 from .snapshot import _iso_week_start, get_prev_week, load, save, store_week
 
 SNAPSHOTS_PATH: Final[Path] = Path(".metrics/channel_snapshots.json")
+PUBLISHED_DIR: Final[Path] = Path("published")
+
+# Префикс даты в имени published/<YYYY-MM-DD>-slug.md — источник даты публикации.
+_PUB_DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})-")
+
+
+def count_published_in_week(week_start: dt.date,
+                            published_dir: Path | None = None) -> int:
+    """Число постов, опубликованных за ISO-неделю [week_start, week_start+6].
+
+    Дата берётся из префикса имени файла — присутствует у всех published/*.md.
+    Файлы без валидного префикса пропускаются. Нет папки → 0.
+    """
+    if published_dir is None:
+        published_dir = PUBLISHED_DIR
+    if not published_dir.exists():
+        return 0
+    week_end = week_start + dt.timedelta(days=6)
+    count = 0
+    for p in published_dir.glob("*.md"):
+        m = _PUB_DATE_RE.match(p.name)
+        if not m:
+            continue
+        try:
+            d = dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            continue
+        if week_start <= d <= week_end:
+            count += 1
+    return count
 
 
 def collect_all(week_start: dt.date) -> list[ChannelSnapshot]:
@@ -47,10 +78,12 @@ def collect_all(week_start: dt.date) -> list[ChannelSnapshot]:
 
 
 def build_report(week_start: dt.date, snapshots_data: dict,
-                 current_snaps: list[ChannelSnapshot]) -> ChannelReport:
+                 current_snaps: list[ChannelSnapshot],
+                 posts_published: int | None = None) -> ChannelReport:
     prev = get_prev_week(snapshots_data, week_start)
     return ChannelReport(
         week_start=week_start, snapshots=current_snaps, prev_snapshots=prev,
+        posts_published=posts_published,
     )
 
 
@@ -86,11 +119,13 @@ def send_to_planner(digest: str) -> bool:
 
 
 def main(today: dt.date | None = None,
-         snapshots_path: Path | None = None) -> int:
+         snapshots_path: Path | None = None,
+         published_dir: Path | None = None) -> int:
     """Entry для workflow. today=None → date.today() (UTC на runner).
 
-    Снимок ключуется ТЕКУЩЕЙ ISO-неделей (подписчики — point-in-time), Δ WoW
-    считается против снимка прошлой недели.
+    Снимок подписчиков ключуется ТЕКУЩЕЙ ISO-неделей (point-in-time), Δ WoW
+    считается против снимка прошлой недели. Счётчик постов — за ПРОШЛУЮ
+    завершённую неделю (запуск в понедельник ⇒ «сколько опубликовали за неделю»).
     """
     if today is None:
         today = dt.date.today()
@@ -102,9 +137,13 @@ def main(today: dt.date | None = None,
         f"INFO: channel_metrics digest for week {week_start.isoformat()}\n"
     )
 
+    prev_week_start = week_start - dt.timedelta(days=7)
+    posts_published = count_published_in_week(prev_week_start, published_dir)
+
     data = load(snapshots_path)
     current_snaps = collect_all(week_start)
-    report = build_report(week_start, data, current_snaps)
+    report = build_report(week_start, data, current_snaps,
+                          posts_published=posts_published)
 
     digest = render_channel_digest(report)
     print(digest)  # для GH Actions log

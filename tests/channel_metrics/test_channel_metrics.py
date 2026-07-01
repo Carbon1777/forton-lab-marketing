@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 from src.channel_metrics import digest as digest_mod
 from src.channel_metrics import snapshot as snap_mod
 from src.channel_metrics import telegram, vk, youtube
-from src.channel_metrics.cli import main
+from src.channel_metrics.cli import count_published_in_week, main
 from src.channel_metrics.models import (
     ChannelDelta,
     ChannelReport,
@@ -263,6 +263,50 @@ def test_snapshot_load_missing(tmp_path):
 
 
 # --------------------------------------------------------------------------
+# count_published_in_week — posts per ISO week from published/ filenames
+# --------------------------------------------------------------------------
+def test_count_published_in_week(tmp_path):
+    pub = tmp_path / "published"
+    pub.mkdir()
+    # Неделя [2026-06-22, 2026-06-28]: три поста внутри, два вне окна, один битый.
+    for name in (
+        "2026-06-22-a.md", "2026-06-25-b.md", "2026-06-28-c.md",  # внутри
+        "2026-06-21-early.md", "2026-06-29-late.md",              # вне
+        "no-date-slug.md",                                        # без префикса
+    ):
+        (pub / name).write_text("x", encoding="utf-8")
+    n = count_published_in_week(dt.date(2026, 6, 22), published_dir=pub)
+    assert n == 3
+
+
+def test_count_published_missing_dir(tmp_path):
+    assert count_published_in_week(dt.date(2026, 6, 22),
+                                   published_dir=tmp_path / "nope") == 0
+
+
+def test_digest_shows_posts_line():
+    report = ChannelReport(
+        week_start=WEEK,
+        snapshots=[ChannelSnapshot("telegram", WEEK, 46)],
+        prev_snapshots=[],
+        posts_published=7,
+    )
+    out = digest_mod.render_channel_digest(report)
+    assert "Постов за прошлую неделю: 7" in out
+
+
+def test_digest_omits_posts_line_when_none():
+    report = ChannelReport(
+        week_start=WEEK,
+        snapshots=[ChannelSnapshot("telegram", WEEK, 46)],
+        prev_snapshots=[],
+        posts_published=None,
+    )
+    out = digest_mod.render_channel_digest(report)
+    assert "Постов за прошлую неделю" not in out
+
+
+# --------------------------------------------------------------------------
 # digest rendering
 # --------------------------------------------------------------------------
 def _sample_report() -> ChannelReport:
@@ -312,7 +356,7 @@ def test_main_happy_path(m_tg, m_vk, m_yt, m_send, tmp_path):
     m_yt.return_value = ChannelSnapshot("youtube", WEEK, None, error="optional")
 
     snap_path = tmp_path / ".metrics" / "channel_snapshots.json"
-    rc = main(today=WEEK, snapshots_path=snap_path)
+    rc = main(today=WEEK, snapshots_path=snap_path, published_dir=tmp_path / "published")
 
     assert rc == 0
     m_send.assert_called_once()
@@ -332,7 +376,7 @@ def test_main_send_failure_returns_1_but_saves(m_tg, m_vk, m_yt, m_send, tmp_pat
     m_vk.return_value = ChannelSnapshot("vk", WEEK, 500)
     m_yt.return_value = ChannelSnapshot("youtube", WEEK, None, error="optional")
     snap_path = tmp_path / ".metrics" / "channel_snapshots.json"
-    rc = main(today=WEEK, snapshots_path=snap_path)
+    rc = main(today=WEEK, snapshots_path=snap_path, published_dir=tmp_path / "published")
     assert rc == 1  # send failed
     assert snap_path.exists()  # снапшот всё равно сохранён
 
@@ -347,14 +391,14 @@ def test_main_wow_delta_across_two_runs(m_tg, m_vk, m_yt, m_send, tmp_path):
     m_tg.return_value = ChannelSnapshot("telegram", PREV_WEEK, 1000)
     m_vk.return_value = ChannelSnapshot("vk", PREV_WEEK, 500)
     m_yt.return_value = ChannelSnapshot("youtube", PREV_WEEK, None, error="optional")
-    main(today=PREV_WEEK, snapshots_path=snap_path)
+    main(today=PREV_WEEK, snapshots_path=snap_path, published_dir=tmp_path / "published")
     # неделя 2 — prev-неделя должна найтись → дайджест покажет дельту
     m_tg.return_value = ChannelSnapshot("telegram", WEEK, 1050)
     m_vk.return_value = ChannelSnapshot("vk", WEEK, 500)
     m_yt.return_value = ChannelSnapshot("youtube", WEEK, None, error="optional")
     with patch("src.channel_metrics.cli.render_channel_digest",
                wraps=digest_mod.render_channel_digest) as m_render:
-        main(today=WEEK, snapshots_path=snap_path)
+        main(today=WEEK, snapshots_path=snap_path, published_dir=tmp_path / "published")
         report = m_render.call_args.args[0]
     prev_by = {s.platform: s for s in report.prev_snapshots}
     assert prev_by["telegram"].subscribers == 1000  # нашёл прошлую неделю

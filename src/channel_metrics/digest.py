@@ -68,6 +68,11 @@ def render_channel_digest(report: ChannelReport) -> str:
             continue
         lines.append(_render_row(snap, prev_by.get(platform)))
 
+    # Сколько постов опубликовали за прошлую неделю (по published/).
+    if report.posts_published is not None:
+        lines.append("")
+        lines.append(f"📝 Постов за прошлую неделю: {report.posts_published}")
+
     lines.append("")
     ts_msk = (report.generated_at + dt.timedelta(hours=3)).strftime("%H:%M")
     lines.append(

@@ -57,10 +57,16 @@ class ChannelDelta:
 
 @dataclass(frozen=True)
 class ChannelReport:
-    """Полный недельный отчёт по каналам студии."""
+    """Полный недельный отчёт по каналам студии.
+
+    ``posts_published`` — сколько постов опубликовано за ПРОШЛУЮ ISO-неделю
+    (по префиксу даты в имени published/<YYYY-MM-DD>-*.md). None → строка про
+    посты в дайджесте не рендерится (обратная совместимость).
+    """
     week_start: dt.date
     snapshots: list[ChannelSnapshot]
     prev_snapshots: list[ChannelSnapshot]
+    posts_published: int | None = None
     generated_at: dt.datetime = field(
         default_factory=lambda: dt.datetime.now(dt.timezone.utc)
     )
