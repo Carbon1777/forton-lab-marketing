@@ -20,7 +20,9 @@ DEFAULT_CHANNEL = "@fortonlab"
 
 def fetch_weekly(week_start: dt.date) -> ChannelSnapshot:
     token = os.environ.get("TG_BOT_TOKEN")
-    channel = os.environ.get("TG_STATS_CHANNEL", DEFAULT_CHANNEL)
+    # GH Actions отдаёт ОТСУТСТВУЮЩИЙ секрет как пустую строку (не unset), поэтому
+    # os.environ.get(name, default) не сработает — используем `or DEFAULT`.
+    channel = os.environ.get("TG_STATS_CHANNEL") or DEFAULT_CHANNEL
     if not token:
         return ChannelSnapshot(
             platform="telegram", week_start=week_start,

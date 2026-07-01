@@ -71,6 +71,16 @@ def test_tg_ok(mock_fetch, monkeypatch):
 
 
 @patch("src.channel_metrics.telegram.fetch_with_retry")
+def test_tg_empty_channel_falls_back_to_default(mock_fetch, monkeypatch):
+    # GH Actions передаёт отсутствующий секрет как "" — должен подставиться @fortonlab.
+    monkeypatch.setenv("TG_BOT_TOKEN", "x")
+    monkeypatch.setenv("TG_STATS_CHANNEL", "")
+    mock_fetch.return_value = _resp({"ok": True, "result": 42})
+    telegram.fetch_weekly(WEEK)
+    assert mock_fetch.call_args.kwargs["params"]["chat_id"] == "@fortonlab"
+
+
+@patch("src.channel_metrics.telegram.fetch_with_retry")
 def test_tg_api_error(mock_fetch, monkeypatch):
     monkeypatch.setenv("TG_BOT_TOKEN", "x")
     mock_fetch.return_value = _resp({"ok": False, "description": "chat not found"})
