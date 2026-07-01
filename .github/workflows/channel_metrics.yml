@@ -62,10 +62,17 @@ jobs:
           VK_GROUP_TOKEN: ${{ secrets.VK_GROUP_TOKEN }}
           VK_GROUP_ID: ${{ secrets.VK_GROUP_ID }}
 
-          # ------------ YouTube (ОПЦИОНАЛЬНО — free Data API key) ---------
-          # Существующий YT OAuth refresh_token имеет scope youtube.upload и
-          # НЕ читает статистику; поэтому публичные метрики — через API-ключ.
-          # Если секретов нет — строка YT = «нет данных», без блокера.
+          # ------------ YouTube — путь 1: OAuth channels.list(mine=true) --
+          # Переиспользуем существующие publisher-креды (те же, что youtube_post).
+          # Если их scope (youtube.upload) пускает к статистике своего канала —
+          # подписчики берутся без API-ключа.
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          # ------------ YouTube — путь 2 (fallback): free Data API key ----
+          # Если OAuth-scope не пустит к статистике — публичные метрики через
+          # ключ. YT_CHANNEL_ID уже выставлен (UCQi6C6yX751xgOcQVXgknxQ);
+          # YT_API_KEY опционален. Нет ни того ни другого → строка «нет данных».
           YT_API_KEY: ${{ secrets.YT_API_KEY }}
           YT_CHANNEL_ID: ${{ secrets.YT_CHANNEL_ID }}
         run: PYTHONPATH=. python -m src.channel_metrics.cli
