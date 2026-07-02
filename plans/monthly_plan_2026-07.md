@@ -25,7 +25,8 @@ media:
 - path: assets/posts/2026-07/diktum-jul2-pauza.png
   sha256: 86c00d41392472e1e82aa7c3f633259549a8c175a362fbad0803e5b4c5bc4a13
   role: image
-status: draft
+status: published
+published_at: '2026-07-02T09:06:08.165000+00:00'
 ```
 
 Хочешь звучать увереннее — начни не с громкости, а с пауз 🎙
