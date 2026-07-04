@@ -62,7 +62,8 @@ media:
 - path: assets/posts/2026-07/lucea-jul4-pogovorit.mp4
   sha256: d61bb05f823d3aca97c5ae27020e39c53cd1b4768e9df0065ad3d213c7fab297
   role: video
-status: draft
+status: published
+published_at: '2026-07-04T09:32:08.828075+00:00'
 ```
 
 В конце дня легко вспомнить, что ты сделал. И куда сложнее — что ты при этом чувствовал.
