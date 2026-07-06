@@ -5,14 +5,15 @@ import datetime as dt
 from dataclasses import dataclass, field
 from typing import Literal
 
-Platform = Literal["telegram", "vk", "youtube"]
+Platform = Literal["telegram", "vk", "youtube", "instagram"]
 
 # Фиксированный порядок рендера + человекочитаемые метки с emoji.
-PLATFORM_ORDER: tuple[Platform, ...] = ("telegram", "vk", "youtube")
+PLATFORM_ORDER: tuple[Platform, ...] = ("telegram", "vk", "youtube", "instagram")
 PLATFORM_LABEL: dict[str, str] = {
     "telegram": "🔵 Telegram",
     "vk": "🟦 VK",
     "youtube": "🔴 YouTube",
+    "instagram": "🟣 Instagram",
 }
 
 

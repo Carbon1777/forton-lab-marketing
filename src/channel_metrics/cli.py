@@ -16,7 +16,7 @@ from typing import Final
 
 import requests
 
-from . import telegram, vk, youtube
+from . import instagram, telegram, vk, youtube
 from .digest import render_channel_digest
 from .models import ChannelReport, ChannelSnapshot
 from .snapshot import _iso_week_start, get_prev_week, load, save, store_week
@@ -64,6 +64,7 @@ def collect_all(week_start: dt.date) -> list[ChannelSnapshot]:
         ("telegram", telegram.fetch_weekly),
         ("vk", vk.fetch_weekly),
         ("youtube", youtube.fetch_weekly),
+        ("instagram", instagram.fetch_weekly),
     ]
     snaps: list[ChannelSnapshot] = []
     for platform, fetch in adapters:
