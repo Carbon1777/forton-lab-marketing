@@ -32,6 +32,10 @@ class ProductSpec:
     # "screen_view" (paramsLevel2 = строковое имя экрана). Lucea/Unia/Лапуля шлют
     # "screen_entered" (paramsLevel2 = int screen_id; screen_names мапит "<id>").
     screen_event_label: str = "screen_view"
+    # Событие нативного запроса оценки (In-App Review). Заполнено только у тех
+    # приложений, где механизм уже внедрён в код (шлют review_prompt_triggered).
+    # None → в отчёте секция «пока не внедрён» без запроса к AppMetrica.
+    review_event: str | None = None
 
 
 @dataclass(frozen=True)
@@ -72,6 +76,24 @@ class ScreenStat:
 class AppMetricaScreens:
     """Топ-экраны по заходам. error — мягкая деградация."""
     screens: list[ScreenStat]
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class AppMetricaReviewPrompts:
+    """Нативный запрос оценки (событие review_prompt_triggered).
+
+    available=False → механизм в приложении ещё НЕ внедрён (рендер: «не внедрён»,
+    без запроса к AppMetrica). available=True + devices/events None → мягкая
+    деградация (ошибка запроса). devices=0 → внедрён, но показов пока не было.
+    """
+    available: bool
+    devices: int | None = None
+    events: int | None = None
+    # Разбивка devices по параметру store события (App Store / Google Play /
+    # RuStore / …). Пусто, если параметр ещё не отдаётся — рендер покажет только
+    # суммарную строку (мягкая деградация разбивки).
+    by_store: list[tuple[str, int]] = field(default_factory=list)
     error: str | None = None
 
 
@@ -127,6 +149,12 @@ class ProductReport:
     # Блок 6 — регистрации → активация (Supabase)
     reg: RegActivation = field(
         default_factory=lambda: RegActivation(None, None)
+    )
+
+    # Блок 6б — нативный запрос оценки (In-App Review). По умолчанию «не внедрён»
+    # (available=False) — так рендерятся приложения без review_event.
+    review_prompts: "AppMetricaReviewPrompts" = field(
+        default_factory=lambda: AppMetricaReviewPrompts(available=False)
     )
 
     # Блок 8 — WoW (прошлая неделя установок из снапшота)
@@ -306,6 +334,7 @@ PRODUCTS: list[ProductSpec] = [
         onboarding_steps=_DIKTUM_ONBOARDING,
         reg_source="diktum",
         screen_names=_DIKTUM_SCREEN_NAMES,
+        review_event="review_prompt_triggered",  # In-App Review внедрён (1.9.9+39)
     ),
     ProductSpec(
         key="lucea",
@@ -315,6 +344,7 @@ PRODUCTS: list[ProductSpec] = [
         reg_source="lucea",  # Supabase-RPC ещё нет → reg-блок «данные собираются»
         screen_names=_LUCEA_SCREEN_NAMES,
         screen_event_label="screen_entered",
+        review_event="review_prompt_triggered",  # In-App Review внедрён (порт из Diktum)
     ),
     ProductSpec(
         key="lapulya",

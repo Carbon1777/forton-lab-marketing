@@ -174,6 +174,26 @@ def _block_reg(r: ProductReport) -> str:
     )
 
 
+def _block_review(r: ProductReport) -> str:
+    rp = r.review_prompts
+    if not rp.available:
+        return "Запрос оценки в приложении: пока не внедрён."
+    if rp.error or rp.devices is None:
+        return "Запрос оценки в приложении: данные собираются."
+    if rp.devices == 0:
+        return "Запрос оценки в приложении: внедрён, показов пока не было."
+    d_word = _plural(rp.devices, "устройству", "устройствам", "устройствам")
+    line = f"Запрос оценки в приложении: показан {rp.devices} {d_word}"
+    if rp.events:
+        t_word = _plural(rp.events, "раз", "раза", "раз")
+        line += f" (всего {rp.events} {t_word})"
+    line += "."
+    if rp.by_store:
+        parts = [f"{label} — {n}" for label, n in rp.by_store]
+        line += " По магазинам: " + ", ".join(parts) + "."
+    return line
+
+
 def _block_retention() -> str:
     return "Удержание (1, 7 и 30 дней): пока недоступно, метрика готовится."
 
@@ -216,6 +236,7 @@ def render_monthly_report(report: ProductReport) -> str:
         _block_funnel(report),
         _block_screens(report),
         _block_reg(report),
+        _block_review(report),
         _block_retention(),
         _block_mom(report),
     ]

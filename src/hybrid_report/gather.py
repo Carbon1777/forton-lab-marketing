@@ -29,6 +29,7 @@ from src.diktum_funnel import supabase_src as diktum_db
 from . import appmetrica
 from .models import (
     AppMetricaActivity,
+    AppMetricaReviewPrompts,
     ProductReport,
     ProductSpec,
     RegActivation,
@@ -150,6 +151,18 @@ def _collect_activity(spec: ProductSpec, week_start: dt.date, week_end: dt.date)
                                   avg_session_sec=None)
 
 
+def _collect_review_prompts(
+    spec: ProductSpec, week_start: dt.date, week_end: dt.date
+) -> AppMetricaReviewPrompts:
+    """Нативный запрос оценки. Не внедрён (review_event is None) → available=False
+    без запроса к AppMetrica. fetch_review_prompts сам never-raises."""
+    if not spec.review_event:
+        return AppMetricaReviewPrompts(available=False)
+    return appmetrica.fetch_review_prompts(
+        spec.appmetrica_app_id, spec.review_event, week_start, week_end
+    )
+
+
 def gather_product(
     spec: ProductSpec,
     week_start: dt.date,
@@ -182,6 +195,7 @@ def gather_product(
     )
 
     reg = _collect_reg(spec, week_start, week_end)
+    review_prompts = _collect_review_prompts(spec, week_start, week_end)
 
     prev = snapshot.get_prev_installs(snapshots_data, week_start, spec.key)
 
@@ -202,5 +216,6 @@ def gather_product(
         funnel=funnel,
         screens=screens,
         reg=reg,
+        review_prompts=review_prompts,
         prev_am_installs_total=prev,
     )

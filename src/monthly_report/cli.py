@@ -21,6 +21,7 @@ from src.hybrid_report import appmetrica
 from src.hybrid_report.models import (
     PRODUCTS,
     AppMetricaActivity,
+    AppMetricaReviewPrompts,
     ProductReport,
     RegActivation,
 )
@@ -162,6 +163,12 @@ def _gather_product_monthly(spec, month_start: dt.date, month_end: dt.date, data
         event_label=spec.screen_event_label,
     )
     reg = _collect_reg(spec, month_start, month_end)
+    if spec.review_event:
+        review_prompts = appmetrica.fetch_review_prompts(
+            spec.appmetrica_app_id, spec.review_event, month_start, month_end
+        )
+    else:
+        review_prompts = AppMetricaReviewPrompts(available=False)
     prev = snapshot.get_prev_installs(
         data, month_start.year, month_start.month, spec.key
     )
@@ -182,6 +189,7 @@ def _gather_product_monthly(spec, month_start: dt.date, month_end: dt.date, data
         funnel=funnel,
         screens=screens,
         reg=reg,
+        review_prompts=review_prompts,
         prev_am_installs_total=prev,
     )
 

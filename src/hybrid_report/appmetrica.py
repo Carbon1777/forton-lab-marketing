@@ -22,6 +22,7 @@ from src.store_metrics._http import fetch_with_retry
 from .models import (
     AppMetricaActivity,
     AppMetricaFunnel,
+    AppMetricaReviewPrompts,
     AppMetricaScreens,
     FunnelStep,
     ScreenStat,
@@ -230,6 +231,112 @@ def fetch_activity(
         active_users=active_users,
         avg_session_sec=avg_session_sec,
     )
+
+
+def fetch_review_prompts(
+    app_id: str,
+    event: str,
+    week_start: dt.date,
+    week_end: dt.date,
+    token: str | None = None,
+) -> AppMetricaReviewPrompts:
+    """Нативный запрос оценки: устройства + показы события `event`.
+
+    Метрики ym:ce:devices (скольким показан) + ym:ce:events (сколько раз),
+    фильтр ym:ce:eventLabel==event — тот же путь, что воронка/экраны. Событие
+    появляется в AppMetrica только после выхода билда с In-App Review; до этого
+    вернёт нули (devices=0), что рендер покажет как «внедрён, показов пока нет».
+    never-raises: любая ошибка → available=True + error (мягкая деградация).
+    """
+    try:
+        tok = _token(token)
+        resp = fetch_with_retry(
+            STAT_URL,
+            method="GET",
+            headers={"Authorization": f"OAuth {tok}"},
+            params={
+                "id": app_id,
+                "date1": week_start.isoformat(),
+                "date2": week_end.isoformat(),
+                "metrics": "ym:ce:devices,ym:ce:events",
+                "filters": f"ym:ce:eventLabel=='{event}'",
+                "accuracy": "full",
+                "lang": "ru",
+            },
+        )
+        resp.raise_for_status()
+        totals = _totals(resp.json())
+        devices = int(totals[0]) if len(totals) > 0 else 0
+        events = int(totals[1]) if len(totals) > 1 else 0
+        by_store = _fetch_review_by_store(
+            app_id, event, week_start, week_end, tok
+        )
+        return AppMetricaReviewPrompts(
+            available=True, devices=devices, events=events, by_store=by_store
+        )
+    except Exception as exc:  # noqa: BLE001 — мягкая деградация секции
+        return AppMetricaReviewPrompts(
+            available=True, devices=None, events=None,
+            error=f"{type(exc).__name__}: {str(exc)[:80]}",
+        )
+
+
+# store-значение параметра события (из InstallSourceService.detect) → витрина.
+_REVIEW_STORE_LABEL: dict[str, str] = {
+    "app_store": "App Store",
+    "google_play": "Google Play",
+    "rustore": "RuStore",
+    "huawei": "Huawei AppGallery",
+    "samsung": "Samsung",
+    "amazon": "Amazon",
+    "sideload": "Загрузка вручную",
+    "unknown": "Источник неизвестен",
+}
+_REVIEW_STORE_PRIORITY = ("app_store", "google_play", "rustore")
+
+
+def _fetch_review_by_store(
+    app_id: str, event: str, week_start: dt.date, week_end: dt.date, tok: str
+) -> list[tuple[str, int]]:
+    """Разбивка devices по параметру store (paramsLevel1=='store', dim
+    paramsLevel2 = значение). Отдельный try: провал разбивки НЕ теряет суммарные
+    числа — вернём []. Порядок: App Store / Google Play / RuStore, затем прочее
+    по убыванию."""
+    try:
+        resp = fetch_with_retry(
+            STAT_URL,
+            method="GET",
+            headers={"Authorization": f"OAuth {tok}"},
+            params={
+                "id": app_id,
+                "date1": week_start.isoformat(),
+                "date2": week_end.isoformat(),
+                "metrics": "ym:ce:devices",
+                "dimensions": "ym:ce:paramsLevel2",
+                "filters": (
+                    f"ym:ce:eventLabel=='{event}' "
+                    f"AND ym:ce:paramsLevel1=='store'"
+                ),
+                "accuracy": "full",
+                "lang": "ru",
+            },
+        )
+        resp.raise_for_status()
+        raw: dict[str, int] = {}
+        for row in resp.json().get("data", []):
+            name = row["dimensions"][0]["name"]
+            devices = int(row["metrics"][0] or 0)
+            if devices > 0:
+                raw[name] = raw.get(name, 0) + devices
+        rows: list[tuple[str, int]] = []
+        for key in _REVIEW_STORE_PRIORITY:
+            if key in raw:
+                rows.append((_REVIEW_STORE_LABEL.get(key, key), raw.pop(key)))
+        for key, n in sorted(raw.items(), key=lambda kv: kv[1], reverse=True):
+            rows.append((_REVIEW_STORE_LABEL.get(key, key), n))
+        return rows
+    except Exception:  # noqa: BLE001 — разбивка опциональна
+        return []
 
 
 def fetch_onboarding_funnel(
