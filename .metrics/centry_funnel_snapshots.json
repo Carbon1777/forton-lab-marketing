@@ -68,5 +68,15 @@
     "new_profiles": 5,
     "users": 5,
     "week_start": "2026-06-22"
+  },
+  "2026-W27": {
+    "activations": 0,
+    "guests": 2,
+    "installs_ads": 0,
+    "installs_organic": 13,
+    "installs_total": 13,
+    "new_profiles": 5,
+    "users": 2,
+    "week_start": "2026-06-29"
   }
 }
