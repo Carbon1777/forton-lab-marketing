@@ -21,5 +21,28 @@
       "subscribers": 4,
       "week_start": "2026-06-29"
     }
+  },
+  "2026-W28": {
+    "telegram": {
+      "error": null,
+      "platform": "telegram",
+      "reach": null,
+      "subscribers": 46,
+      "week_start": "2026-07-06"
+    },
+    "vk": {
+      "error": null,
+      "platform": "vk",
+      "reach": null,
+      "subscribers": 17,
+      "week_start": "2026-07-06"
+    },
+    "youtube": {
+      "error": null,
+      "platform": "youtube",
+      "reach": null,
+      "subscribers": 9,
+      "week_start": "2026-07-06"
+    }
   }
 }
