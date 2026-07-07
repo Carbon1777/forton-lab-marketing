@@ -91,7 +91,8 @@ media:
 - path: assets/posts/2026-07/lapulya-jul7-zhara.png
   sha256: 9387397db2bec0260f518cf50db26ece62b6596279c7a35d2cdd32e55acf4236
   role: image
-status: draft
+status: published
+published_at: '2026-07-07T09:31:31.359846+00:00'
 ```
 
 Жара и питомец: как понять, что ему плохо
