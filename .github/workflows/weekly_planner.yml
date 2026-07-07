@@ -4,9 +4,9 @@ name: weekly_planner
 # Sends a digest message to a personal Telegram chat via a dedicated
 # planner bot. Does NOT publish anything to public channels.
 on:
-  schedule:
-    # Tue + Thu + Sat, 18:00 UTC = 21:00 MSK
-    - cron: "0 18 * * 2,4,6"
+  # Автозапуск отключён 2026-07-07 — напоминание «время согласовать посты»
+  # больше не нужно (пережиток прежней механики). Оставлен только ручной
+  # запуск через workflow_dispatch, чтобы ничего не сломать и легко вернуть.
   workflow_dispatch:
 
 permissions:
