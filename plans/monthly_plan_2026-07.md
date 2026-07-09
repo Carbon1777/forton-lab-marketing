@@ -126,7 +126,8 @@ media:
 - path: assets/posts/2026-07/centry-jul9-sobrat.png
   sha256: 3eb19a9421da6a93ee04416aec4673d41241425422ef8da5dc3944c21e432075
   role: image
-status: draft
+status: published
+published_at: '2026-07-09T09:42:04.122538+00:00'
 ```
 
 Почему встреча разваливается в последний момент — и как этого избежать
