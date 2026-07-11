@@ -32,7 +32,9 @@ Environment:
 from __future__ import annotations
 
 import datetime as dt
+import html
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -85,10 +87,46 @@ def build_credentials() -> Credentials:
     return creds
 
 
+_A_TAG_RE = re.compile(
+    r'<a\b[^>]*\bhref=["\']([^"\']*)["\'][^>]*>(.*?)</a>',
+    re.IGNORECASE | re.DOTALL,
+)
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def strip_html(text: str) -> str:
+    """Flatten Telegram/VK-style HTML into plain text safe for YouTube.
+
+    YouTube's videos.insert rejects ``<`` / ``>`` anywhere in the title or
+    description (invalidTitle / invalidDescription). Post bodies carry
+    Telegram HTML links like ``<a href="URL">текст</a>``; here we render them
+    as ``текст: URL``, drop any other tags (``<b>``, ``<i>``, ``<br>`` …)
+    while keeping their inner text, and decode HTML entities.
+    """
+
+    def _flatten_anchor(m: "re.Match[str]") -> str:
+        url = m.group(1).strip()
+        label = _TAG_RE.sub("", m.group(2)).strip()
+        if not label:
+            return url
+        if not url or label == url:
+            return label
+        return f"{label}: {url}"
+
+    text = _A_TAG_RE.sub(_flatten_anchor, text)
+    text = _TAG_RE.sub("", text)
+    text = html.unescape(text)
+    # Belt-and-suspenders: any stray angle bracket (e.g. from a decoded &lt;)
+    # would still trigger invalidTitle/invalidDescription — drop the brackets
+    # while keeping surrounding text.
+    text = text.replace("<", "").replace(">", "")
+    return text
+
+
 def derive_title(post: frontmatter.Post, post_path: Path) -> str:
     explicit = post.metadata.get("youtube_title") or post.metadata.get("title")
     if explicit:
-        return str(explicit)[:YT_TITLE_LIMIT]
+        return strip_html(str(explicit))[:YT_TITLE_LIMIT]
     # Fallback: human-readable from filename.
     return post_path.stem.replace("-", " ").strip()[:YT_TITLE_LIMIT] or "Forton Lab"
 
@@ -99,6 +137,7 @@ def derive_description(post: frontmatter.Post) -> str:
         body = str(explicit)
     else:
         body = post.content.strip()
+    body = strip_html(body)
     full = (body + SIGNATURE) if body else SIGNATURE.lstrip()
     return full[:YT_DESCRIPTION_LIMIT]
 

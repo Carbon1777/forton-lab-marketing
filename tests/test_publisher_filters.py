@@ -119,3 +119,45 @@ def test_tg_move_to_published_keeps_existing_date_prefix(tmp_path, monkeypatch):
     src.write_text("---\nslug: x\n---\nbody", encoding="utf-8")
     new_path = tg_post._move_to_published(src)
     assert new_path.name == f"{today}-pre-named.md"
+
+
+# ===================================================================
+# YouTube — strip_html: тело поста с TG-HTML не должно ронять
+# videos.insert с invalidDescription/invalidTitle (символы < >).
+# ===================================================================
+
+def test_yt_strip_html_flattens_anchor_to_plain_text():
+    """<a href="URL">текст</a> → «текст: URL», без символов < >."""
+    from src.youtube_post import strip_html
+
+    out = strip_html('Unia — <a href="https://uniaweb.ru/">ссылка</a>')
+    assert out == "Unia — ссылка: https://uniaweb.ru/"
+    assert "<" not in out and ">" not in out
+
+
+def test_yt_derive_description_has_no_angle_brackets():
+    """Регресс исходного бага (unia-jul11-dvoe): HTML-ссылка в body."""
+    from pathlib import Path
+
+    from src.youtube_post import derive_description, derive_title
+
+    post = frontmatter.Post(
+        content='Текст.\n\nUnia — <a href="https://uniaweb.ru/">ссылка</a>'
+    )
+    desc = derive_description(post)
+    assert "<" not in desc and ">" not in desc
+    assert "https://uniaweb.ru/" in desc
+
+    # Заголовок из metadata с HTML тоже санируется (invalidTitle).
+    titled = frontmatter.Post(content="x", youtube_title="<b>Заголовок</b>")
+    title = derive_title(titled, Path("x.md"))
+    assert title == "Заголовок"
+
+
+def test_yt_strip_html_drops_other_tags_and_decodes_entities():
+    """Прочие теги снимаются, сущности декодируются, брекеты не остаются."""
+    from src.youtube_post import strip_html
+
+    out = strip_html("<b>Жир</b> и Q&amp;A и &lt;код&gt;")
+    assert "<" not in out and ">" not in out
+    assert "Жир" in out and "Q&A" in out and "код" in out
