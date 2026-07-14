@@ -185,7 +185,8 @@ media:
 - path: assets/posts/2026-07/listvia-jul14-anons.png
   sha256: 9acce753391112bca042278b37c8c7b617ee1a5d1ea7b47a9634d9417e520470
   role: image
-status: draft
+status: published
+published_at: '2026-07-14T09:08:22.019017+00:00'
 ```
 
 Знакомьтесь: Листвия 🌿
