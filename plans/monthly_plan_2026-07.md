@@ -214,7 +214,8 @@ media:
 - path: assets/posts/2026-07/lucea-jul16-vecher.png
   sha256: 7f1b9ab4ae594e038b9a9ef179f8ec9b9f06bc7fe156a53d39d21b5b705077f1
   role: image
-status: draft
+status: published
+published_at: '2026-07-16T09:46:39.105587+00:00'
 ```
 
 Вечерний вопрос, который показывает, что тебя на самом деле вымотало
