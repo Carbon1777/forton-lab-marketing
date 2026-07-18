@@ -247,7 +247,8 @@ media:
 - path: assets/posts/2026-07/lapulya-jul18-zabota.mp4
   sha256: 7f2296d307eb601c017c7c90215706bf1c85bb9216f19b26aba7122cf77d6b18
   role: video
-status: draft
+status: published
+published_at: '2026-07-18T10:21:31.751090+00:00'
 ```
 
 Лапуля — чтобы заботиться о питомце было проще
