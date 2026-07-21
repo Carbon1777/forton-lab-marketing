@@ -276,7 +276,8 @@ media:
 - path: assets/posts/2026-07/diktum-jul21-sozvon.png
   sha256: 4980050b21dbf8a7a9c4926b9368764986f17c1af980910d84c8daaa5bafb88a
   role: image
-status: draft
+status: published
+published_at: '2026-07-21T10:50:23.216704+00:00'
 ```
 
 Как на созвоне звучать увереннее: привычка за 10 секунд
