@@ -313,7 +313,8 @@ media:
 - path: assets/posts/2026-07/unia-jul23-ritual.png
   sha256: b7638224ffa4e7b341362e9f04131ab24fead27a797e89d1fcfcb949618b0d45
   role: image
-status: draft
+status: published
+published_at: '2026-07-23T09:06:32.046554+00:00'
 ```
 
 Маленький ритуал, который держит пару вместе в загруженную неделю
