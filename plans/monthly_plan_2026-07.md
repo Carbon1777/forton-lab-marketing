@@ -348,7 +348,8 @@ media:
 - path: assets/posts/2026-07/centry-jul25-mesta.png
   sha256: a3beac04fcdecc9dd5fa55497a39384a6ae70421cbe981fad3623bc141d586a6
   role: image
-status: draft
+status: published
+published_at: '2026-07-25T09:03:47.560928+00:00'
 ```
 
 Как выбрать место для встречи летом, чтобы вечер удался
