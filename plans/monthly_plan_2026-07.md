@@ -383,7 +383,8 @@ media:
 - path: assets/posts/2026-07/listvia-jul28-suhnet.png
   sha256: 860ea98b34f6f4ba9b17216e6acbb7293b052a54c373d838f441306a7dd88d62
   role: image
-status: draft
+status: published
+published_at: '2026-07-28T11:56:37.984073+00:00'
 ```
 
 Почему растение сохнет у окна летом, хотя ты поливаешь
