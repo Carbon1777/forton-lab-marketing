@@ -421,7 +421,8 @@ media:
 - path: assets/posts/2026-07/lucea-jul30-normalno.png
   sha256: 52d58bbcc2634fb2a8794d7f66d5e4f91602b75a422300465a6b953b685249d4
   role: image
-status: draft
+status: published
+published_at: '2026-07-30T09:18:19.703898+00:00'
 ```
 
 Как заметить своё состояние, когда кажется, что «всё нормально»
