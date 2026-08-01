@@ -26,7 +26,8 @@ media:
 - path: assets/posts/2026-08/diktum-aug1-net.png
   sha256: 893f1a521a75e4330a8598b0f7288aeb65b29a40742ffcbee607aa63061c2179
   role: image
-status: draft
+status: published
+published_at: '2026-08-01T11:01:13.923380+00:00'
 ```
 
 Отказать и не оправдываться — звучит просто, но получается редко 🎙
