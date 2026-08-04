@@ -337,27 +337,32 @@ def publish_one(post_path: Path, token: str, chat_id: str) -> Path:
 
     kind = "video" if video_rel else ("photo" if image_rel else "text")
 
+    # Telegram rejects any sendPhoto/sendVideo caption > 1024 chars with HTTP
+    # 400. preview_bot.py already splits such posts into a media message + a
+    # separate text message; production must do the same or preview and prod
+    # diverge (incident 2026-08-04, run 30894608324: caption 1044 > 1024 →
+    # 400 → whole publish failed). When the body is too long for a caption, we
+    # send the media with an EMPTY caption and the full body as a follow-up
+    # sendMessage — visually identical to a normal captioned post (image on
+    # top, text below), just delivered as two API calls.
+    split_caption = len(body) > TG_CAPTION_LIMIT
+    caption = "" if split_caption else body
+
     try:
         if video_rel:
             video_path = (REPO_ROOT / video_rel).resolve()
             if not video_path.exists():
                 raise FileNotFoundError(f"video not found: {video_path}")
-            if len(body) > TG_CAPTION_LIMIT:
-                sys.stderr.write(
-                    f"WARN: {post_path.name}: caption {len(body)} > {TG_CAPTION_LIMIT}; "
-                    "Telegram will reject. Consider splitting body into a follow-up text post.\n"
-                )
-            result = tg_post_video(token, chat_id, video_path, body)
+            result = tg_post_video(token, chat_id, video_path, caption)
+            if split_caption:
+                tg_post_text(token, chat_id, body)
         elif image_rel:
             image_path = (REPO_ROOT / image_rel).resolve()
             if not image_path.exists():
                 raise FileNotFoundError(f"image not found: {image_path}")
-            if len(body) > TG_CAPTION_LIMIT:
-                sys.stderr.write(
-                    f"WARN: {post_path.name}: caption {len(body)} > {TG_CAPTION_LIMIT}; "
-                    "Telegram will reject. Consider splitting body and image into two posts.\n"
-                )
-            result = tg_post_photo(token, chat_id, image_path, body)
+            result = tg_post_photo(token, chat_id, image_path, caption)
+            if split_caption:
+                tg_post_text(token, chat_id, body)
         else:
             if len(body) > TG_TEXT_LIMIT:
                 raise ValueError(
