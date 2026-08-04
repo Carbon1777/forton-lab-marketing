@@ -61,7 +61,8 @@ media:
 - path: assets/posts/2026-08/lapulya-aug4-stress.png
   sha256: b9c8bf0d9102cc226265670918293cb8c7330deb8c998a75f8faf8522e851992
   role: image
-status: draft
+status: published
+published_at: '2026-08-04T12:34:33.748182+00:00'
 ```
 
 Питомец не может сказать словами, что ему тревожно — стресс он показывает телом, а мы часто списываем это на характер 🐾
