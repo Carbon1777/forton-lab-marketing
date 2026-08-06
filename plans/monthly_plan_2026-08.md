@@ -98,7 +98,8 @@ media:
 - path: assets/posts/2026-08/centry-aug6-sobratsya.png
   sha256: b249f3e07c834407f81654060455b91ae5ea20667962c122806e5e9b8ec08941
   role: image
-status: draft
+status: published
+published_at: '2026-08-06T09:18:15.129344+00:00'
 ```
 
 «Соберёмся на этой неделе» — и обычно на этом всё заканчивается. Дело не в занятости, а в том, как это сказано 📍
