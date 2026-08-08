@@ -133,7 +133,8 @@ media:
 - path: assets/posts/2026-08/unia-aug8-kakhochesh.png
   sha256: c0dd93e5a84be45ed8b759e3c54fb26096b0c4720fb48b17b3a9909bc45f7ee8
   role: image
-status: draft
+status: published
+published_at: '2026-08-08T11:02:37.793421+00:00'
 ```
 
 «Ты как хочешь» звучит как забота. Партнёр слышит совсем другое — что решать снова придётся ему одному.
