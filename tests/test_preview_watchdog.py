@@ -123,7 +123,7 @@ def test_watchdog_skips_published_and_skipped(tmp_path, monkeypatch):
 
 
 def test_watchdog_dispatch_failure_still_alerts(tmp_path, monkeypatch):
-    """dispatch упал → всё равно alert, чтобы юзер триггернул вручную."""
+    """dispatch упал (non-auth, напр. 500) → всё равно alert, чтобы юзер триггернул вручную."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(preview_watchdog, "REPO_ROOT", tmp_path)
     monkeypatch.setenv("TG_PLANNER_BOT_TOKEN", "1:fake")
@@ -131,7 +131,7 @@ def test_watchdog_dispatch_failure_still_alerts(tmp_path, monkeypatch):
     today_iso = dt.date.today().isoformat()
     _make_plan(tmp_path, [{"date": today_iso, "slug": "needy", "status": "draft"}])
     with patch.object(preview_watchdog, "_trigger_preview_bot",
-                        return_value=(False, "HTTP 403: bad PAT")), \
+                        return_value=(False, "HTTP 500: server error")), \
          patch("src.preview_watchdog.requests.post") as mock_post:
         mock_post.return_value = MagicMock(status_code=200)
         rc = preview_watchdog.main()
@@ -139,6 +139,49 @@ def test_watchdog_dispatch_failure_still_alerts(tmp_path, monkeypatch):
     mock_post.assert_called_once()
     sent = mock_post.call_args.kwargs["json"]
     assert "dispatch failed" in sent["text"]
+    # non-auth фейл — сохраняем формулировку про троттлинг
+    assert "известное поведение" in sent["text"]
+    assert "BOT_DISPATCH_PAT" not in sent["text"]
+
+
+def test_watchdog_auth_failure_names_dead_pat(tmp_path, monkeypatch):
+    """dispatch упал с 401 Bad credentials → alert прямо называет мёртвый PAT,
+    БЕЗ убаюкивающего 'троттлинга', и даёт команду ротации."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(preview_watchdog, "REPO_ROOT", tmp_path)
+    monkeypatch.setenv("TG_PLANNER_BOT_TOKEN", "1:fake")
+    monkeypatch.setenv("TG_OWNER_CHAT_ID", "-100123")
+    monkeypatch.setenv("REPO_OWNER", "Carbon1777")
+    monkeypatch.setenv("REPO_NAME", "forton-lab-marketing")
+    today_iso = dt.date.today().isoformat()
+    _make_plan(tmp_path, [{"date": today_iso, "slug": "needy", "status": "draft"}])
+    err = 'HTTP 401: {"message":"Bad credentials","status":"401"}'
+    with patch.object(preview_watchdog, "_trigger_preview_bot",
+                        return_value=(False, err)), \
+         patch("src.preview_watchdog.requests.post") as mock_post:
+        mock_post.return_value = MagicMock(status_code=200)
+        rc = preview_watchdog.main()
+    assert rc == 0
+    text = mock_post.call_args.kwargs["json"]["text"]
+    assert "BOT_DISPATCH_PAT" in text
+    assert "gh secret set BOT_DISPATCH_PAT" in text
+    assert "Carbon1777/forton-lab-marketing" in text
+    # на auth-фейле НЕ должно быть успокаивающего "это известное поведение / не баг"
+    assert "известное поведение" not in text
+    assert "восстанавливает" not in text
+
+
+@pytest.mark.parametrize("err,expected", [
+    ('HTTP 401: {"message":"Bad credentials"}', True),
+    ("HTTP 403: Forbidden", True),
+    ("something BAD CREDENTIALS here", True),
+    ("HTTP 500: server error", False),
+    ("ConnectionError: timed out", False),
+    ("missing BOT_DISPATCH_PAT/REPO_OWNER/REPO_NAME", False),
+    ("", False),
+])
+def test_is_auth_failure(err, expected):
+    assert preview_watchdog._is_auth_failure(err) is expected
 
 
 def test_trigger_preview_bot_missing_env(monkeypatch):

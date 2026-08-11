@@ -30,6 +30,21 @@ from src.preview_bot import DRAFTS_DIR_NAME, PLANS_DIR_NAME, _today_msk
 
 REPO_ROOT: Path = Path.cwd()
 
+# Dispatch-error markers that mean the PAT itself is dead (expired/revoked or
+# scopes downgraded) — a rotate-the-secret problem, NOT a transient GH throttle.
+_AUTH_FAIL_MARKERS = ("http 401", "http 403", "bad credentials")
+
+
+def _is_auth_failure(err: str) -> bool:
+    """True if a dispatch error signals a dead BOT_DISPATCH_PAT.
+
+    GitHub returns 401 "Bad credentials" for an expired/revoked fine-grained
+    PAT and 403 when its scopes no longer permit the dispatch. Either way the
+    secret must be rotated; the watchdog must NOT dress this up as throttling.
+    """
+    low = (err or "").lower()
+    return any(m in low for m in _AUTH_FAIL_MARKERS)
+
 
 def _trigger_preview_bot() -> tuple[bool, str]:
     """POST /workflows/preview_bot.yml/dispatches. Returns (ok, error_msg)."""
@@ -117,20 +132,36 @@ def _alert(missing: list[str], *, dispatch_ok: bool, dispatch_err: str) -> None:
     """Send tg_nudge alert; gracefully degrade if template missing."""
     now_msk = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=3)).strftime("%H:%M")
     slugs = ", ".join(missing)
-    status_line = (
-        f"✅ <code>preview_bot.yml</code> dispatched"
-        if dispatch_ok
-        else f"⚠️ dispatch failed: <code>{dispatch_err[:120]}</code>"
-    )
-    text = (
-        f"🐕 <b>Watchdog: preview_bot cron throttled</b>\n"
-        f"Время проверки: {now_msk} МСК\n"
-        f"Без preview на сегодня: <code>{slugs}</code>\n"
-        f"{status_line}\n"
-        f"<i>GH Actions scheduled workflows иногда пропускают тики при высокой "
-        f"нагрузке — это известное поведение, не баг pipeline. Watchdog "
-        f"восстанавливает.</i>"
-    )
+
+    if (not dispatch_ok) and _is_auth_failure(dispatch_err):
+        # PAT мёртв — это НЕ троттлинг. Кричим прямо и даём команду ротации.
+        owner = os.environ.get("REPO_OWNER", "Carbon1777")
+        repo = os.environ.get("REPO_NAME", "forton-lab-marketing")
+        text = (
+            f"🔴 <b>Watchdog: BOT_DISPATCH_PAT мёртв</b>\n"
+            f"Время проверки: {now_msk} МСК\n"
+            f"Без preview на сегодня: <code>{slugs}</code>\n"
+            f"⛔️ dispatch failed: <code>{dispatch_err[:120]}</code>\n"
+            f"<i>Токен <code>BOT_DISPATCH_PAT</code> истёк или отозван "
+            f"(401/403 Bad credentials) — это НЕ троттлинг GH. Пока секрет не "
+            f"перевыпущен, кнопка «Публикуй» и авто-preview НЕ работают. "
+            f"Обнови: <code>gh secret set BOT_DISPATCH_PAT -R {owner}/{repo}</code></i>"
+        )
+    else:
+        status_line = (
+            f"✅ <code>preview_bot.yml</code> dispatched"
+            if dispatch_ok
+            else f"⚠️ dispatch failed: <code>{dispatch_err[:120]}</code>"
+        )
+        text = (
+            f"🐕 <b>Watchdog: preview_bot cron throttled</b>\n"
+            f"Время проверки: {now_msk} МСК\n"
+            f"Без preview на сегодня: <code>{slugs}</code>\n"
+            f"{status_line}\n"
+            f"<i>GH Actions scheduled workflows иногда пропускают тики при высокой "
+            f"нагрузке — это известное поведение, не баг pipeline. Watchdog "
+            f"восстанавливает.</i>"
+        )
     # tg_nudge.send требует template_key — отправляем raw через api
     token = os.environ.get("TG_PLANNER_BOT_TOKEN")
     chat_id = os.environ.get("TG_OWNER_CHAT_ID")
