@@ -168,7 +168,9 @@ media:
 - path: assets/posts/2026-08/diktum-aug11-nedoslushivayut.png
   sha256: d872ed702a9ef518930a6067d15118425841fc72221e7b39835a6e89af0ca211
   role: image
-status: draft
+status: skipped
+skipped_at: '2026-08-11T15:23:17.964623+00:00'
+skipped_via: forton-via-tg-bot
 ```
 
 Тебя слушают — а потом всё равно переспрашивают то же самое. Дело редко в том, что ты сказал 🎙
