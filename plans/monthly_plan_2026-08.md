@@ -204,7 +204,8 @@ media:
 - path: assets/posts/2026-08/lucea-aug13-dnevnik.png
   sha256: c50211348d956668e37f4a961f74c09fbe5ff28d925a065e747c832f9afa6895
   role: image
-status: draft
+status: published
+published_at: '2026-08-13T09:16:26.370899+00:00'
 ```
 
 Можно же просто записать мысли в заметках — зачем говорить вслух?
