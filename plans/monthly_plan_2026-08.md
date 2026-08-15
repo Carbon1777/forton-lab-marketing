@@ -233,7 +233,8 @@ media:
 - path: assets/posts/2026-08/listvia-aug15-peresadka.png
   sha256: c53ebc1a88dadda2669a54a7946e72f5385d7db9d6204be3bb4f1bbe6e83250d
   role: image
-status: draft
+status: published
+published_at: '2026-08-15T09:49:44.589490+00:00'
 ```
 
 Увидел жёлтый лист осенью — и рука тянется к новому горшку. Не спеши 🌿
