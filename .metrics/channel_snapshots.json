@@ -194,5 +194,35 @@
       "subscribers": 43,
       "week_start": "2026-08-10"
     }
+  },
+  "2026-W34": {
+    "instagram": {
+      "error": "IG optional HTTPError: 429 Client Error: Too Many Requests for url: https://www.ins",
+      "platform": "instagram",
+      "reach": null,
+      "subscribers": null,
+      "week_start": "2026-08-17"
+    },
+    "telegram": {
+      "error": null,
+      "platform": "telegram",
+      "reach": null,
+      "subscribers": 42,
+      "week_start": "2026-08-17"
+    },
+    "vk": {
+      "error": null,
+      "platform": "vk",
+      "reach": null,
+      "subscribers": 16,
+      "week_start": "2026-08-17"
+    },
+    "youtube": {
+      "error": null,
+      "platform": "youtube",
+      "reach": null,
+      "subscribers": 48,
+      "week_start": "2026-08-17"
+    }
   }
 }
