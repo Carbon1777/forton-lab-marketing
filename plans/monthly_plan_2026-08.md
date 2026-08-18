@@ -270,7 +270,8 @@ media:
 - path: assets/posts/2026-08/centry-aug18-skolko.png
   sha256: 2aa6ce32d7e8fa2fd2f87fe4b390a7981b66f1f735bb4c0be397ddefc74f4379
   role: image
-status: draft
+status: published
+published_at: '2026-08-18T10:44:49.446092+00:00'
 ```
 
 Компания из десяти человек в чате согласна собраться. В итоге приходят трое — и почему-то это не совпадение 📍
