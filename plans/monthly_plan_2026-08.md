@@ -305,7 +305,8 @@ media:
 - path: assets/posts/2026-08/unia-aug20-molchanie.png
   sha256: 85103c1b6c66a995deb14825316bf0153086b0b19849ad320610e63d5f4154be
   role: image
-status: draft
+status: published
+published_at: '2026-08-20T10:32:46.455126+00:00'
 ```
 
 После ссоры чаще всего наступает не разговор, а тишина — и именно она делает хуже, не сама ссора 💬
