@@ -340,7 +340,8 @@ media:
 - path: assets/posts/2026-08/lapulya-aug22-eda.png
   sha256: 19250e5a04cfdbdb2c9aa19ca9a781038279e48d5c6e4f2f4a8153781d09d58f
   role: image
-status: draft
+status: published
+published_at: '2026-08-22T10:38:32.455089+00:00'
 ```
 
 Питомец отказался от еды — и первая мысль обычно самая тревожная. Не всегда она верная 🐾
