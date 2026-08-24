@@ -1,27 +1,4 @@
 {
-  "2026-W27": {
-    "telegram": {
-      "error": null,
-      "platform": "telegram",
-      "reach": null,
-      "subscribers": 46,
-      "week_start": "2026-06-29"
-    },
-    "vk": {
-      "error": null,
-      "platform": "vk",
-      "reach": null,
-      "subscribers": 17,
-      "week_start": "2026-06-29"
-    },
-    "youtube": {
-      "error": null,
-      "platform": "youtube",
-      "reach": null,
-      "subscribers": 4,
-      "week_start": "2026-06-29"
-    }
-  },
   "2026-W28": {
     "telegram": {
       "error": null,
@@ -223,6 +200,36 @@
       "reach": null,
       "subscribers": 48,
       "week_start": "2026-08-17"
+    }
+  },
+  "2026-W35": {
+    "instagram": {
+      "error": "IG optional HTTPError: 429 Client Error: Too Many Requests for url: https://www.ins",
+      "platform": "instagram",
+      "reach": null,
+      "subscribers": null,
+      "week_start": "2026-08-24"
+    },
+    "telegram": {
+      "error": null,
+      "platform": "telegram",
+      "reach": null,
+      "subscribers": 42,
+      "week_start": "2026-08-24"
+    },
+    "vk": {
+      "error": null,
+      "platform": "vk",
+      "reach": null,
+      "subscribers": 16,
+      "week_start": "2026-08-24"
+    },
+    "youtube": {
+      "error": null,
+      "platform": "youtube",
+      "reach": null,
+      "subscribers": 48,
+      "week_start": "2026-08-24"
     }
   }
 }
