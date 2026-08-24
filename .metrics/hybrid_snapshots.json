@@ -1,24 +1,4 @@
 {
-  "2026-W26": {
-    "centry": {
-      "am_installs_total": 8
-    },
-    "diktum": {
-      "am_installs_total": 68
-    },
-    "lapulya": {
-      "am_installs_total": 14
-    },
-    "listvia": {
-      "am_installs_total": 20
-    },
-    "lucea": {
-      "am_installs_total": 25
-    },
-    "unia": {
-      "am_installs_total": 15
-    }
-  },
   "2026-W27": {
     "centry": {
       "am_installs_total": 13
@@ -157,6 +137,26 @@
     },
     "unia": {
       "am_installs_total": 7
+    }
+  },
+  "2026-W34": {
+    "centry": {
+      "am_installs_total": 1
+    },
+    "diktum": {
+      "am_installs_total": 127
+    },
+    "lapulya": {
+      "am_installs_total": 31
+    },
+    "listvia": {
+      "am_installs_total": 27
+    },
+    "lucea": {
+      "am_installs_total": 10
+    },
+    "unia": {
+      "am_installs_total": 10
     }
   }
 }
