@@ -375,7 +375,8 @@ media:
 - path: assets/posts/2026-08/diktum-aug25-struktura.png
   sha256: 43673b5f122c030937f4fc1df6e034a208e77e6e16d6cfe1ef7723a1bb556531
   role: image
-status: draft
+status: published
+published_at: '2026-08-25T09:20:29.725730+00:00'
 ```
 
 «И вот, короче, ну, в общем...» — знакомая прелюдия перед тем, как сказать по делу 🎙
