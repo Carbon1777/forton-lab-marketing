@@ -28,7 +28,9 @@
   },
   "listvia": {
     "app_store": [],
-    "google_play": [],
+    "google_play": [
+      "f0b36e22-ab81-45cf-88ed-57ee9f07d336"
+    ],
     "rustore": []
   },
   "lucea": {
