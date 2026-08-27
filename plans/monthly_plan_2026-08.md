@@ -410,7 +410,8 @@ media:
 - path: assets/posts/2026-08/listvia-aug27-poliv.png
   sha256: 3415eddf5bc08ceb82774ff25b6e65a29020a04b8a2b5b3c2419949f8827db67
   role: image
-status: draft
+status: published
+published_at: '2026-08-27T09:04:37.853128+00:00'
 ```
 
 Осенью хочется поливать растение так же, как летом — по привычке. А растению это уже не нужно 🌿
