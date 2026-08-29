@@ -447,7 +447,8 @@ media:
 - path: assets/posts/2026-08/lucea-aug29-pochuvstvovat.png
   sha256: 5bd46ba7bbdd6134257521d0e37ae60143944e93e63270c04e205219c95fcb88
   role: image
-status: draft
+status: published
+published_at: '2026-08-29T12:43:13.390192+00:00'
 ```
 
 «Подумать о проблеме» и «заметить, что чувствуешь» звучат похоже. Это разные вещи, и путаница между ними дорого стоит
