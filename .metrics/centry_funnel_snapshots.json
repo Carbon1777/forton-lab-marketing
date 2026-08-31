@@ -1,14 +1,4 @@
 {
-  "2026-W27": {
-    "activations": 0,
-    "guests": 2,
-    "installs_ads": 0,
-    "installs_organic": 13,
-    "installs_total": 13,
-    "new_profiles": 5,
-    "users": 2,
-    "week_start": "2026-06-29"
-  },
   "2026-W28": {
     "activations": 0,
     "guests": 0,
@@ -78,5 +68,15 @@
     "new_profiles": 1,
     "users": 1,
     "week_start": "2026-08-17"
+  },
+  "2026-W35": {
+    "activations": 1,
+    "guests": 1,
+    "installs_ads": 0,
+    "installs_organic": 2,
+    "installs_total": 2,
+    "new_profiles": 2,
+    "users": 1,
+    "week_start": "2026-08-24"
   }
 }
