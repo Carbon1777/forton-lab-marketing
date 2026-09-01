@@ -26,7 +26,8 @@ media:
 - path: assets/posts/2026-09/diktum-sep1-razminka.png
   sha256: cf4c885aeb162be23b386fa927e036b3e57992c1dfb5ed7595ae7772e32fd242
   role: image
-status: draft
+status: published
+published_at: '2026-09-01T09:24:48.429845+00:00'
 ```
 
 После лета первый серьёзный созвон часто идёт тяжело: голос не слушается, мысль путается, темп скачет 🎙
