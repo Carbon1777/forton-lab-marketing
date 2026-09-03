@@ -63,7 +63,8 @@ media:
 - path: assets/posts/2026-09/lucea-sep3-otkat.png
   sha256: 0b8c3668a8dffdf4626b55b6f9fd1a636ced1a0ac24aa110d1bcc3f98006f941
   role: image
-status: draft
+status: published
+published_at: '2026-09-03T09:07:19.172686+00:00'
 ```
 
 В сентябре часто накрывает странным: вроде отдохнул летом, а сил нет, и всё раздражает 🍂
