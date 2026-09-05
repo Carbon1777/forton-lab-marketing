@@ -98,7 +98,8 @@ media:
 - path: assets/posts/2026-09/lapulya-sep5-linka.png
   sha256: ce1ad4665d1cb960401550075e9a626ea5c8046bb80989147f24bee932a5f793
   role: image
-status: draft
+status: published
+published_at: '2026-09-05T10:27:56.036568+00:00'
 ```
 
 Осенью питомец начинает линять так, что шерсть будто везде — на одежде, в еде, в воздухе 🐾
