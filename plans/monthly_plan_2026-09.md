@@ -133,7 +133,8 @@ media:
 - path: assets/posts/2026-09/centry-sep8-regulyarnost.png
   sha256: 0d55c5b15ce4f7aa3ff75c9ca462afc07645244a20c05c286c506c66502bd5cc
   role: image
-status: draft
+status: published
+published_at: '2026-09-08T15:32:41.549833+00:00'
 ```
 
 Летом виделись реже — все разъехались, и это нормально. Но проходит сентябрь, другой, и оказывается, что «когда-нибудь соберёмся» так и осталось в переписке 📍
