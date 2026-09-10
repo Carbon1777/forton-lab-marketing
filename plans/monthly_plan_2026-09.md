@@ -166,7 +166,8 @@ media:
 - path: assets/posts/2026-09/unia-sep10-vecher.png
   sha256: 524a0ee5f5913569ea6741db4070170ab030590b1ce04f48eb01689105b1fb94
   role: image
-status: draft
+status: published
+published_at: '2026-09-10T14:55:59.787479+00:00'
 ```
 
 Осенью вечеров дома больше — темнеет рано. И часто выходит так: вы весь вечер рядом, но каждый в своём телефоне ♥
