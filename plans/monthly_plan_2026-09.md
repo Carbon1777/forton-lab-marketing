@@ -201,7 +201,8 @@ media:
 - path: assets/posts/2026-09/listvia-sep12-otoplenie.png
   sha256: 42d4ce681f4e06bc56740738cefd93b69ee14a7c30cc53800ef962cf665ad288
   role: image
-status: draft
+status: published
+published_at: '2026-09-12T11:42:04.726446+00:00'
 ```
 
 Включили отопление — и через неделю у растений сохнут кончики листьев, хотя поливаешь как обычно 🌿
