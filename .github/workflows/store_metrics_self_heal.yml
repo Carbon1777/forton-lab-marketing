@@ -2,7 +2,8 @@ name: store_metrics_self_heal
 
 # Phase 5 — Self-heal watchdog для store_metrics (METRICS-06, D-5-09).
 #
-# Каждые 6 часов проверяет mtime файла `.metrics/store_snapshots.json`.
+# Каждые 6 часов проверяет свежесть `.metrics/hybrid_snapshots.json`
+# (файл, который реально коммитит store_metrics.yml — см. его commit-step).
 # Если последний снапшот старше 8 дней — значит `store_metrics.yml` не
 # запускался два понедельника подряд (cron miss, GH Actions outage, etc.).
 # Шлёт ALERT в TG-канал «Планировщик» со ссылкой на Actions UI для ручной
@@ -31,7 +32,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           # fetch-depth: 0 нужен чтобы git log -1 --format=%ct мог найти
-          # commit, изменивший .metrics/store_snapshots.json (CR-01 fix).
+          # commit, изменивший .metrics/hybrid_snapshots.json (CR-01 fix).
           # При shallow clone (depth=1) git видит только HEAD — если HEAD
           # не трогал snapshot, git log возвращает пусто.
           fetch-depth: 0
@@ -64,7 +65,7 @@ jobs:
 
           import requests
 
-          snapshots = Path(".metrics/store_snapshots.json")
+          snapshots = Path(".metrics/hybrid_snapshots.json")
           if not snapshots.exists():
               # До первого успешного запуска `store_metrics.yml` файла нет —
               # это норма на bootstrap-стадии. Watchdog только следит за

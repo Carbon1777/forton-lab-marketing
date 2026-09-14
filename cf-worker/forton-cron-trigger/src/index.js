@@ -4,6 +4,8 @@
 //
 // Cron → workflow map (single source of truth, кодом, а не Dashboard):
 //   "0 9 * * *"   — daily 12:00 МСК → preview_bot.yml
+//   "37 6 * * 1"  — Mon 09:37 МСК   → store_metrics.yml   (per-app reports)
+//   "7 7 * * 1"   — Mon 10:07 МСК   → channel_metrics.yml (channels report)
 //   "7 12 * * 2"  — Tue 15:07 МСК   → funnel_metrics.yml (Diktum funnel)
 //   "12 12 * * 2" — Tue 15:12 МСК   → centry_funnel.yml  (Centry funnel)
 //
@@ -16,6 +18,8 @@ const REPO = 'forton-lab-marketing';
 
 const CRON_TO_WORKFLOW = {
 	'0 9 * * *': 'preview_bot.yml',
+	'37 6 * * 1': 'store_metrics.yml',
+	'7 7 * * 1': 'channel_metrics.yml',
 	'7 12 * * 2': 'funnel_metrics.yml',
 	'12 12 * * 2': 'centry_funnel.yml',
 };

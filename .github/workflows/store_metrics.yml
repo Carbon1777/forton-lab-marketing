@@ -26,7 +26,7 @@ name: store_metrics
 #   - RuStore installs: stub (Mail.ru API limitation), reviews via JWS.
 # Manual CSV mode removed — юзер отверг ручную загрузку 2026-05-15.
 #
-# Snapshot commit: digest сохраняет `.metrics/store_snapshots.json` для WoW
+# Snapshot commit: digest коммитит `.metrics/hybrid_snapshots.json` для WoW
 # и 4w-trend (D-5-04). Снапшот коммитится обратно в repo через
 # `BOT_DISPATCH_PAT` (тот же fine-grained PAT что Phase 1.5 — Contents:write,
 # single-repo binding).
