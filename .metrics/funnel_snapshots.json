@@ -1,12 +1,4 @@
 {
-  "2026-W29": {
-    "activated": 37,
-    "installs_ads": 0,
-    "installs_organic": 61,
-    "installs_total": 61,
-    "registrations": 58,
-    "week_start": "2026-07-13"
-  },
   "2026-W30": {
     "activated": 36,
     "installs_ads": 0,
@@ -62,5 +54,13 @@
     "installs_total": 143,
     "registrations": 140,
     "week_start": "2026-08-31"
+  },
+  "2026-W37": {
+    "activated": 80,
+    "installs_ads": 0,
+    "installs_organic": 136,
+    "installs_total": 136,
+    "registrations": 142,
+    "week_start": "2026-09-07"
   }
 }
