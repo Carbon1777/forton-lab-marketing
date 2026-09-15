@@ -236,7 +236,8 @@ media:
 - path: assets/posts/2026-09/diktum-sep15-monotonnost.png
   sha256: 27d9a350e822fd61feb0eed33120bafc46a729bbce8df68c23ee56bfea4fd6c8
   role: image
-status: draft
+status: published
+published_at: '2026-09-15T09:10:28.288283+00:00'
 ```
 
 Ты говоришь по делу и без ошибок — а на второй минуте видишь, что тебя уже не слушают 🎙
