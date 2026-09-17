@@ -425,3 +425,184 @@ def test_main_one_send_failure_continues(monkeypatch, tmp_path):
     assert len(calls) == 2  # both attempted despite first raising
     seen = rn.load_seen(p)
     assert set(seen["centry"]["app_store"]) == {"seed", "n1", "n2"}
+
+
+# ===================================================================
+# quick 260917-g60 — RuStore real payload, ratings without text, freshness
+# ===================================================================
+
+import datetime as _dt  # noqa: E402
+
+# Реальная форма /comment (verified 2026-09-17): body — СПИСОК, без пагинации.
+_RUSTORE_REAL_LIST = {
+    "code": "OK", "message": "OK",
+    "body": [
+        {
+            "packageName": "pkg", "appId": 1, "commentId": 2001, "userName": "Ольга",
+            "appRating": 4, "commentStatus": "PUBLISHED", "feedbackType": "COMMENT",
+            "commentDate": "2026-09-16 10:00:00.000", "commentText": "Норм",
+            "commentDateIso": "2026-09-16T10:00:00.000Z", "devResponses": [],
+        },
+    ],
+}
+
+
+def test_rustore_fetch_reviews_list_real_list_body():
+    with patch.object(
+        rustore._http, "fetch_with_retry", return_value=_mock_response(_RUSTORE_REAL_LIST),
+    ) as m:
+        reviews = rustore.fetch_reviews_list("bearer", "pkg")
+    assert [r["review_id"] for r in reviews] == ["2001"]
+    assert reviews[0]["rating"] == 4
+    assert reviews[0]["date"] == "2026-09-16T10:00:00.000Z"
+    assert m.call_count == 1  # неполная страница = последняя
+
+
+def test_rustore_weekly_fetch_reviews_real_list_body():
+    with patch.object(
+        rustore._http, "fetch_with_retry", return_value=_mock_response(_RUSTORE_REAL_LIST),
+    ):
+        assert rustore._fetch_reviews("bearer", "pkg") == (4.0, 1)
+
+
+def test_rustore_fetch_rating_stats_parses_statistic():
+    payload = {"code": "OK", "body": {
+        "ratings": {"amountFive": 3, "amountFour": 1, "amountThree": 0,
+                    "amountTwo": 0, "amountOne": 0},
+        "averageUserRating": 4.75, "totalRatings": 4, "totalResponses": 1,
+        "ratingsNoComments": 3,
+    }}
+    with patch.object(rustore._http, "fetch_with_retry", return_value=_mock_response(payload)) as m:
+        stats = rustore.fetch_rating_stats("bearer", "pkg")
+    assert m.call_args.kwargs["method"] == "GET"
+    assert stats == {"per_star": {1: 0, 2: 0, 3: 0, 4: 1, 5: 3},
+                     "total": 4, "no_comments": 3, "avg": 4.75}
+
+
+def test_rustore_fetch_rating_stats_http_error_returns_none():
+    with patch.object(rustore._http, "fetch_with_retry", return_value=_mock_response({}, status=403)):
+        assert rustore.fetch_rating_stats("bearer", "pkg") is None
+
+
+def test_asc_fetch_rating_counts_skips_missing_countries():
+    def fake(url, method="GET", **kw):
+        if "country=ru" in url:
+            return _mock_response({"results": [{"userRatingCount": 8, "averageUserRating": 4.75}]})
+        return _mock_response({"results": []})
+
+    with patch.object(asc._http, "fetch_with_retry", side_effect=fake):
+        assert asc.fetch_rating_counts("1") == {"ru": {"count": 8, "avg": 4.75}}
+
+
+def test_is_fresh_filters_old_reviews():
+    now = _dt.datetime(2026, 9, 17, tzinfo=_dt.timezone.utc)
+    assert rn.is_fresh({"date": "2026-09-16"}, now)
+    assert rn.is_fresh({"date": "2026-09-10T01:25:59-07:00"}, now)
+    assert not rn.is_fresh({"date": "2026-05-18T19:52:03.945Z"}, now)
+    assert not rn.is_fresh({"date": "2026-04-23 14:09:51.238"}, now)
+    assert rn.is_fresh({"date": None}, now)
+    assert rn.is_fresh({"date": "мусор"}, now)
+
+
+def test_main_old_new_review_seeded_silently(monkeypatch, tmp_path):
+    p = tmp_path / "seen.json"
+    rn.save_seen(p, {"centry": {"rustore": []}})
+    monkeypatch.setattr(
+        rn, "_collect_reviews",
+        lambda product: [_review("old", store="rustore", date="2026-04-23T14:09:51Z")]
+        if product == "centry" else [],
+    )
+    monkeypatch.setattr(rn, "_collect_ratings", lambda product, reviews, state: ([], {}))
+    sent = []
+    monkeypatch.setattr(rn, "send_card", lambda card: sent.append(card) or True)
+    rn.main(seen_path=p)
+    assert sent == []
+    assert rn.load_seen(p)["centry"]["rustore"] == ["old"]
+
+
+def _rss(cc, *stars):
+    return [_review(f"{cc}{i}", rating=s) for i, s in enumerate(stars)]
+
+
+def test_app_store_ratings_baseline_then_single_star():
+    counts = {"ru": {"count": 3, "avg": 5.0}}
+    events, state = rn.compute_app_store_rating_events(None, counts, {"ru": _rss("ru", 5)})
+    assert events == []
+    assert state == {"ru": {"no_text": 2, "no_text_sum": 10}}
+
+    counts = {"ru": {"count": 4, "avg": 4.5}}  # +1 оценка 3★ без текста
+    events, state = rn.compute_app_store_rating_events(state, counts, {"ru": _rss("ru", 5)})
+    assert len(events) == 1
+    assert events[0]["stars"] == [3]
+    assert events[0]["country"] == "ru"
+    assert state["ru"] == {"no_text": 3, "no_text_sum": 13}
+
+
+def test_app_store_ratings_rss_ahead_of_lookup_no_false_event():
+    state = {"ru": {"no_text": 2, "no_text_sum": 10}}
+    # RSS уже показал новый текстовый отзыв, lookup ещё нет → no_text падает.
+    events, state2 = rn.compute_app_store_rating_events(
+        state, {"ru": {"count": 3, "avg": 5.0}}, {"ru": _rss("ru", 5, 4)},
+    )
+    assert events == [] and state2 == state
+    # Lookup догнал — число оценок без текста вернулось к watermark → тишина.
+    events, _ = rn.compute_app_store_rating_events(
+        state2, {"ru": {"count": 4, "avg": 4.75}}, {"ru": _rss("ru", 5, 4)},
+    )
+    assert events == []
+
+
+def test_app_store_ratings_skip_country_when_rss_failed():
+    state = {"ru": {"no_text": 0, "no_text_sum": 0}}
+    events, state2 = rn.compute_app_store_rating_events(
+        state, {"ru": {"count": 5, "avg": 5.0}}, {"ru": None},
+    )
+    assert events == [] and state2 == state
+
+
+def test_rustore_ratings_events():
+    stats0 = {"per_star": {1: 0, 2: 0, 3: 0, 4: 0, 5: 3}, "total": 3, "no_comments": 2, "avg": 5.0}
+    text = [_review("r1", store="rustore", rating=5)]
+    events, state = rn.compute_rustore_rating_events(None, stats0, text)
+    assert events == []
+    assert state["no_comments"] == 2 and state["per_star_no_text"]["5"] == 2
+
+    stats1 = {"per_star": {1: 1, 2: 0, 3: 0, 4: 0, 5: 3}, "total": 4, "no_comments": 3, "avg": 4.0}
+    events, state = rn.compute_rustore_rating_events(state, stats1, text)
+    assert len(events) == 1 and events[0]["stars"] == [1] and events[0]["delta"] == 1
+
+    # Повтор без изменений — тишина.
+    events, _ = rn.compute_rustore_rating_events(state, stats1, text)
+    assert events == []
+
+
+def test_format_rating_card():
+    card = rn.format_rating_card(
+        {"store": "app_store", "country": "ru", "delta": 1, "stars": [4],
+         "new_avg": None, "total": 9, "avg": 4.67}, "listvia",
+    )
+    assert "Новая оценка" in card and "Листвия" in card and "App Store (RU)" in card
+    assert "⭐⭐⭐⭐ (4/5) · без текста" in card
+    assert "Всего оценок: 9" in card
+    multi = rn.format_rating_card(
+        {"store": "rustore", "country": None, "delta": 2, "stars": None,
+         "new_avg": None, "total": 5, "avg": 5.0}, "diktum",
+    )
+    assert "+2 новые оценки" in multi and "RuStore" in multi
+
+
+def test_main_sends_rating_cards_and_saves_state(monkeypatch, tmp_path):
+    p = tmp_path / "seen.json"
+    monkeypatch.setattr(rn, "_collect_reviews", lambda product: [])
+    ev = {"store": "rustore", "country": None, "delta": 1, "stars": [5],
+          "new_avg": None, "total": 4, "avg": 5.0}
+    monkeypatch.setattr(
+        rn, "_collect_ratings",
+        lambda product, reviews, state: (([ev], {"rustore": {"no_comments": 3}})
+                                         if product == "diktum" else ([], {})),
+    )
+    sent = []
+    monkeypatch.setattr(rn, "send_card", lambda card: sent.append(card) or True)
+    rn.main(seen_path=p)
+    assert len(sent) == 1 and "Diktum" in sent[0]
+    assert rn.load_seen(tmp_path / "ratings_seen.json")["diktum"] == {"rustore": {"no_comments": 3}}

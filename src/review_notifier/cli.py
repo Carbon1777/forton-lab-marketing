@@ -21,11 +21,22 @@ quick 260626-ozg.
     - main — оркестрация: baseline не шлёт, шлёт ровно новые, падение одной
       карточки не валит остальные.
 
+Оценки без текста (quick 260917-g60):
+    - App Store — iTunes lookup ``userRatingCount``/``averageUserRating`` по
+      стране минус текстовые отзывы RSS этой страны.
+    - RuStore — ``/comment/statistic`` (``ratingsNoComments`` + per-star).
+    - Google Play — НЕВОЗМОЖНО: API отдаёт только отзывы с текстом, а
+      GCS-отчёты reviews/ratings сервис-аккаунту недоступны.
+    Состояние — watermark в ``.metrics/ratings_seen.json``: карточка только при
+    росте числа оценок без текста ВЫШЕ максимума, виденного раньше (лаг между
+    RSS и lookup не даёт ложных срабатываний). Первый прогон — baseline.
+
 Мягкая деградация: отсутствие секретов / сети → всё мягко пропускается,
 исключение наружу не выбрасывается.
 """
 from __future__ import annotations
 
+import datetime as dt
 import html
 import os
 import sys
@@ -41,7 +52,12 @@ PRODUCTS: Final[list[Product]] = [
     "centry", "diktum", "lucea", "lapulya", "unia", "listvia",
 ]
 SEEN_PATH: Final[Path] = Path(".metrics/reviews_seen.json")
+# Состояние счётчиков оценок без текста — рядом с seen (тот же каталог).
+RATINGS_STATE_NAME: Final[str] = "ratings_seen.json"
 MAX_SEEN_PER_PAIR: Final[int] = 500
+# «Новый» отзыв старше этого — засеивается молча (напр. после починки
+# RuStore-парсера или сброса seen не должны улететь отзывы из прошлого).
+MAX_REVIEW_AGE_DAYS: Final[int] = 14
 STORES: Final[tuple[str, ...]] = ("app_store", "google_play", "rustore")
 STORE_LABELS: Final[dict[str, str]] = {
     "app_store": "App Store",
@@ -196,6 +212,197 @@ def send_card(card: str) -> bool:
         return False
 
 
+def _parse_date(value: object) -> dt.datetime | None:
+    """ISO-дата/датавремя отзыва → aware datetime (UTC по умолчанию) | None."""
+    if not value:
+        return None
+    raw = str(value).strip().replace("Z", "+00:00")
+    for candidate in (raw, raw.replace(" ", "T", 1), raw[:10]):
+        try:
+            parsed = dt.datetime.fromisoformat(candidate)
+        except ValueError:
+            continue
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=dt.timezone.utc)
+        return parsed
+    return None
+
+
+def is_fresh(review: dict, now: dt.datetime | None = None) -> bool:
+    """True если отзыв моложе ``MAX_REVIEW_AGE_DAYS`` или дата неизвестна."""
+    parsed = _parse_date(review.get("date"))
+    if parsed is None:
+        return True
+    now = now or dt.datetime.now(dt.timezone.utc)
+    return now - parsed <= dt.timedelta(days=MAX_REVIEW_AGE_DAYS)
+
+
+# ===================================================================
+# Ratings without text — watermark diff + card
+# ===================================================================
+
+def compute_app_store_rating_events(
+    state: dict | None,
+    counts: dict[str, dict],
+    rss_by_country: dict[str, list[dict] | None],
+) -> tuple[list[dict], dict]:
+    """Новые оценки без текста в App Store по странам.
+
+    state: ``{cc: {"no_text": int, "no_text_sum": int}}`` (None = baseline).
+    counts: ``{cc: {"count", "avg"}}`` из iTunes lookup.
+    rss_by_country: текстовые отзывы по стране; ``None`` = RSS не ответил →
+    страна пропускается (иначе все отзывы посчитались бы «без текста»).
+    """
+    new_state = {cc: dict(v) for cc, v in (state or {}).items()}
+    events: list[dict] = []
+    for cc, c in counts.items():
+        reviews = rss_by_country.get(cc)
+        if reviews is None:
+            continue
+        count = int(c.get("count") or 0)
+        total_sum = round(float(c.get("avg") or 0.0) * count)
+        no_text = max(0, count - len(reviews))
+        no_text_sum = total_sum - sum(int(r.get("rating") or 0) for r in reviews)
+        prev = new_state.get(cc)
+        if prev is None:
+            new_state[cc] = {"no_text": no_text, "no_text_sum": no_text_sum}
+            continue
+        if no_text <= int(prev.get("no_text") or 0):
+            continue
+        delta = no_text - int(prev["no_text"])
+        sum_delta = no_text_sum - int(prev.get("no_text_sum") or 0)
+        stars: list[int] | None = None
+        new_avg: float | None = None
+        if delta == 1 and 1 <= sum_delta <= 5:
+            stars = [sum_delta]
+        elif delta > 1 and delta <= sum_delta <= 5 * delta:
+            new_avg = round(sum_delta / delta, 1)
+        events.append({
+            "store": "app_store", "country": cc, "delta": delta,
+            "stars": stars, "new_avg": new_avg,
+            "total": count, "avg": float(c.get("avg") or 0.0),
+        })
+        new_state[cc] = {"no_text": no_text, "no_text_sum": no_text_sum}
+    return events, new_state
+
+
+def compute_rustore_rating_events(
+    state: dict | None, stats: dict, text_reviews: list[dict],
+) -> tuple[list[dict], dict]:
+    """Новые оценки без текста в RuStore.
+
+    state: ``{"no_comments": int, "per_star_no_text": {"1".."5": int}}``.
+    stats: :func:`rustore.fetch_rating_stats`. Событие — только при росте
+    ``ratingsNoComments`` выше watermark; звёзды — по приросту per-star
+    (amount минус текстовые отзывы этой звезды), если он сходится с дельтой.
+    """
+    text_by_star = {s: 0 for s in range(1, 6)}
+    for r in text_reviews:
+        star = int(r.get("rating") or 0)
+        if star in text_by_star:
+            text_by_star[star] += 1
+    per_star_no_text = {
+        str(s): max(0, int(stats["per_star"].get(s, 0)) - text_by_star[s])
+        for s in range(1, 6)
+    }
+    no_comments = int(stats.get("no_comments") or 0)
+    new_state = {"no_comments": no_comments, "per_star_no_text": per_star_no_text}
+    if state is None:
+        return [], new_state
+
+    prev_no = int(state.get("no_comments") or 0)
+    if no_comments <= prev_no:
+        # watermark держим, per-star обновляем (самолечение атрибуции звёзд).
+        new_state["no_comments"] = prev_no
+        return [], new_state
+
+    delta = no_comments - prev_no
+    prev_star = state.get("per_star_no_text") or {}
+    stars: list[int] = []
+    for s in range(1, 6):
+        inc = per_star_no_text[str(s)] - int(prev_star.get(str(s)) or 0)
+        stars.extend([s] * max(0, inc))
+    event = {
+        "store": "rustore", "country": None, "delta": delta,
+        "stars": sorted(stars, reverse=True) if len(stars) == delta else None,
+        "new_avg": None,
+        "total": int(stats.get("total") or 0), "avg": float(stats.get("avg") or 0.0),
+    }
+    return [event], new_state
+
+
+def _plural_ratings(n: int) -> str:
+    if n % 10 == 1 and n % 100 != 11:
+        return "новая оценка"
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return "новые оценки"
+    return "новых оценок"
+
+
+def format_rating_card(event: dict, product: str) -> str:
+    """HTML-карточка новой оценки без текста."""
+    product_label = PRODUCT_LABELS.get(product, product)
+    store_label = STORE_LABELS.get(event["store"], event["store"])
+    if event.get("country"):
+        store_label = f"{store_label} ({event['country'].upper()})"
+    delta = int(event["delta"])
+    head = "Новая оценка" if delta == 1 else f"+{delta} {_plural_ratings(delta)}"
+    lines = [
+        f"⭐ <b>{head}</b> · {html.escape(product_label)} · {html.escape(store_label)}",
+    ]
+    stars = event.get("stars")
+    if stars and len(stars) == 1:
+        lines.append(f"{'⭐' * stars[0]} ({stars[0]}/5) · без текста")
+    elif stars:
+        lines.append("Оценки: " + ", ".join(f"{s}/5" for s in stars) + " · без текста")
+    elif event.get("new_avg"):
+        lines.append(f"В среднем {event['new_avg']}/5 · без текста")
+    else:
+        lines.append("Без текста")
+    total = event.get("total")
+    if total:
+        lines.append("")
+        lines.append(f"📊 Всего оценок: {total} · средняя {float(event.get('avg') or 0):.2f}")
+    return "\n".join(lines)
+
+
+def _collect_ratings(product: str, reviews: list[dict], state: dict) -> tuple[list[dict], dict]:
+    """Снять счётчики оценок App Store + RuStore и вычислить события.
+
+    Возвращает (events, обновлённый state продукта). Нестроенный/упавший стор
+    мягко пропускается, его state не трогается.
+    """
+    prod_state = dict(state.get(product) or {})
+    events: list[dict] = []
+
+    try:
+        app_id = asc._app_id_for(product)  # type: ignore[arg-type]
+        counts = asc.fetch_rating_counts(app_id)
+        if counts:
+            rss = asc.fetch_reviews_by_country(app_id)
+            ev, prod_state["app_store"] = compute_app_store_rating_events(
+                prod_state.get("app_store"), counts, rss,
+            )
+            events.extend(ev)
+    except Exception as exc:  # noqa: BLE001
+        sys.stderr.write(f"INFO: App Store ratings skipped for {product}: {exc!r}\n")
+
+    try:
+        if rustore._is_configured():
+            pkg = rustore._package_for(product)  # type: ignore[arg-type]
+            stats = rustore.fetch_rating_stats(rustore._cached_token(), pkg)
+            if stats is not None:
+                text_reviews = [r for r in reviews if r.get("store") == "rustore"]
+                ev, prod_state["rustore"] = compute_rustore_rating_events(
+                    prod_state.get("rustore"), stats, text_reviews,
+                )
+                events.extend(ev)
+    except Exception as exc:  # noqa: BLE001
+        sys.stderr.write(f"INFO: RuStore ratings skipped for {product}: {exc!r}\n")
+
+    return events, prod_state
+
+
 # ===================================================================
 # Collection — per product across three stores
 # ===================================================================
@@ -247,39 +454,69 @@ def _collect_reviews(product: str) -> list[dict]:
 # Main orchestration
 # ===================================================================
 
-def main(seen_path: Path | None = None) -> int:
+def _send_safely(card: str, what: str) -> None:
+    """Отправить карточку; любая ошибка → stderr, наружу не выходит."""
+    try:
+        if not send_card(card):
+            sys.stderr.write(f"WARN: card not sent ({what})\n")
+    except Exception as exc:  # noqa: BLE001 — одна не валит остальные
+        sys.stderr.write(f"ERROR: card send raised ({what}): {exc!r}\n")
+
+
+def main(
+    seen_path: Path | None = None, ratings_path: Path | None = None,
+) -> int:
     """Entry для workflow. Для каждого продукта/стора: собрать отзывы, вычислить
     новые, отправить по одной карточке, обновить seen. Baseline — без рассылки.
+    Затем — оценки без текста (App Store + RuStore) по watermark-состоянию.
     """
     if seen_path is None:
         seen_path = SEEN_PATH
+    if ratings_path is None:
+        ratings_path = seen_path.parent / RATINGS_STATE_NAME
 
     seen = load_seen(seen_path)
+    ratings_state = load_seen(ratings_path)
+    summary: list[str] = []
 
     for product in PRODUCTS:
         all_reviews = _collect_reviews(product)
         for store in STORES:
             store_reviews = [r for r in all_reviews if r.get("store") == store]
             new, baseline = find_new(seen, product, store, store_reviews)
+            sent = 0
             if not baseline:
                 for r in new:
-                    try:
-                        ok = send_card(format_card(r, product))
-                        if not ok:
-                            sys.stderr.write(
-                                f"WARN: card not sent (product={product} "
-                                f"store={store} id={r['review_id']})\n"
-                            )
-                    except Exception as exc:  # noqa: BLE001 — одна не валит остальные
-                        sys.stderr.write(
-                            f"ERROR: card send raised (product={product} "
-                            f"store={store} id={r['review_id']}): {exc!r}\n"
-                        )
+                    if not is_fresh(r):
+                        continue  # старый «новый» — засеется молча ниже
+                    _send_safely(
+                        format_card(r, product),
+                        f"product={product} store={store} id={r['review_id']}",
+                    )
+                    sent += 1
+            summary.append(
+                f"{product}/{store}: {len(store_reviews)} reviews, "
+                f"{'baseline' if baseline else f'{sent} sent'}"
+            )
             # Засеять/обновить seen ВСЕМИ отзывами этого прогона (новые+старые),
             # даже в baseline — это и есть baseline-засев.
             update_seen(seen, product, store, store_reviews)
 
+        events, ratings_state[product] = _collect_ratings(
+            product, all_reviews, ratings_state,
+        )
+        for ev in events:
+            _send_safely(
+                format_rating_card(ev, product),
+                f"rating product={product} store={ev['store']}",
+            )
+        if events:
+            summary.append(f"{product}: {len(events)} rating card(s)")
+
     save_seen(seen_path, seen)
+    save_seen(ratings_path, ratings_state)
+    # Сводка в лог — чтобы «тихий ноль» по стору было видно в GH Actions.
+    print("\n".join(summary))
     return 0
 
 

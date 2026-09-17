@@ -7,7 +7,7 @@ Pipeline (real-mode, all envs set):
     2. _cached_token: module-level cache, перевыпускаем токен при истечении 870с
        safety margin (single workflow run = ~30 сек, одной авторизации хватит).
     3. _fetch_reviews: GET /public/v1/application/<packageName>/comment
-       Header: Public-Token: <token>. Pagination via page/size + body.last.
+       Header: Public-Token: <token>. Pagination via page/size (body = list; неполная страница = последняя).
        Filter commentStatus == "PUBLISHED", aggregate appRating 1-5.
     4. **Installs path — stubbed.** RuStore Public API НЕ предоставляет
        installs/stats endpoints — это constraint от Mail.ru (Brain decision
@@ -26,7 +26,7 @@ Architectural notes:
     - Auth — это JWS (не JWE), хоть response field и называется "jwe"
       (RESEARCH §5 «RuStore Authorization»). Implementation использует
       cryptography PKCS1v15 + SHA512 напрямую, без PyJWT.
-    - Reviews paginate через page=0,1,2,...&size=100 + body.last флаг —
+    - Reviews paginate через page=0,1,2,...&size=100 + неполная страница —
       не nextPageToken (отличие от GPlay).
 
 Env required (real-mode):
@@ -66,6 +66,8 @@ _AUTH_URL: Final[str] = "https://public-api.rustore.ru/public/auth/"
 _COMMENT_URL_TEMPLATE: Final[str] = (
     "https://public-api.rustore.ru/public/v1/application/{package}/comment"
 )
+# Статистика оценок (в т.ч. без текста). Только GET — POST из доки отдаёт 403.
+_STATISTIC_URL_TEMPLATE: Final[str] = _COMMENT_URL_TEMPLATE + "/statistic"
 
 # ===================================================================
 # Pagination + caching limits
@@ -322,12 +324,64 @@ def _reset_token_cache() -> None:
 # Reviews — GET /public/v1/application/<package>/comment
 # ===================================================================
 
+def _page_items(body: object) -> tuple[list, bool]:
+    """Достать отзывы страницы /comment + признак последней страницы.
+
+    Реальный API (verified 2026-09-17) отдаёт ``body`` СПИСКОМ отзывов без
+    метаданных пагинации → последняя страница = неполная страница.
+    Legacy-форма ``{"content": [...], "last": bool}`` (старые фикстуры)
+    поддерживается для совместимости.
+    """
+    if isinstance(body, list):
+        return body, len(body) < _REVIEWS_PAGE_SIZE
+    if isinstance(body, dict):
+        content = body.get("content")
+        if isinstance(content, list):
+            return content, body.get("last") is True
+    return [], True
+
+
+def fetch_rating_stats(bearer: str, package: str) -> dict | None:
+    """Статистика оценок приложения (включая оценки БЕЗ текста).
+
+    GET /comment/statistic → ``{"per_star": {1..5: int}, "total": int,
+    "no_comments": int, "avg": float}``. Любая ошибка → stderr WARN + None.
+    """
+    url = _STATISTIC_URL_TEMPLATE.format(package=package)
+    try:
+        resp = _http.fetch_with_retry(
+            url=url, method="GET", headers={"Public-Token": bearer},
+        )
+        if resp.status_code >= 400:
+            sys.stderr.write(
+                f"WARN: RuStore statistic HTTP {resp.status_code} package={package}\n"
+            )
+            return None
+        payload = resp.json()
+        body = payload.get("body") if isinstance(payload, dict) else None
+        if payload.get("code") != "OK" or not isinstance(body, dict):
+            sys.stderr.write(f"WARN: RuStore statistic bad payload package={package}\n")
+            return None
+        ratings = body.get("ratings") or {}
+        keys = {1: "amountOne", 2: "amountTwo", 3: "amountThree",
+                4: "amountFour", 5: "amountFive"}
+        return {
+            "per_star": {s: int(ratings.get(k) or 0) for s, k in keys.items()},
+            "total": int(body.get("totalRatings") or 0),
+            "no_comments": int(body.get("ratingsNoComments") or 0),
+            "avg": float(body.get("averageUserRating") or 0.0),
+        }
+    except Exception as exc:  # noqa: BLE001 — статистика не критична
+        sys.stderr.write(f"WARN: RuStore statistic failed package={package}: {exc!r}\n")
+        return None
+
+
 def _fetch_reviews(bearer: str, package: str) -> tuple[float | None, int]:
     """Aggregate avg rating + count over published reviews.
 
     Pagination:
         page=0,1,2,... через query param, max page = _REVIEWS_PAGE_CAP - 1.
-        Останавливается когда body.last == True или content пустой.
+        Останавливается на неполной/пустой странице (см. _page_items).
 
     Filtering:
         Считаем только commentStatus == "PUBLISHED" с appRating in 1..5.
@@ -376,11 +430,8 @@ def _fetch_reviews(bearer: str, package: str) -> tuple[float | None, int]:
                 f"WARN: RuStore reviews code != OK on page={page}: {payload}\n"
             )
             break
-        body = payload.get("body")
-        if not isinstance(body, dict):
-            break
-        content = body.get("content")
-        if not isinstance(content, list) or not content:
+        content, is_last = _page_items(payload.get("body"))
+        if not content:
             # Empty page — done.
             break
         for review in content:
@@ -399,7 +450,7 @@ def _fetch_reviews(bearer: str, package: str) -> tuple[float | None, int]:
             if 1 <= star <= 5:
                 star_ratings.append(star)
         # Stop if API indicates last page.
-        if body.get("last") is True:
+        if is_last:
             break
 
     if not star_ratings:
@@ -411,7 +462,8 @@ def _fetch_reviews(bearer: str, package: str) -> tuple[float | None, int]:
 # Реальный фид использует "commentDate" (verified fixture); остальные —
 # страховка от вариаций API.
 _RUSTORE_DATE_FIELDS: Final[tuple[str, ...]] = (
-    "commentDate", "editedDate", "createdAt", "date", "updatedDate",
+    "commentDateIso", "commentDate", "editedDate", "createdAt", "date",
+    "updatedDate",
 )
 # Кандидаты имени поля идентификатора отзыва.
 _RUSTORE_ID_FIELDS: Final[tuple[str, ...]] = ("commentId", "id")
@@ -429,7 +481,7 @@ def fetch_reviews_list(bearer: str, package: str) -> list[dict]:
          text:str, date:str|None}
 
     Только ``commentStatus == "PUBLISHED"``. Пагинация page/size, остановка по
-    ``body.last`` (как :func:`_fetch_reviews`), тот же ``_REVIEWS_PAGE_CAP``.
+    неполной странице (как :func:`_fetch_reviews`), тот же ``_REVIEWS_PAGE_CAP``.
     Per-page HTTP/parse error → stderr WARN + break (возврат накопленного).
     Никогда не падает наружу.
     """
@@ -464,11 +516,8 @@ def fetch_reviews_list(bearer: str, package: str) -> list[dict]:
             break
         if not isinstance(payload, dict) or payload.get("code") != "OK":
             break
-        body = payload.get("body")
-        if not isinstance(body, dict):
-            break
-        content = body.get("content")
-        if not isinstance(content, list) or not content:
+        content, is_last = _page_items(payload.get("body"))
+        if not content:
             break
         for review in content:
             if not isinstance(review, dict):
@@ -504,7 +553,7 @@ def fetch_reviews_list(bearer: str, package: str) -> list[dict]:
                 "text": str(review.get("commentText") or ""),
                 "date": date,
             })
-        if body.get("last") is True:
+        if is_last:
             break
     return out
 

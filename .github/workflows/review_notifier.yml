@@ -8,10 +8,15 @@ name: review_notifier
 #   Первый прогон для каждой пары product+store засеивает seen БЕЗ рассылки
 #   (baseline) — иначе при первом запуске улетели бы ВСЕ исторические отзывы.
 #
-# Cron: каждые 3 часа в окне 9–21 МСК (МСК = UTC+3).
-#   6,9,12,15,18 UTC = 09,12,15,18,21 МСК.
-#   Минута 17 (не ровный час) — анти-drift GH Actions (как минута 37 в
-#   store_metrics.yml: на ровные часы у GH throttling под пиковую нагрузку).
+# Cron: КАЖДЫЙ ЧАС в окне 9–23 МСК (МСК = UTC+3), 6–20 UTC.
+#   Было «каждые 3ч» — GH реально запускал ~3 из 5 слотов с опозданием до 5ч
+#   (первый прогон дня ≈14:40 МСК), отзыв с утра приходил только после обеда
+#   (quick 260917-g60). Репо публичный → минуты Actions бесплатны.
+#   CF Worker не используем: 5/5 cron-триггеров free-плана уже заняты.
+#   Минута 17 (не ровный час) — анти-drift GH Actions.
+#
+# Оценки без текста (App Store lookup + RuStore statistic) — state в
+#   .metrics/ratings_seen.json, коммитится вместе с reviews_seen.json.
 #
 # Concurrency: group=review-notifier, cancel-in-progress=false — две сборки
 #   никогда не пересекаются (защита от гонок при коммите seen-state).
@@ -20,7 +25,7 @@ name: review_notifier
 #   BOT_DISPATCH_PAT (тот же fine-grained PAT, Contents:write, single-repo).
 on:
   schedule:
-    - cron: "17 6,9,12,15,18 * * *"
+    - cron: "17 6-20 * * *"
   workflow_dispatch: {}
 
 permissions:
@@ -104,8 +109,8 @@ jobs:
           # git add сначала: на первом запуске файл untracked, и `git diff
           # --quiet` его НЕ видит (вернул бы 0 → коммит пропускался). Стейджим,
           # затем проверяем staged-дифф (как в store_metrics.yml).
-          git add .metrics/reviews_seen.json
-          if git diff --cached --quiet -- .metrics/reviews_seen.json; then
+          git add .metrics/reviews_seen.json .metrics/ratings_seen.json
+          if git diff --cached --quiet -- .metrics/reviews_seen.json .metrics/ratings_seen.json; then
             echo "seen state unchanged — no commit"
             exit 0
           fi
