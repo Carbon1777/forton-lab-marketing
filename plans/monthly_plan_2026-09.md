@@ -269,7 +269,8 @@ media:
 - path: assets/posts/2026-09/lucea-sep17-dolzhen.png
   sha256: 57ff07f918f28d7cd29d84605607675dbbf48e75795100aad869cf1b5cbca88e
   role: image
-status: draft
+status: published
+published_at: '2026-09-17T10:08:19.607885+00:00'
 ```
 
 Замечал, как часто за день произносишь про себя «надо», «должен» — и почти никогда «хочу»? 🍂
