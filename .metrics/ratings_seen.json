@@ -1,0 +1,190 @@
+{
+  "centry": {
+    "app_store": {
+      "by": {
+        "no_text": 0,
+        "no_text_sum": 0
+      },
+      "kz": {
+        "no_text": 0,
+        "no_text_sum": 0
+      },
+      "ru": {
+        "no_text": 2,
+        "no_text_sum": 10
+      },
+      "ua": {
+        "no_text": 0,
+        "no_text_sum": 0
+      },
+      "us": {
+        "no_text": 0,
+        "no_text_sum": 0
+      }
+    },
+    "rustore": {
+      "no_comments": 1,
+      "per_star_no_text": {
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "5": 1
+      }
+    }
+  },
+  "diktum": {
+    "app_store": {
+      "by": {
+        "no_text": 0,
+        "no_text_sum": 0
+      },
+      "kz": {
+        "no_text": 1,
+        "no_text_sum": 5
+      },
+      "ru": {
+        "no_text": 5,
+        "no_text_sum": 23
+      },
+      "ua": {
+        "no_text": 0,
+        "no_text_sum": 0
+      },
+      "us": {
+        "no_text": 3,
+        "no_text_sum": 15
+      }
+    },
+    "rustore": {
+      "no_comments": 2,
+      "per_star_no_text": {
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "5": 2
+      }
+    }
+  },
+  "lapulya": {
+    "app_store": {
+      "by": {
+        "no_text": 0,
+        "no_text_sum": 0
+      },
+      "kz": {
+        "no_text": 0,
+        "no_text_sum": 0
+      },
+      "ru": {
+        "no_text": 0,
+        "no_text_sum": 0
+      },
+      "ua": {
+        "no_text": 0,
+        "no_text_sum": 0
+      },
+      "us": {
+        "no_text": 0,
+        "no_text_sum": 0
+      }
+    },
+    "rustore": {
+      "no_comments": 0,
+      "per_star_no_text": {
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "5": 0
+      }
+    }
+  },
+  "listvia": {
+    "app_store": {
+      "by": {
+        "no_text": 0,
+        "no_text_sum": 0
+      },
+      "kz": {
+        "no_text": 0,
+        "no_text_sum": 0
+      },
+      "ru": {
+        "no_text": 0,
+        "no_text_sum": 0
+      },
+      "ua": {
+        "no_text": 0,
+        "no_text_sum": 0
+      },
+      "us": {
+        "no_text": 0,
+        "no_text_sum": 0
+      }
+    },
+    "rustore": {
+      "no_comments": 0,
+      "per_star_no_text": {
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "5": 0
+      }
+    }
+  },
+  "lucea": {
+    "app_store": {
+      "by": {
+        "no_text": 0,
+        "no_text_sum": 0
+      },
+      "kz": {
+        "no_text": 0,
+        "no_text_sum": 0
+      },
+      "ru": {
+        "no_text": 0,
+        "no_text_sum": 0
+      }
+    },
+    "rustore": {
+      "no_comments": 1,
+      "per_star_no_text": {
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "5": 1
+      }
+    }
+  },
+  "unia": {
+    "app_store": {
+      "by": {
+        "no_text": 0,
+        "no_text_sum": 0
+      },
+      "kz": {
+        "no_text": 0,
+        "no_text_sum": 0
+      },
+      "ru": {
+        "no_text": 0,
+        "no_text_sum": 0
+      }
+    },
+    "rustore": {
+      "no_comments": 0,
+      "per_star_no_text": {
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "5": 0
+      }
+    }
+  }
+}

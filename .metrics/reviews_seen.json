@@ -2,7 +2,9 @@
   "centry": {
     "app_store": [],
     "google_play": [],
-    "rustore": []
+    "rustore": [
+      "2406163392"
+    ]
   },
   "diktum": {
     "app_store": [
@@ -19,7 +21,9 @@
       "535b637d-4779-49d2-b556-b812fb5225ff",
       "ab283ce1-17c2-4d01-a138-682a951787e4"
     ],
-    "rustore": []
+    "rustore": [
+      "2402972627"
+    ]
   },
   "lapulya": {
     "app_store": [
@@ -32,7 +36,8 @@
   "listvia": {
     "app_store": [],
     "google_play": [
-      "f0b36e22-ab81-45cf-88ed-57ee9f07d336"
+      "f0b36e22-ab81-45cf-88ed-57ee9f07d336",
+      "c440b4c5-79e3-4f5d-9f9b-313adf9febdd"
     ],
     "rustore": []
   },
