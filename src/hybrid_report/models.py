@@ -385,6 +385,7 @@ PRODUCTS: list[ProductSpec] = [
         reg_source="listvia",  # offline (drift), без Supabase → reg «данные собираются»
         screen_names=_LISTVIA_SCREEN_NAMES,
         screen_event_label="screen_entered",
+        review_event="review_prompt_triggered",  # In-App Review (REVIEW-02, Phase 07.1)
     ),
     ProductSpec(
         key="lucea",
