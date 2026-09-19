@@ -303,7 +303,8 @@ media:
 - path: assets/posts/2026-09/lapulya-sep19-progulki.png
   sha256: 461e8e3903bd63983b41d23a71281418d78eff15a79beca5ab52a397fdb7e2ff
   role: image
-status: draft
+status: published
+published_at: '2026-09-19T13:42:51.936012+00:00'
 ```
 
 Осенью прогулка с собакой превращается в компромисс: холодно, мокро, грязно 🐾
