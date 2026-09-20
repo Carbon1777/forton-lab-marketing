@@ -2,24 +2,34 @@
   "centry": {
     "app_store": {
       "by": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       },
       "kz": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       },
       "ru": {
+        "count": 2,
         "no_text": 2,
-        "no_text_sum": 10
+        "no_text_sum": 10,
+        "sum": 10
       },
       "ua": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       },
       "us": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       }
     },
     "rustore": {
@@ -36,24 +46,34 @@
   "diktum": {
     "app_store": {
       "by": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       },
       "kz": {
+        "count": 1,
         "no_text": 1,
-        "no_text_sum": 5
+        "no_text_sum": 5,
+        "sum": 5
       },
       "ru": {
-        "no_text": 9,
-        "no_text_sum": 43
+        "count": 9,
+        "no_text": 6,
+        "no_text_sum": 28,
+        "sum": 43
       },
       "ua": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       },
       "us": {
+        "count": 3,
         "no_text": 3,
-        "no_text_sum": 15
+        "no_text_sum": 15,
+        "sum": 15
       }
     },
     "rustore": {
@@ -70,24 +90,34 @@
   "lapulya": {
     "app_store": {
       "by": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       },
       "kz": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       },
       "ru": {
+        "count": 1,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 5
       },
       "ua": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       },
       "us": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       }
     },
     "rustore": {
@@ -104,24 +134,34 @@
   "listvia": {
     "app_store": {
       "by": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       },
       "kz": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       },
       "ru": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       },
       "ua": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       },
       "us": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       }
     },
     "rustore": {
@@ -138,16 +178,22 @@
   "lucea": {
     "app_store": {
       "by": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       },
       "kz": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       },
       "ru": {
+        "count": 1,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 5
       }
     },
     "rustore": {
@@ -164,16 +210,22 @@
   "unia": {
     "app_store": {
       "by": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       },
       "kz": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       },
       "ru": {
+        "count": 0,
         "no_text": 0,
-        "no_text_sum": 0
+        "no_text_sum": 0,
+        "sum": 0
       }
     },
     "rustore": {
