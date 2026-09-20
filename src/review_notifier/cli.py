@@ -27,9 +27,10 @@ quick 260626-ozg.
     - RuStore — ``/comment/statistic`` (``ratingsNoComments`` + per-star).
     - Google Play — НЕВОЗМОЖНО: API отдаёт только отзывы с текстом, а
       GCS-отчёты reviews/ratings сервис-аккаунту недоступны.
-    Состояние — watermark в ``.metrics/ratings_seen.json``: карточка только при
-    росте числа оценок без текста ВЫШЕ максимума, виденного раньше (лаг между
-    RSS и lookup не даёт ложных срабатываний). Первый прогон — baseline.
+    Состояние — watermark в ``.metrics/ratings_seen.json``. Карточка App Store
+    только когда выросли ОБА счётчика: и «без текста» (lookup − RSS), и общее
+    число оценок; это гасит и лаг RSS↔lookup, и пустую ленту RSS при живых
+    отзывах. Первый прогон (и миграция схемы) — baseline без рассылки.
 
 Мягкая деградация: отсутствие секретов / сети → всё мягко пропускается,
 исключение наружу не выбрасывается.
@@ -248,10 +249,22 @@ def compute_app_store_rating_events(
 ) -> tuple[list[dict], dict]:
     """Новые оценки без текста в App Store по странам.
 
-    state: ``{cc: {"no_text": int, "no_text_sum": int}}`` (None = baseline).
+    state: ``{cc: {"no_text", "no_text_sum", "count", "sum"}}`` (None = baseline).
     counts: ``{cc: {"count", "avg"}}`` из iTunes lookup.
     rss_by_country: текстовые отзывы по стране; ``None`` = RSS не ответил →
-    страна пропускается (иначе все отзывы посчитались бы «без текста»).
+    страна пропускается.
+
+    Два независимых источника, у каждого свой лаг и свои сбои:
+      * lookup — общее число оценок (растёт и от оценок, и от отзывов);
+      * RSS — только отзывы с текстом, лента бывает ПУСТОЙ при живых отзывах
+        (verified 2026-09-20: Diktum RU отдал 0 вместо 3 → «+3 новые оценки»,
+        хотя общее число оценок не менялось).
+
+    Поэтому событие = ``min`` прироста двух величин: оценок без текста
+    (count − отзывы RSS) И общего числа оценок. Пустая лента RSS не создаёт
+    события (общее число не выросло), а lookup, обогнавший RSS, — тоже
+    (не выросло число без текста). Watermark сдвигается ровно на размер
+    события, чтобы всплеск RSS не «съедал» будущие настоящие оценки.
     """
     new_state = {cc: dict(v) for cc, v in (state or {}).items()}
     events: list[dict] = []
@@ -260,29 +273,53 @@ def compute_app_store_rating_events(
         if reviews is None:
             continue
         count = int(c.get("count") or 0)
-        total_sum = round(float(c.get("avg") or 0.0) * count)
+        avg = float(c.get("avg") or 0.0)
+        total_sum = round(avg * count)
         no_text = max(0, count - len(reviews))
-        no_text_sum = total_sum - sum(int(r.get("rating") or 0) for r in reviews)
+        no_text_sum = max(0, total_sum - sum(int(r.get("rating") or 0) for r in reviews))
         prev = new_state.get(cc)
-        if prev is None:
-            new_state[cc] = {"no_text": no_text, "no_text_sum": no_text_sum}
+        # Baseline / миграция со старой схемы (без "count") — засев без рассылки.
+        if prev is None or "count" not in prev:
+            new_state[cc] = {
+                "no_text": no_text, "no_text_sum": no_text_sum,
+                "count": count, "sum": total_sum,
+            }
             continue
-        if no_text <= int(prev.get("no_text") or 0):
+
+        prev_no_text = int(prev.get("no_text") or 0)
+        prev_no_text_sum = int(prev.get("no_text_sum") or 0)
+        prev_count = int(prev.get("count") or 0)
+        delta = min(no_text - prev_no_text, count - prev_count)
+        if delta <= 0:
+            # Ничего нового: watermark'и только вверх (count), no_text не трогаем.
+            new_state[cc] = {
+                "no_text": prev_no_text, "no_text_sum": prev_no_text_sum,
+                "count": max(prev_count, count), "sum": max(int(prev.get("sum") or 0), total_sum),
+            }
             continue
-        delta = no_text - int(prev["no_text"])
-        sum_delta = no_text_sum - int(prev.get("no_text_sum") or 0)
+
+        sum_delta = no_text_sum - prev_no_text_sum
+        plausible = delta <= sum_delta <= 5 * delta
         stars: list[int] | None = None
         new_avg: float | None = None
-        if delta == 1 and 1 <= sum_delta <= 5:
+        if plausible and delta == 1:
             stars = [sum_delta]
-        elif delta > 1 and delta <= sum_delta <= 5 * delta:
+        elif plausible:
             new_avg = round(sum_delta / delta, 1)
         events.append({
             "store": "app_store", "country": cc, "delta": delta,
             "stars": stars, "new_avg": new_avg,
-            "total": count, "avg": float(c.get("avg") or 0.0),
+            "total": count, "avg": avg,
         })
-        new_state[cc] = {"no_text": no_text, "no_text_sum": no_text_sum}
+        # Сдвиг ровно на событие (а не на текущий срез) — иначе пустая лента RSS
+        # задрала бы watermark и следующая реальная оценка потерялась бы.
+        applied_sum = sum_delta if plausible else max(delta, min(5 * delta, round(avg * delta)))
+        new_state[cc] = {
+            "no_text": prev_no_text + delta,
+            "no_text_sum": prev_no_text_sum + applied_sum,
+            "count": max(prev_count, count),
+            "sum": max(int(prev.get("sum") or 0), total_sum),
+        }
     return events, new_state
 
 

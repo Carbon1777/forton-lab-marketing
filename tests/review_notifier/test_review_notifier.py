@@ -528,23 +528,65 @@ def test_app_store_ratings_baseline_then_single_star():
     counts = {"ru": {"count": 3, "avg": 5.0}}
     events, state = rn.compute_app_store_rating_events(None, counts, {"ru": _rss("ru", 5)})
     assert events == []
-    assert state == {"ru": {"no_text": 2, "no_text_sum": 10}}
+    assert state == {"ru": {"no_text": 2, "no_text_sum": 10, "count": 3, "sum": 15}}
 
     counts = {"ru": {"count": 4, "avg": 4.5}}  # +1 оценка 3★ без текста
     events, state = rn.compute_app_store_rating_events(state, counts, {"ru": _rss("ru", 5)})
     assert len(events) == 1
     assert events[0]["stars"] == [3]
     assert events[0]["country"] == "ru"
-    assert state["ru"] == {"no_text": 3, "no_text_sum": 13}
+    assert state["ru"] == {"no_text": 3, "no_text_sum": 13, "count": 4, "sum": 18}
+
+
+def test_app_store_ratings_old_state_schema_reseeds_without_event():
+    # Старая схема (без "count") — миграция = baseline, карточка не шлётся.
+    state = {"ru": {"no_text": 9, "no_text_sum": 43}}
+    events, state2 = rn.compute_app_store_rating_events(
+        state, {"ru": {"count": 9, "avg": 4.78}}, {"ru": _rss("ru", 5, 5, 5)},
+    )
+    assert events == []
+    assert state2["ru"] == {"no_text": 6, "no_text_sum": 28, "count": 9, "sum": 43}
+
+
+def test_app_store_ratings_empty_rss_feed_is_not_an_event():
+    # Инцидент 2026-09-20: лента RSS отдала 0 отзывов при 9 живых оценках →
+    # «без текста» подскочило с 6 до 9, но общее число оценок не менялось.
+    state = {"ru": {"no_text": 6, "no_text_sum": 28, "count": 9, "sum": 43}}
+    events, state2 = rn.compute_app_store_rating_events(
+        state, {"ru": {"count": 9, "avg": 4.78}}, {"ru": []},
+    )
+    assert events == []
+    assert state2["ru"]["no_text"] == 6  # watermark не задрался
+    # RSS вернулась в норму + пришла настоящая оценка без текста 5★.
+    events, state3 = rn.compute_app_store_rating_events(
+        state2, {"ru": {"count": 10, "avg": 4.8}}, {"ru": _rss("ru", 5, 5, 5)},
+    )
+    assert len(events) == 1 and events[0]["delta"] == 1 and events[0]["stars"] == [5]
+    assert state3["ru"] == {"no_text": 7, "no_text_sum": 33, "count": 10, "sum": 48}
+
+
+def test_app_store_ratings_lookup_ahead_of_rss_is_not_an_event():
+    # Обратный лаг: lookup уже посчитал новый ТЕКСТОВЫЙ отзыв, RSS ещё нет.
+    state = {"ru": {"no_text": 2, "no_text_sum": 10, "count": 3, "sum": 15}}
+    events, state2 = rn.compute_app_store_rating_events(
+        state, {"ru": {"count": 4, "avg": 5.0}}, {"ru": _rss("ru", 5)},
+    )
+    assert len(events) == 1  # пока выглядит как оценка без текста
+    # …а когда RSS догнала — повторной карточки нет.
+    events, _ = rn.compute_app_store_rating_events(
+        state2, {"ru": {"count": 4, "avg": 5.0}}, {"ru": _rss("ru", 5, 5)},
+    )
+    assert events == []
 
 
 def test_app_store_ratings_rss_ahead_of_lookup_no_false_event():
-    state = {"ru": {"no_text": 2, "no_text_sum": 10}}
+    state = {"ru": {"no_text": 2, "no_text_sum": 10, "count": 3, "sum": 15}}
     # RSS уже показал новый текстовый отзыв, lookup ещё нет → no_text падает.
     events, state2 = rn.compute_app_store_rating_events(
         state, {"ru": {"count": 3, "avg": 5.0}}, {"ru": _rss("ru", 5, 4)},
     )
-    assert events == [] and state2 == state
+    assert events == []
+    assert state2["ru"]["no_text"] == 2
     # Lookup догнал — число оценок без текста вернулось к watermark → тишина.
     events, _ = rn.compute_app_store_rating_events(
         state2, {"ru": {"count": 4, "avg": 4.75}}, {"ru": _rss("ru", 5, 4)},
@@ -553,7 +595,7 @@ def test_app_store_ratings_rss_ahead_of_lookup_no_false_event():
 
 
 def test_app_store_ratings_skip_country_when_rss_failed():
-    state = {"ru": {"no_text": 0, "no_text_sum": 0}}
+    state = {"ru": {"no_text": 0, "no_text_sum": 0, "count": 0, "sum": 0}}
     events, state2 = rn.compute_app_store_rating_events(
         state, {"ru": {"count": 5, "avg": 5.0}}, {"ru": None},
     )
