@@ -338,7 +338,8 @@ media:
 - path: assets/posts/2026-09/centry-sep22-spontan.png
   sha256: 8217ac3c1fec410adea2e17d0cbf204dcd6d80b5a2be99af051e55b60319a9de
   role: image
-status: draft
+status: published
+published_at: '2026-09-22T09:07:09.875653+00:00'
 ```
 
 Иногда вечер вдруг оказывается свободным, и хочется увидеться сегодня. Но пока напишешь всем по очереди — уже и расхотелось 📍
