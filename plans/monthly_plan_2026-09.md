@@ -373,7 +373,8 @@ media:
 - path: assets/posts/2026-09/unia-sep24-razgovor.png
   sha256: fe1650323a7fc9d49de1c3da8f164e25bd4e44714076e9140155d37e73ef2f44
   role: image
-status: draft
+status: published
+published_at: '2026-09-24T09:05:07.871671+00:00'
 ```
 
 «Нам надо поговорить» — и у партнёра внутри всё сжимается ещё до того, как ты произнёс вторую фразу 💬
