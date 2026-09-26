@@ -46,10 +46,10 @@
   "diktum": {
     "app_store": {
       "by": {
-        "count": 0,
-        "no_text": 0,
-        "no_text_sum": 0,
-        "sum": 0
+        "count": 1,
+        "no_text": 1,
+        "no_text_sum": 5,
+        "sum": 5
       },
       "kz": {
         "count": 1,
