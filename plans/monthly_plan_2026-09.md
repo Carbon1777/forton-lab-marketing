@@ -408,7 +408,8 @@ media:
 - path: assets/posts/2026-09/listvia-sep26-pokoy.png
   sha256: 1ff49141db89f64621d77a52a75c50a4bbd6a3a206460714153bddf4af6ab2a1
   role: image
-status: draft
+status: published
+published_at: '2026-09-26T15:12:02.064898+00:00'
 ```
 
 Твоё растение всё лето росло, а теперь будто замерло: новых листьев нет. Кажется, что-то не так — и рука тянется «помочь» 🌿
