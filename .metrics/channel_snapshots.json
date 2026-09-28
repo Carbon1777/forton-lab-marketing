@@ -1,34 +1,4 @@
 {
-  "2026-W32": {
-    "instagram": {
-      "error": "IG optional HTTPError: 429 Client Error: Too Many Requests for url: https://www.ins",
-      "platform": "instagram",
-      "reach": null,
-      "subscribers": null,
-      "week_start": "2026-08-03"
-    },
-    "telegram": {
-      "error": null,
-      "platform": "telegram",
-      "reach": null,
-      "subscribers": 42,
-      "week_start": "2026-08-03"
-    },
-    "vk": {
-      "error": null,
-      "platform": "vk",
-      "reach": null,
-      "subscribers": 16,
-      "week_start": "2026-08-03"
-    },
-    "youtube": {
-      "error": null,
-      "platform": "youtube",
-      "reach": null,
-      "subscribers": 29,
-      "week_start": "2026-08-03"
-    }
-  },
   "2026-W33": {
     "instagram": {
       "error": "IG optional HTTPError: 429 Client Error: Too Many Requests for url: https://www.ins",
@@ -237,6 +207,36 @@
       "reach": null,
       "subscribers": 53,
       "week_start": "2026-09-21"
+    }
+  },
+  "2026-W40": {
+    "instagram": {
+      "error": "IG optional HTTPError: 429 Client Error: Too Many Requests for url: https://www.ins",
+      "platform": "instagram",
+      "reach": null,
+      "subscribers": null,
+      "week_start": "2026-09-28"
+    },
+    "telegram": {
+      "error": null,
+      "platform": "telegram",
+      "reach": null,
+      "subscribers": 40,
+      "week_start": "2026-09-28"
+    },
+    "vk": {
+      "error": null,
+      "platform": "vk",
+      "reach": null,
+      "subscribers": 16,
+      "week_start": "2026-09-28"
+    },
+    "youtube": {
+      "error": null,
+      "platform": "youtube",
+      "reach": null,
+      "subscribers": 53,
+      "week_start": "2026-09-28"
     }
   }
 }
