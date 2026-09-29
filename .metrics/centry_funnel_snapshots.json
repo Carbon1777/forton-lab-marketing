@@ -70,13 +70,13 @@
     "week_start": "2026-09-14"
   },
   "2026-W39": {
-    "activations": 0,
-    "guests": 1,
+    "activations": null,
+    "guests": null,
     "installs_ads": 0,
     "installs_organic": 4,
     "installs_total": 4,
-    "new_profiles": 3,
-    "users": 2,
+    "new_profiles": null,
+    "users": null,
     "week_start": "2026-09-21"
   }
 }
