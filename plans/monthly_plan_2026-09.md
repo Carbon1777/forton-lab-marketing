@@ -443,7 +443,9 @@ media:
 - path: assets/posts/2026-09/diktum-sep29-golos.png
   sha256: 397155b3b99a05ceacf008ef4fe531ea77073b8da41268f3b9589688c8889f9e
   role: image
-status: draft
+status: skipped
+skipped_at: '2026-09-29T09:02:48.638127+00:00'
+skipped_via: forton-via-tg-bot
 ```
 
 К вечеру голос садится: становится тише, хрипит, будто устал больше тебя. А впереди ещё созвон 🎙
