@@ -2,7 +2,7 @@
 
 quick 260626-ozg.
 
-Несколько раз в день (cron в GH Actions) тянет per-review списки по 6 продуктам
+Несколько раз в день (cron в GH Actions) тянет per-review списки по продуктам PRODUCTS
 × 3 сторам через ``store_metrics.{asc,play,rustore}.fetch_reviews_list``,
 определяет НОВЫЕ отзывы (которых ещё не видел через ``.metrics/reviews_seen.json``)
 и шлёт каждый новый отзыв отдельной HTML-карточкой в TG-канал «Планировщик».
@@ -49,8 +49,9 @@ import requests
 from src.store_metrics import asc, play, rustore
 from src.store_metrics.models import Product
 
+# Centry/Lucea/Unia закрыты и сняты со сторов (2026-10-01) — убраны из опроса.
 PRODUCTS: Final[list[Product]] = [
-    "centry", "diktum", "lucea", "lapulya", "unia", "listvia",
+    "diktum", "lapulya", "listvia",
 ]
 SEEN_PATH: Final[Path] = Path(".metrics/reviews_seen.json")
 # Состояние счётчиков оценок без текста — рядом с seen (тот же каталог).
@@ -66,11 +67,8 @@ STORE_LABELS: Final[dict[str, str]] = {
     "rustore": "RuStore",
 }
 PRODUCT_LABELS: Final[dict[str, str]] = {
-    "centry": "Centry",
     "diktum": "Diktum",
-    "lucea": "Lucea",
     "lapulya": "Лапуля",
-    "unia": "Unia",
     "listvia": "Листвия",
 }
 

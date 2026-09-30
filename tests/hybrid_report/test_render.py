@@ -16,7 +16,7 @@ from src.hybrid_report.models import (
 from src.hybrid_report.render import render_report
 from src.store_metrics.models import StoreSnapshot
 
-CENTRY = next(p for p in PRODUCTS if p.key == "centry")
+DIKTUM = next(p for p in PRODUCTS if p.key == "diktum")
 W_START = dt.date(2026, 5, 23)
 W_END = dt.date(2026, 5, 29)
 
@@ -27,11 +27,11 @@ FORBIDDEN = "→←↑↓⬆⬇📈📉📊•·└├▸%⭐🎯🚨💡🌍⚠
 def _stores() -> list[StoreSnapshot]:
     # store_snaps больше не источник чисел — нужны только для рейтингов (сверка).
     return [
-        StoreSnapshot(product="centry", store="app_store", week_start=W_START,
+        StoreSnapshot(product="diktum", store="app_store", week_start=W_START,
                       installs=5, rating=4.5),
-        StoreSnapshot(product="centry", store="google_play", week_start=W_START,
+        StoreSnapshot(product="diktum", store="google_play", week_start=W_START,
                       installs=12),
-        StoreSnapshot(product="centry", store="rustore", week_start=W_START,
+        StoreSnapshot(product="diktum", store="rustore", week_start=W_START,
                       installs=None),
     ]
 
@@ -43,7 +43,7 @@ def _installs_by_store() -> list[tuple[str, int]]:
 
 def _report(**over) -> ProductReport:
     base = dict(
-        spec=CENTRY,
+        spec=DIKTUM,
         week_start=W_START,
         week_end=W_END,
         am_installs_by_store=_installs_by_store(),
@@ -62,7 +62,7 @@ def _report(**over) -> ProductReport:
         ]),
         screens=AppMetricaScreens(screens=[
             # raw имена экранов AppMetrica — рендер маппит их в русские.
-            ScreenStat("activity_feed", 40), ScreenStat("plan_details", 22),
+            ScreenStat("/home", 40), ScreenStat("/record", 22),
             # незамаппленный экран — должен показаться как есть (fallback).
             ScreenStat("some_new_screen", 15),
         ]),
@@ -145,11 +145,11 @@ def test_render_screens_block():
     text = render_report(_report())
     assert "Экраны" in text
     # raw имена замаплены в человекочитаемые русские.
-    assert "лента активности — 40" in text
-    assert "детали плана — 22" in text
+    assert "главная — 40" in text
+    assert "запись — 22" in text
     # сырые имена не должны протечь в отчёт, если для них есть маппинг.
-    assert "activity_feed" not in text
-    assert "plan_details" not in text
+    assert "/home" not in text
+    assert "/record" not in text
 
 
 def test_render_screens_block_fallback_unmapped():
@@ -192,7 +192,7 @@ def test_render_wow_no_prev():
 def test_render_first_line_title():
     text = render_report(_report())
     first_line = text.splitlines()[0]
-    assert first_line == "Centry — отчёт за неделю 23–29 мая"
+    assert first_line == "Diktum — отчёт за неделю 23–29 мая"
 
 
 def test_render_degraded_funnel():

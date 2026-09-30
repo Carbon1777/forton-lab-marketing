@@ -6,15 +6,13 @@
 
 Переиспользует импортом:
   - store_metrics.{asc,play,rustore}.fetch_weekly(product, week_start)
-  - centry_funnel.appmetrica / diktum_funnel.appmetrica.fetch_installs (ym:ts:*)
-  - centry_funnel.supabase_src.fetch_funnel / diktum_funnel.supabase_src.fetch_registrations
+  - hybrid_report.appmetrica.fetch_installs (ym:ts:*)
+  - diktum_funnel.supabase_src.fetch_registrations
 
-Семантика регистраций (решение по флагу плана):
-  - Centry RPC get_centry_funnel_metrics → (new_profiles, guests, users,
-    activations). «зарегистрировались» = users (state=USER, завершили
-    регистрацию), «активировались» = activations. НЕ new_profiles (это все
-    созданные профили включая гостей).
+Семантика регистраций:
   - Diktum RPC get_funnel_metrics → (registrations, activated) напрямую.
+  - Centry (RPC get_centry_funnel_metrics) убран 2026-10-01: приложение закрыто,
+    облачный Supabase-проект удалён.
 """
 from __future__ import annotations
 
@@ -23,7 +21,6 @@ import sys
 
 from src.store_metrics import asc, play, rustore
 from src.store_metrics.models import StoreSnapshot
-from src.centry_funnel import supabase_src as centry_db
 from src.diktum_funnel import supabase_src as diktum_db
 
 from . import appmetrica
@@ -118,15 +115,11 @@ def _collect_installs(spec: ProductSpec, week_start: dt.date, week_end: dt.date)
 def _collect_reg(spec: ProductSpec, week_start: dt.date, week_end: dt.date) -> RegActivation:
     """Supabase регистрации → активация. Семантика per продукт (см. модуль-doc).
 
-    Только Centry/Diktum имеют Supabase-RPC. Новые продукты (reg_source не
-    centry/diktum) → None: их RPC ещё нет, Лапуля вообще без сервера. Render
-    покажет «данные собираются»; рег/актив видна в воронке онбординга AppMetrica.
+    Supabase-RPC есть только у Diktum. Остальные продукты (reg_source не
+    diktum) → None: Лапуля/Листвия без сервера. Render покажет «данные
+    собираются»; рег/актив видна в воронке онбординга AppMetrica.
     """
     try:
-        if spec.reg_source == "centry":
-            db = centry_db.fetch_funnel(week_start, week_end)
-            # registrations = users (завершившие регистрацию, state=USER)
-            return RegActivation(registrations=db.users, activations=db.activations)
         if spec.reg_source == "diktum":
             db = diktum_db.fetch_registrations(week_start, week_end)
             return RegActivation(registrations=db.registrations, activations=db.activated)

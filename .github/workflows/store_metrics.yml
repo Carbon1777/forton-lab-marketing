@@ -2,8 +2,9 @@ name: store_metrics
 
 # Hybrid per-app weekly report (quick 260530-x7x, 2026-05-31).
 #   Отчёт теперь ГИБРИДНЫЙ per-app (src/hybrid_report) — ОДНО богатое word-based
-#   сообщение НА КАЖДОЕ приложение (Centry + Diktum), 2 сообщения в канал
-#   «Планировщик». Источники: store-снапшоты + AppMetrica (installs/активность/
+#   сообщение НА КАЖДОЕ приложение из hybrid_report.models.PRODUCTS в канал
+#   «Планировщик». 2026-10-01: Centry/Lucea/Unia закрыты и сняты со сторов —
+#   убраны из PRODUCTS и из env ниже; остались Diktum, Лапуля, Листвия. Источники: store-снапшоты + AppMetrica (installs/активность/
 #   воронка/экраны) + Supabase (регистрации→активация). Заменил прежний
 #   src.store_metrics.cli (общий digest). Снапшот — .metrics/hybrid_snapshots.json.
 #
@@ -78,11 +79,8 @@ jobs:
           # Старые ASC_REPORTER_ACCESS_TOKEN / ASC_VENDOR_NUMBER (для
           # deprecated itc-reporter API) больше не используются — можно
           # удалить из GH Secrets когда удобно.
-          ASC_APP_ID_CENTRY: ${{ secrets.ASC_APP_ID_CENTRY }}
           ASC_APP_ID_DIKTUM: ${{ secrets.ASC_APP_ID_DIKTUM }}
-          ASC_APP_ID_LUCEA: ${{ secrets.ASC_APP_ID_LUCEA }}
           ASC_APP_ID_LAPULYA: ${{ secrets.ASC_APP_ID_LAPULYA }}
-          ASC_APP_ID_UNIA: ${{ secrets.ASC_APP_ID_UNIA }}
           # Individual ASC API Key (quick 260530-q69, 2026-05-30): installs
           # через Analytics Reports API. JWT sub:user, Issuer ID НЕ нужен.
           # Заглушка cert-recovery снята (PR #82) — installs активны.
@@ -100,11 +98,8 @@ jobs:
           # 2026-05-15: Status = Enabled).
           GOOGLE_PLAY_SA_JSON: ${{ secrets.GOOGLE_PLAY_SA_JSON }}
           GPLAY_DEVELOPER_ID: ${{ secrets.GPLAY_DEVELOPER_ID }}
-          GPLAY_PACKAGE_CENTRY: ${{ secrets.GPLAY_PACKAGE_CENTRY }}
           GPLAY_PACKAGE_DIKTUM: ${{ secrets.GPLAY_PACKAGE_DIKTUM }}
-          GPLAY_PACKAGE_LUCEA: ${{ secrets.GPLAY_PACKAGE_LUCEA }}
           GPLAY_PACKAGE_LAPULYA: ${{ secrets.GPLAY_PACKAGE_LAPULYA }}
-          GPLAY_PACKAGE_UNIA: ${{ secrets.GPLAY_PACKAGE_UNIA }}
 
           # ------------ RuStore — reviews via JWS API (installs N/A) -------------
           # Installs не доступны через Public API (Mail.ru ограничение,
@@ -115,11 +110,8 @@ jobs:
           RUSTORE_PRIVATE_KEY: ${{ secrets.RUSTORE_PRIVATE_KEY }}
           RUSTORE_KEY_ID: ${{ secrets.RUSTORE_KEY_ID }}
           RUSTORE_COMPANY_ID: ${{ secrets.RUSTORE_COMPANY_ID }}
-          RUSTORE_PACKAGE_CENTRY: ${{ secrets.RUSTORE_PACKAGE_CENTRY }}
           RUSTORE_PACKAGE_DIKTUM: ${{ secrets.RUSTORE_PACKAGE_DIKTUM }}
-          RUSTORE_PACKAGE_LUCEA: ${{ secrets.RUSTORE_PACKAGE_LUCEA }}
           RUSTORE_PACKAGE_LAPULYA: ${{ secrets.RUSTORE_PACKAGE_LAPULYA }}
-          RUSTORE_PACKAGE_UNIA: ${{ secrets.RUSTORE_PACKAGE_UNIA }}
 
           # ------------ Anthropic Haiku 4.5 — hypothesis injection ---------
           # METRICS-09 / D-5-06. hybrid_report его НЕ использует — оставлен в env
@@ -134,11 +126,9 @@ jobs:
 
           # ------------ Supabase — регистрации → активация ---------------------
           # Diktum: SUPABASE_URL / SERVICE_ROLE_KEY (RPC get_funnel_metrics).
-          # Centry: *_CENTRY (RPC get_centry_funnel_metrics). Боты исключены в RPC.
+          # Боты исключены в RPC. (Centry *_CENTRY убран 2026-10-01.)
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_URL_CENTRY: ${{ secrets.SUPABASE_URL_CENTRY }}
-          SUPABASE_SERVICE_ROLE_KEY_CENTRY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_CENTRY }}
         run: PYTHONPATH=. python -m src.hybrid_report.cli
 
       - name: Commit updated snapshots

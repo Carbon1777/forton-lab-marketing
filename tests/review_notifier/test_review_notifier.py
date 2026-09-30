@@ -373,7 +373,7 @@ def test_main_baseline_seeds_without_sending(monkeypatch, tmp_path):
     monkeypatch.setattr(
         rn, "_collect_reviews",
         lambda product: [_review("a", text="hi"), _review("b", text="yo")]
-        if product == "centry" else [],
+        if product == "diktum" else [],
     )
     sent = []
     monkeypatch.setattr(rn, "send_card", lambda card: sent.append(card) or True)
@@ -382,16 +382,16 @@ def test_main_baseline_seeds_without_sending(monkeypatch, tmp_path):
     assert rc == 0
     assert sent == []  # baseline → nothing sent
     seen = rn.load_seen(p)
-    assert set(seen["centry"]["app_store"]) == {"a", "b"}
+    assert set(seen["diktum"]["app_store"]) == {"a", "b"}
 
 
 def test_main_sends_only_new(monkeypatch, tmp_path):
     p = tmp_path / "seen.json"
-    rn.save_seen(p, {"centry": {"app_store": ["a"]}})
+    rn.save_seen(p, {"diktum": {"app_store": ["a"]}})
     monkeypatch.setattr(
         rn, "_collect_reviews",
         lambda product: [_review("a", text="old"), _review("b", text="new")]
-        if product == "centry" else [],
+        if product == "diktum" else [],
     )
     sent = []
     monkeypatch.setattr(rn, "send_card", lambda card: sent.append(card) or True)
@@ -400,16 +400,16 @@ def test_main_sends_only_new(monkeypatch, tmp_path):
     assert len(sent) == 1
     assert "new" in sent[0]
     seen = rn.load_seen(p)
-    assert set(seen["centry"]["app_store"]) == {"a", "b"}
+    assert set(seen["diktum"]["app_store"]) == {"a", "b"}
 
 
 def test_main_one_send_failure_continues(monkeypatch, tmp_path):
     p = tmp_path / "seen.json"
-    rn.save_seen(p, {"centry": {"app_store": ["seed"]}})
+    rn.save_seen(p, {"diktum": {"app_store": ["seed"]}})
     monkeypatch.setattr(
         rn, "_collect_reviews",
         lambda product: [_review("n1", text="one"), _review("n2", text="two")]
-        if product == "centry" else [],
+        if product == "diktum" else [],
     )
     calls = []
 
@@ -424,7 +424,7 @@ def test_main_one_send_failure_continues(monkeypatch, tmp_path):
     assert rc == 0
     assert len(calls) == 2  # both attempted despite first raising
     seen = rn.load_seen(p)
-    assert set(seen["centry"]["app_store"]) == {"seed", "n1", "n2"}
+    assert set(seen["diktum"]["app_store"]) == {"seed", "n1", "n2"}
 
 
 # ===================================================================
@@ -506,18 +506,18 @@ def test_is_fresh_filters_old_reviews():
 
 def test_main_old_new_review_seeded_silently(monkeypatch, tmp_path):
     p = tmp_path / "seen.json"
-    rn.save_seen(p, {"centry": {"rustore": []}})
+    rn.save_seen(p, {"diktum": {"rustore": []}})
     monkeypatch.setattr(
         rn, "_collect_reviews",
         lambda product: [_review("old", store="rustore", date="2026-04-23T14:09:51Z")]
-        if product == "centry" else [],
+        if product == "diktum" else [],
     )
     monkeypatch.setattr(rn, "_collect_ratings", lambda product, reviews, state: ([], {}))
     sent = []
     monkeypatch.setattr(rn, "send_card", lambda card: sent.append(card) or True)
     rn.main(seen_path=p)
     assert sent == []
-    assert rn.load_seen(p)["centry"]["rustore"] == ["old"]
+    assert rn.load_seen(p)["diktum"]["rustore"] == ["old"]
 
 
 def _rss(cc, *stars):
