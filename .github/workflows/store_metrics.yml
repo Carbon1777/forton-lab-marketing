@@ -34,7 +34,15 @@ name: store_metrics
 on:
   schedule:
     - cron: "37 6 * * 1"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        # Ручная проверка без побочных эффектов: отчёт печатается в лог,
+        # в TG НЕ уходит, снапшот НЕ пишется и НЕ коммитится. На schedule
+        # inputs пусты → обычный боевой прогон.
+        description: "Dry run: только лог, без TG и без коммита снапшота"
+        type: boolean
+        default: false
 
 permissions:
   contents: write   # commit snapshot JSON в repo
@@ -129,9 +137,13 @@ jobs:
           # Боты исключены в RPC. (Centry *_CENTRY убран 2026-10-01.)
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+          # cli читает HYBRID_DRY_RUN=1 (печать без TG, снапшот не пишется).
+          HYBRID_DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
         run: PYTHONPATH=. python -m src.hybrid_report.cli
 
       - name: Commit updated snapshots
+        if: ${{ !inputs.dry_run }}
         env:
           GIT_AUTHOR_NAME: forton-metrics-bot
           GIT_AUTHOR_EMAIL: forton-metrics-bot@users.noreply.github.com
