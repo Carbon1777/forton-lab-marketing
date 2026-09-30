@@ -94,7 +94,7 @@ def test_is_configured_missing_envs(monkeypatch):
 
 
 def test_is_configured_partial_envs_returns_false(monkeypatch):
-    """Only one of two app IDs set → still False."""
+    """Only a non-anchor app ID set (no Diktum) → still False."""
     _set_envs(monkeypatch, all_present=False)
     monkeypatch.setenv("ASC_APP_ID_CENTRY", APPLE_ID_CENTRY)
     assert asc._is_configured() is False
@@ -102,8 +102,18 @@ def test_is_configured_partial_envs_returns_false(monkeypatch):
 
 def test_is_configured_empty_string_counts_as_missing(monkeypatch):
     _set_envs(monkeypatch, all_present=True)
-    monkeypatch.setenv("ASC_APP_ID_CENTRY", "")
+    monkeypatch.setenv("ASC_APP_ID_DIKTUM", "")
     assert asc._is_configured() is False
+
+
+def test_is_configured_without_closed_app_ids(monkeypatch):
+    """Centry закрыт (2026-10-01): его env убран из workflow → гейт НЕ должен
+    уводить весь App Store (включая Diktum) в mock. Якорь — только Diktum."""
+    _set_envs(monkeypatch, all_present=False)
+    monkeypatch.setenv("ASC_APP_ID_DIKTUM", APPLE_ID_DIKTUM)
+    for k in ("ASC_APP_ID_CENTRY", "ASC_APP_ID_LUCEA", "ASC_APP_ID_UNIA"):
+        monkeypatch.delenv(k, raising=False)
+    assert asc._is_configured() is True
 
 
 def test_app_id_for_centry_and_diktum(monkeypatch):

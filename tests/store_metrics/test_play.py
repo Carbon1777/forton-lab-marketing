@@ -91,6 +91,15 @@ def test_is_configured_missing_envs(monkeypatch):
     assert play._is_configured() is False
 
 
+def test_is_configured_without_closed_app_packages(monkeypatch):
+    """Centry закрыт (2026-10-01): без GPLAY_PACKAGE_CENTRY/LUCEA/UNIA гейт
+    остаётся True (якорь — Diktum), Diktum не уходит в mock."""
+    _set_envs(monkeypatch, mode="raw")
+    for k in ("GPLAY_PACKAGE_CENTRY", "GPLAY_PACKAGE_LUCEA", "GPLAY_PACKAGE_UNIA"):
+        monkeypatch.delenv(k, raising=False)
+    assert play._is_configured() is True
+
+
 def test_is_configured_missing_developer_id(monkeypatch):
     """Has SA but missing GPLAY_DEVELOPER_ID → False."""
     _set_envs(monkeypatch, mode="raw")
