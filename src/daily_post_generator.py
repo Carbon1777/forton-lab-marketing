@@ -67,7 +67,7 @@ SYSTEM_PROMPT_DAILY: Final[str] = """\
 2. ЗАПРЕЩЕНО упоминать: имена авторов (Алексей, Carbon, jcat), технологический
    стек (Flutter, Supabase, Claude, ChatGPT, Anthropic), штампованную лексику
    ("уникальный", "революционный", "прорывной", "лучший на рынке", "не имеет аналогов").
-3. CTA — ОДНА ссылка на сайт продукта в конце (centryweb.ru/diktumweb.ru/fortonlab.ru).
+3. CTA — ОДНА ссылка на сайт продукта в конце (diktumweb.ru/listviaweb.ru/fortonlab.ru/lapulya/fortonlab.ru).
 4. Длина: пиши под самый строгий лимит из выбранных каналов:
    - tg/dzen: ≤ 1024 (TG caption limit, Дзен наследует через cross-post)
    - vk: ≤ 16000 (но если только vk — 800-1200 разумно)

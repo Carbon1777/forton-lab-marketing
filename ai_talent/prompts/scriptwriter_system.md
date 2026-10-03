@@ -58,8 +58,8 @@
     {"beat_id": "b1", "text": "Что говорит героиня поверх кадра"}
   ],
   "cuts": ["b1->b2", "b2->b3", ...],
-  "cta": "финальный призыв (centryweb.ru / diktumcity.ru)",
-  "product": "centry",
+  "cta": "финальный призыв (diktumweb.ru / listviaweb.ru)",
+  "product": "diktum",
   "series_flag": null,
   "hero_beat_id": "b3"
 }

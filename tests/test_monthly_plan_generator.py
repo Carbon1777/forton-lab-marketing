@@ -94,7 +94,7 @@ def test_constants_match_research():
     assert g.MONTHLY_CAP_USD == 5.0
     assert g.SYSTEM_PROMPT.strip(), "SYSTEM_PROMPT must not be empty"
     # SYSTEM_PROMPT contains the 5 hard requirements
-    assert "Centry" in g.SYSTEM_PROMPT
+    assert "Centry" not in g.SYSTEM_PROMPT  # закрыт 28.09.2026
     assert "Diktum" in g.SYSTEM_PROMPT
     assert "ОБЯЗАТЕЛЬНЫЕ" in g.SYSTEM_PROMPT
 
