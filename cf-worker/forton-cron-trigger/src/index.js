@@ -7,7 +7,7 @@
 //   "37 6 * * 1"  — Mon 09:37 МСК   → store_metrics.yml   (per-app reports)
 //   "7 7 * * 1"   — Mon 10:07 МСК   → channel_metrics.yml (channels report)
 //   "7 12 * * 2"  — Tue 15:07 МСК   → funnel_metrics.yml (Diktum funnel)
-//   "12 12 * * 2" — Tue 15:12 МСК   → centry_funnel.yml  (Centry funnel)
+//   (centry_funnel.yml снят 2026-10-03: Centry закрыт, workflow отключён)
 //
 // Triggers in wrangler.jsonc MUST match keys in CRON_TO_WORKFLOW. If they
 // drift, the `scheduled` handler logs "UNKNOWN cron" and the workflow is
@@ -21,7 +21,6 @@ const CRON_TO_WORKFLOW = {
 	'37 6 * * 1': 'store_metrics.yml',
 	'7 7 * * 1': 'channel_metrics.yml',
 	'7 12 * * 2': 'funnel_metrics.yml',
-	'12 12 * * 2': 'centry_funnel.yml',
 };
 
 async function triggerWorkflow(env, workflow) {
