@@ -113,6 +113,17 @@ def test_is_configured_path_alternative(monkeypatch, rsa_keypair, tmp_path):
     assert rustore._is_configured() is True
 
 
+def test_is_configured_without_closed_app_packages(monkeypatch, rsa_keypair):
+    """Centry закрыт (2026-10-01): без RUSTORE_PACKAGE_CENTRY/LUCEA/UNIA гейт
+    остаётся True (якорь — Diktum), Diktum не уходит в mock."""
+    pem, _ = rsa_keypair
+    _set_envs(monkeypatch, pem, mode="raw")
+    for k in ("RUSTORE_PACKAGE_CENTRY", "RUSTORE_PACKAGE_LUCEA",
+              "RUSTORE_PACKAGE_UNIA"):
+        monkeypatch.delenv(k, raising=False)
+    assert rustore._is_configured() is True
+
+
 def test_is_configured_missing_envs(monkeypatch, rsa_keypair):
     """None of the envs set → False."""
     pem, _ = rsa_keypair

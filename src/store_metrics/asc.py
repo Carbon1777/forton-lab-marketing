@@ -32,8 +32,8 @@ Graceful degradation (installs axis):
     дайджест не падает. RSS rating — независимая axis, работает всегда.
 
 Env required (real-mode):
-    ASC_APP_ID_CENTRY  — numeric Apple App ID для Centry (RSS + Analytics).
-    ASC_APP_ID_DIKTUM  — numeric Apple App ID для Diktum.
+    ASC_APP_ID_DIKTUM  — numeric Apple App ID для Diktum (якорь гейта).
+    ASC_APP_ID_<PRODUCT> — для остальных продуктов (per-product, опционально).
 
 Env required для installs (Analytics Reports API):
     ASC_KEY_ID         — Individual ASC API Key ID (e.g. "8SSTB54YPBCY").
@@ -75,8 +75,11 @@ _MOCK_INSTALLS: dict[Product, int] = {"centry": 23, "diktum": 18, "lucea": 5, "l
 _MOCK_PREV: dict[Product, int] = {"centry": 19, "diktum": 22, "lucea": 4, "lapulya": 5, "unia": 2}
 
 # Only app-id envs are needed для RSS path.
+# Гейт «сконфигурирован» якорится на Diktum. Раньше требовался и Centry-env —
+# после закрытия Centry (2026-10-01) и удаления его env из workflow это увело
+# бы ВЕСЬ стор (включая Diktum) в mock. App ID/package остальных продуктов
+# проверяются per-product (_app_id_for/_package_for → error-снапшот).
 _REQUIRED_ENVS: Final[tuple[str, ...]] = (
-    "ASC_APP_ID_CENTRY",
     "ASC_APP_ID_DIKTUM",
 )
 
@@ -124,7 +127,7 @@ _JWT_CACHE: dict[str, object] = {"token": None, "expires_at": None}
 # ===================================================================
 
 def _is_configured() -> bool:
-    """True iff both ASC_APP_ID_* envs are set (non-empty)."""
+    """True iff anchor ASC_APP_ID_DIKTUM is set (non-empty)."""
     return all(os.environ.get(k) for k in _REQUIRED_ENVS)
 
 

@@ -13,14 +13,14 @@ from src.hybrid_report.models import PRODUCTS, ProductReport
 from src.monthly_report.render import _block_stores, render_monthly_report
 from src.store_metrics.models import StoreSnapshot
 
-CENTRY = next(p for p in PRODUCTS if p.key == "centry")
+DIKTUM = next(p for p in PRODUCTS if p.key == "diktum")
 M_START = dt.date(2026, 5, 1)
 M_END = dt.date(2026, 5, 31)
 
 
 def _snap(store: str, rating: float | None = None):
     return StoreSnapshot(
-        product="centry", store=store, week_start=M_START,
+        product="diktum", store=store, week_start=M_START,
         installs=None, rating=rating,
     )
 
@@ -30,7 +30,7 @@ def _report(
     store_snaps: list[StoreSnapshot] | None = None,
 ) -> ProductReport:
     return ProductReport(
-        spec=CENTRY, week_start=M_START, week_end=M_END,
+        spec=DIKTUM, week_start=M_START, week_end=M_END,
         am_installs_by_store=am_rows,
         store_snaps=store_snaps or [],
     )

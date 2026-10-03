@@ -20,16 +20,16 @@ class ProductSpec:
     для воронки онбординга AppMetrica (метрика ym:ce:devices, фильтр по
     ym:ce:eventLabel). reg_source выбирает supabase_src в gather.
     """
-    key: str                       # "centry" / "diktum"
-    display: str                   # "Centry" / "Diktum"
-    appmetrica_app_id: str         # Centry "6301660" / Diktum "6301663"
+    key: str                       # "diktum" / "lapulya" / "listvia"
+    display: str                   # "Diktum" / "Лапуля" / "Листвия"
+    appmetrica_app_id: str         # Diktum "6301663"
     onboarding_steps: list[tuple[str, str]]
-    reg_source: str                # "centry" / "diktum"
+    reg_source: str                # "diktum" (остальные — без Supabase-RPC)
     # raw имя экрана (AppMetrica) → человекочитаемое русское. Незамаппленные
     # экраны рендерятся как есть (raw), чтобы новый экран не пропал из отчёта.
     screen_names: dict[str, str] = field(default_factory=dict)
-    # Событие AppMetrica, по которому считаем экраны. Centry/Diktum шлют
-    # "screen_view" (paramsLevel2 = строковое имя экрана). Lucea/Unia/Лапуля шлют
+    # Событие AppMetrica, по которому считаем экраны. Diktum шлёт
+    # "screen_view" (paramsLevel2 = строковое имя экрана). Лапуля/Листвия шлют
     # "screen_entered" (paramsLevel2 = int screen_id; screen_names мапит "<id>").
     screen_event_label: str = "screen_view"
     # Событие нативного запроса оценки (In-App Review). Заполнено только у тех
@@ -161,20 +161,6 @@ class ProductReport:
     prev_am_installs_total: int | None = None
 
 
-# Centry воронка онбординга (события с 2026-05-26; данные тонкие ~14 устр/нед — норма).
-_CENTRY_ONBOARDING: list[tuple[str, str]] = [
-    ("app_open", "открыли приложение"),
-    ("intro_shown", "посмотрели интро"),
-    ("intro_dismissed_tap", "нажали далее на интро"),
-    ("agreement_shown", "увидели соглашение"),
-    ("agreement_accepted", "приняли соглашение"),
-    ("permissions_shown", "увидели разрешения"),
-    ("email_form_shown", "увидели форму email"),
-    ("email_submitted", "отправили email"),
-    ("email_confirmed", "подтвердили email"),
-    ("nickname_submitted", "завершили регистрацию"),
-]
-
 # Diktum воронка онбординга.
 _DIKTUM_ONBOARDING: list[tuple[str, str]] = [
     ("app_open", "открыли приложение"),
@@ -184,26 +170,6 @@ _DIKTUM_ONBOARDING: list[tuple[str, str]] = [
     ("record_started", "начали запись"),
     ("analysis_succeeded", "получили анализ"),
 ]
-
-# Centry: raw имя экрана AppMetrica → человекочитаемое русское.
-_CENTRY_SCREEN_NAMES: dict[str, str] = {
-    "welcome": "приветствие",
-    "intro": "интро",
-    "agreement": "соглашение",
-    "permissions": "разрешения",
-    "auth": "вход",
-    "otp_verify": "подтверждение кода",
-    "nickname": "выбор никнейма",
-    "activity_feed": "лента активности",
-    "plans": "планы",
-    "plan_details": "детали плана",
-    "places": "места",
-    "profile": "профиль",
-    "friends": "друзья",
-    "leaderboard": "рейтинг участников",
-    "private_chats_list": "список чатов",
-    "private_chat": "личный чат",
-}
 
 # Diktum: ключи — go_router-пути.
 _DIKTUM_SCREEN_NAMES: dict[str, str] = {
@@ -228,21 +194,6 @@ _DIKTUM_SCREEN_NAMES: dict[str, str] = {
 # analytics_service.dart). Экраны шлются как screen_entered + int screen_id,
 # поэтому screen_event_label="screen_entered", а screen_names мапит "<id>". ---
 
-# Lucea воронка онбординга (drop-off от запуска до первого портрета).
-_LUCEA_ONBOARDING: list[tuple[str, str]] = [
-    ("app_opened_first", "открыли приложение"),
-    ("intro_seen", "посмотрели интро"),
-    ("onboarding_started", "начали онбординг"),
-    ("onboarding_completed", "прошли онбординг"),
-    ("consent_accepted", "приняли согласие"),
-    ("email_submitted", "ввели email"),
-    ("otp_verified", "подтвердили код"),
-    ("account_activated", "активировали аккаунт"),
-    ("home_first_shown", "дошли до главной"),
-    ("first_checkin_submitted", "сделали первый чек-ин"),
-    ("first_portrait_shown", "увидели первый портрет"),
-]
-
 # Лапуля воронка активации (без сервера/аккаунта — ключевой порог = первый питомец).
 _LAPULYA_ONBOARDING: list[tuple[str, str]] = [
     ("app_opened_first", "открыли приложение"),
@@ -252,29 +203,6 @@ _LAPULYA_ONBOARDING: list[tuple[str, str]] = [
     ("schedule_generated", "построили план"),
     ("home_first_shown", "дошли до ленты дел"),
 ]
-
-# Unia воронка онбординга пары.
-_UNIA_ONBOARDING: list[tuple[str, str]] = [
-    ("app_opened_first", "открыли приложение"),
-    ("intro_seen", "посмотрели интро"),
-    ("onboarding_ai_named", "задали имя помощнику"),
-    ("pair_invite_created", "создали приглашение"),
-    ("pair_linked", "связали пару"),
-    ("onboarding_completed", "завершили онбординг"),
-    ("home_first_shown", "дошли до главной"),
-]
-
-# Lucea: int screen_id (как строка) → человекочитаемое (LuceaScreen 1..19).
-_LUCEA_SCREEN_NAMES: dict[str, str] = {
-    "1": "интро", "2": "онбординг", "3": "согласие", "4": "вход",
-    "5": "подтверждение кода", "6": "главная", "7": "чек-ин", "8": "портрет",
-    "9": "разбор недели", "10": "профиль", "11": "рефералы", "12": "настройки",
-    "13": "подписка", "14": "новости", "15": "новость",
-    "16": "редактирование профиля", "17": "портрет в профиле", "18": "ранги",
-    "19": "достижения", "20": "запись голоса", "21": "разрешения",
-    "22": "поделиться портретом", "23": "восстановление пароля",
-    "24": "восстановление пароля (код)",
-}
 
 # Лапуля: int screen_id → человекочитаемое (LapulyaScreen 1..13).
 _LAPULYA_SCREEN_NAMES: dict[str, str] = {
@@ -307,26 +235,8 @@ _LISTVIA_SCREEN_NAMES: dict[str, str] = {
     "18": "подготовка данных", "19": "Pro подписка", "20": "симптомы болезни",
 }
 
-# Unia: int screen_id → человекочитаемое (UniaScreen 1..10).
-_UNIA_SCREEN_NAMES: dict[str, str] = {
-    "1": "интро", "2": "главная", "3": "ИИ-помощник", "4": "чат", "5": "вместе",
-    "6": "организатор", "7": "профиль", "8": "настройки", "9": "подписка",
-    "10": "онбординг", "11": "редактирование профиля", "12": "пара и приглашение",
-    "13": "ранги", "14": "достижения", "15": "уведомления", "16": "новости",
-    "17": "рефералы", "18": "капсулы времени", "19": "идеи для свидания",
-    "20": "что мне приятно", "21": "удаление аккаунта",
-}
-
 
 PRODUCTS: list[ProductSpec] = [
-    ProductSpec(
-        key="centry",
-        display="Centry",
-        appmetrica_app_id="6301660",
-        onboarding_steps=_CENTRY_ONBOARDING,
-        reg_source="centry",
-        screen_names=_CENTRY_SCREEN_NAMES,
-    ),
     ProductSpec(
         key="diktum",
         display="Diktum",
@@ -337,31 +247,12 @@ PRODUCTS: list[ProductSpec] = [
         review_event="review_prompt_triggered",  # In-App Review внедрён (1.9.9+39)
     ),
     ProductSpec(
-        key="lucea",
-        display="Lucea",
-        appmetrica_app_id="6303610",
-        onboarding_steps=_LUCEA_ONBOARDING,
-        reg_source="lucea",  # Supabase-RPC ещё нет → reg-блок «данные собираются»
-        screen_names=_LUCEA_SCREEN_NAMES,
-        screen_event_label="screen_entered",
-        review_event="review_prompt_triggered",  # In-App Review внедрён (порт из Diktum)
-    ),
-    ProductSpec(
         key="lapulya",
         display="Лапуля",
         appmetrica_app_id="6307939",
         onboarding_steps=_LAPULYA_ONBOARDING,
         reg_source="lapulya",  # on-device, без сервера → reg-блок «данные собираются»
         screen_names=_LAPULYA_SCREEN_NAMES,
-        screen_event_label="screen_entered",
-    ),
-    ProductSpec(
-        key="unia",
-        display="Unia",
-        appmetrica_app_id="6308782",
-        onboarding_steps=_UNIA_ONBOARDING,
-        reg_source="unia",  # Supabase-RPC ещё нет → reg-блок «данные собираются»
-        screen_names=_UNIA_SCREEN_NAMES,
         screen_event_label="screen_entered",
     ),
     ProductSpec(

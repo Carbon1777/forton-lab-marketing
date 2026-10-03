@@ -12,6 +12,7 @@ from unittest.mock import patch
 from src.hybrid_report.models import (
     AppMetricaActivity,
     AppMetricaFunnel,
+    AppMetricaReviewPrompts,
     AppMetricaScreens,
     FunnelStep,
     PRODUCTS,
@@ -20,15 +21,15 @@ from src.hybrid_report.models import (
 from src.monthly_report import cli
 from src.store_metrics.models import StoreSnapshot
 from src.hybrid_report.appmetrica import InstallsBySource, InstallsByStore
-from src.centry_funnel.supabase_src import FunnelDB as CFunnel
+from src.diktum_funnel.supabase_src import FunnelDB as DFunnel
 
-CENTRY = next(p for p in PRODUCTS if p.key == "centry")
+DIKTUM = next(p for p in PRODUCTS if p.key == "diktum")
 M_START = dt.date(2026, 5, 1)
 M_END = dt.date(2026, 5, 31)
 
 
 def _snap(store: str, installs: int | None):
-    return StoreSnapshot(product="centry", store=store, week_start=M_START,
+    return StoreSnapshot(product="diktum", store=store, week_start=M_START,
                          installs=installs)
 
 
@@ -48,16 +49,16 @@ def test_collect_stores_all_ok():
     with patch.object(cli.asc, "fetch_monthly", side_effect=mk("app_store")), \
          patch.object(cli.play, "fetch_monthly", side_effect=mk("google_play")), \
          patch.object(cli.rustore, "fetch_monthly", side_effect=mk("rustore")):
-        snaps, store_error = cli._collect_stores("centry", M_START)
+        snaps, store_error = cli._collect_stores("diktum", M_START)
 
     assert store_error is None
     assert len(snaps) == 3
     assert [s.store for s in snaps] == ["app_store", "google_play", "rustore"]
     # Каждый модуль вызван с (product, year, month) от month_start.
     assert calls == [
-        ("app_store", "centry", 2026, 5),
-        ("google_play", "centry", 2026, 5),
-        ("rustore", "centry", 2026, 5),
+        ("app_store", "diktum", 2026, 5),
+        ("google_play", "diktum", 2026, 5),
+        ("rustore", "diktum", 2026, 5),
     ]
 
 
@@ -68,7 +69,7 @@ def test_collect_stores_one_failure_others_alive():
                       return_value=_snap("google_play", 7)), \
          patch.object(cli.rustore, "fetch_monthly",
                       return_value=_snap("rustore", None)):
-        snaps, store_error = cli._collect_stores("centry", M_START)
+        snaps, store_error = cli._collect_stores("diktum", M_START)
 
     assert store_error is None
     assert len(snaps) == 3
@@ -86,7 +87,7 @@ def test_collect_stores_all_fail_sets_store_error():
     with patch.object(cli.asc, "fetch_monthly", side_effect=boom), \
          patch.object(cli.play, "fetch_monthly", side_effect=boom), \
          patch.object(cli.rustore, "fetch_monthly", side_effect=boom):
-        snaps, store_error = cli._collect_stores("centry", M_START)
+        snaps, store_error = cli._collect_stores("diktum", M_START)
 
     assert store_error == "all stores failed"
     assert len(snaps) == 3
@@ -110,9 +111,8 @@ def _patch_all_sources():
                      return_value=InstallsBySource(
                          total=40, organic=30, ads=10,
                          by_publisher={"Органика": 30, "VK Ads": 10})),
-        patch.object(cli.centry_db, "fetch_funnel",
-                     return_value=CFunnel(new_profiles=20, guests=9, users=11,
-                                          activations=8)),
+        patch.object(cli.diktum_db, "fetch_registrations",
+                     return_value=DFunnel(registrations=11, activated=8)),
         patch.object(cli.appmetrica, "fetch_activity",
                      return_value=AppMetricaActivity(50, 25, 54.0)),
         patch.object(cli.appmetrica, "fetch_onboarding_funnel",
@@ -125,6 +125,10 @@ def _patch_all_sources():
                      return_value=InstallsByStore(
                          rows=[("App Store", 25), ("Google Play", 12),
                                ("RuStore", 3)], total=40)),
+        # Diktum имеет review_event → глушим, чтобы не ходить в AppMetrica.
+        patch.object(cli.appmetrica, "fetch_review_prompts",
+                     return_value=AppMetricaReviewPrompts(
+                         available=True, devices=0, events=0)),
     ]
 
 
@@ -132,7 +136,7 @@ def test_gather_product_monthly_passes_store_snaps():
     with ExitStack() as stack:
         for cm in _patch_all_sources():
             stack.enter_context(cm)
-        report = cli._gather_product_monthly(CENTRY, M_START, M_END, {})
+        report = cli._gather_product_monthly(DIKTUM, M_START, M_END, {})
 
     assert len(report.store_snaps) == 3
     assert [s.store for s in report.store_snaps] == [

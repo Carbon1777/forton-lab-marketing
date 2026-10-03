@@ -28,9 +28,8 @@ Env required (real-mode):
     GOOGLE_PLAY_SA_JSON_PATH  — filesystem path to SA JSON (local dev).
     GPLAY_DEVELOPER_ID        — numeric developer id used to construct GCS
                                   bucket name (e.g. "6224792403622982347").
-    GPLAY_PACKAGE_CENTRY      — Play package name for Centry (e.g.
-                                  "website.centry.app").
-    GPLAY_PACKAGE_DIKTUM      — same for Diktum.
+    GPLAY_PACKAGE_DIKTUM      — Play package name for Diktum (якорь гейта).
+    GPLAY_PACKAGE_<PRODUCT>   — для остальных продуктов (per-product, опц.).
 
 Without any of these → fallback to mock data (for local dev / CLI tests).
 
@@ -62,9 +61,12 @@ _REVIEWS_PAGE_CAP: Final[int] = 200
 _MOCK_INSTALLS: dict[Product, int] = {"centry": 11, "diktum": 9, "lucea": 3, "lapulya": 5, "unia": 2}
 _MOCK_PREV: dict[Product, int] = {"centry": 16, "diktum": 15, "lucea": 2, "lapulya": 3, "unia": 1}
 
+# Гейт «сконфигурирован» якорится на Diktum. Раньше требовался и Centry-env —
+# после закрытия Centry (2026-10-01) и удаления его env из workflow это увело
+# бы ВЕСЬ стор (включая Diktum) в mock. App ID/package остальных продуктов
+# проверяются per-product (_app_id_for/_package_for → error-снапшот).
 _REQUIRED_BASE_ENVS: Final[tuple[str, ...]] = (
     "GPLAY_DEVELOPER_ID",
-    "GPLAY_PACKAGE_CENTRY",
     "GPLAY_PACKAGE_DIKTUM",
 )
 

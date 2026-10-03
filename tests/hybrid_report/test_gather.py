@@ -3,10 +3,13 @@ from __future__ import annotations
 import datetime as dt
 from unittest.mock import patch
 
+import pytest
+
 from src.hybrid_report import gather
 from src.hybrid_report.models import (
     AppMetricaActivity,
     AppMetricaFunnel,
+    AppMetricaReviewPrompts,
     AppMetricaScreens,
     FunnelStep,
     PRODUCTS,
@@ -15,18 +18,27 @@ from src.hybrid_report.models import (
 )
 from src.store_metrics.models import StoreSnapshot
 from src.hybrid_report.appmetrica import InstallsBySource, InstallsByStore
-from src.centry_funnel.supabase_src import FunnelDB as CFunnel
 from src.diktum_funnel.supabase_src import FunnelDB as DFunnel
 
-CENTRY = next(p for p in PRODUCTS if p.key == "centry")
 DIKTUM = next(p for p in PRODUCTS if p.key == "diktum")
+LISTVIA = next(p for p in PRODUCTS if p.key == "listvia")
 W_START = dt.date(2026, 5, 23)
 W_END = dt.date(2026, 5, 29)
 
 
 def _snap(store: str, installs: int | None):
-    return StoreSnapshot(product="centry", store=store, week_start=W_START,
+    return StoreSnapshot(product="diktum", store=store, week_start=W_START,
                          installs=installs)
+
+
+@pytest.fixture(autouse=True)
+def _no_review_prompts_network():
+    """Diktum имеет review_event → gather зовёт fetch_review_prompts. Глушим,
+    чтобы тесты не ходили в AppMetrica даже при заданном токене в env."""
+    with patch.object(gather.appmetrica, "fetch_review_prompts",
+                      return_value=AppMetricaReviewPrompts(
+                          available=True, devices=0, events=0)):
+        yield
 
 
 def _patch_all_success():
@@ -42,9 +54,8 @@ def _patch_all_success():
                      return_value=InstallsBySource(
                          total=24, organic=18, ads=6,
                          by_publisher={"Органика": 18, "VK Ads": 6})),
-        patch.object(gather.centry_db, "fetch_funnel",
-                     return_value=CFunnel(new_profiles=20, guests=9, users=11,
-                                          activations=8)),
+        patch.object(gather.diktum_db, "fetch_registrations",
+                     return_value=DFunnel(registrations=11, activated=8)),
         patch.object(gather.appmetrica, "fetch_activity",
                      return_value=AppMetricaActivity(50, 25, 54.0)),
         patch.object(gather.appmetrica, "fetch_onboarding_funnel",
@@ -67,7 +78,7 @@ def test_gather_assembles_all_sources():
     with ExitStack() as stack:
         for cm in _patch_all_success():
             stack.enter_context(cm)
-        report = gather.gather_product(CENTRY, W_START, W_END, {})
+        report = gather.gather_product(DIKTUM, W_START, W_END, {})
     assert report.am_installs_total == 24
     assert report.am_installs_organic == 18
     assert report.am_installs_ads == 6
@@ -76,7 +87,7 @@ def test_gather_assembles_all_sources():
     assert report.activity == AppMetricaActivity(50, 25, 54.0)
     assert report.funnel.steps == [FunnelStep("открыли приложение", 25)]
     assert report.screens.screens == [ScreenStat("лента", 40)]
-    # Centry semantics: registrations = users (11), activations = activations (8)
+    # Diktum semantics: registrations / activated из RPC напрямую
     assert report.reg == RegActivation(registrations=11, activations=8)
     assert len(report.store_snaps) == 3
     assert report.store_error is None
@@ -86,15 +97,18 @@ def test_gather_assembles_all_sources():
     assert report.am_store_error is None
 
 
-def test_gather_centry_reg_maps_users_not_new_profiles():
+def test_gather_product_without_supabase_rpc_has_no_reg():
+    """Продукт без Supabase-RPC (Листвия, offline) → reg None; Diktum-RPC
+    не вызывается (раньше тут была Centry-ветка — убрана 2026-10-01)."""
     from contextlib import ExitStack
     with ExitStack() as stack:
         for cm in _patch_all_success():
             stack.enter_context(cm)
-        report = gather.gather_product(CENTRY, W_START, W_END, {})
-    # new_profiles=20 НЕ должно попасть в registrations; users=11 должно
-    assert report.reg.registrations == 11
-    assert report.reg.registrations != 20
+        report = gather.gather_product(LISTVIA, W_START, W_END, {})
+        diktum_mock = gather.diktum_db.fetch_registrations
+        assert diktum_mock.call_count == 0
+    assert report.reg == RegActivation(registrations=None, activations=None)
+    assert report.am_installs_total == 24  # остальное собрано
 
 
 def test_gather_diktum_reg_maps_directly():
@@ -136,7 +150,7 @@ def test_gather_never_raises_on_store_failure():
     with ExitStack() as stack:
         for cm in cms:
             stack.enter_context(cm)
-        report = gather.gather_product(CENTRY, W_START, W_END, {})
+        report = gather.gather_product(DIKTUM, W_START, W_END, {})
     # не падает; app_store снап с error, остальные блоки заполнены
     assert len(report.store_snaps) == 3
     app_snap = next(s for s in report.store_snaps if s.store == "app_store")
@@ -153,7 +167,7 @@ def test_gather_never_raises_on_appmetrica_activity_failure():
     with ExitStack() as stack:
         for cm in cms:
             stack.enter_context(cm)
-        report = gather.gather_product(CENTRY, W_START, W_END, {})
+        report = gather.gather_product(DIKTUM, W_START, W_END, {})
     assert report.activity == AppMetricaActivity(None, None, None)
     assert report.am_installs_total == 24  # остальное собрано
 
@@ -166,7 +180,7 @@ def test_gather_never_raises_on_installs_failure():
     with ExitStack() as stack:
         for cm in cms:
             stack.enter_context(cm)
-        report = gather.gather_product(CENTRY, W_START, W_END, {})
+        report = gather.gather_product(DIKTUM, W_START, W_END, {})
     assert report.am_installs_total is None
     assert report.am_installs_error is not None
     assert report.activity.sessions == 50  # остальное собрано
@@ -181,7 +195,7 @@ def test_gather_never_raises_on_installs_by_store_failure():
     with ExitStack() as stack:
         for cm in cms:
             stack.enter_context(cm)
-        report = gather.gather_product(CENTRY, W_START, W_END, {})
+        report = gather.gather_product(DIKTUM, W_START, W_END, {})
     assert report.am_installs_by_store == []
     assert report.am_store_error is not None
     assert report.am_installs_total == 24  # остальное собрано
@@ -190,12 +204,12 @@ def test_gather_never_raises_on_installs_by_store_failure():
 def test_gather_never_raises_on_supabase_failure():
     from contextlib import ExitStack
     cms = _patch_all_success()
-    cms[4] = patch.object(gather.centry_db, "fetch_funnel",
+    cms[4] = patch.object(gather.diktum_db, "fetch_registrations",
                           side_effect=RuntimeError("db down"))
     with ExitStack() as stack:
         for cm in cms:
             stack.enter_context(cm)
-        report = gather.gather_product(CENTRY, W_START, W_END, {})
+        report = gather.gather_product(DIKTUM, W_START, W_END, {})
     assert report.reg == RegActivation(None, None)
     assert report.am_installs_total == 24  # остальное собрано
 
@@ -205,9 +219,9 @@ def test_gather_reads_prev_installs():
     # снапшот с прошлой неделей (W_START - 7 = 2026-05-16 → W20)
     snapshots = {}
     from src.hybrid_report import snapshot
-    snapshot.store_week(snapshots, W_START - dt.timedelta(days=7), "centry", 20)
+    snapshot.store_week(snapshots, W_START - dt.timedelta(days=7), "diktum", 20)
     with ExitStack() as stack:
         for cm in _patch_all_success():
             stack.enter_context(cm)
-        report = gather.gather_product(CENTRY, W_START, W_END, snapshots)
+        report = gather.gather_product(DIKTUM, W_START, W_END, snapshots)
     assert report.prev_am_installs_total == 20

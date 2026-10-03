@@ -1,8 +1,9 @@
 """Entrypoint — ежемесячный per-app отчёт.
 
 5-го числа каждого месяца отправляет в TG-канал «Планировщик» отчёт за
-предыдущий полный месяц для каждого продукта студии (Centry, Diktum, Lucea,
-Лапуля, Unia, Листвия — источник истины PRODUCTS) с MoM-сравнением.
+предыдущий полный месяц для каждого продукта студии (Diktum, Лапуля, Листвия —
+источник истины PRODUCTS) с MoM-сравнением. Centry/Lucea/Unia закрыты и
+убраны 2026-10-01.
 
 Поддерживает --dry-run (или env MONTHLY_DRY_RUN=1): вывод в STDOUT без TG,
 снапшот НЕ пишется. Вызывается из .github/workflows/monthly_report.yml.
@@ -27,7 +28,6 @@ from src.hybrid_report.models import (
 )
 from src.store_metrics import asc, play, rustore
 from src.store_metrics.models import StoreSnapshot
-from src.centry_funnel import supabase_src as centry_db
 from src.diktum_funnel import supabase_src as diktum_db
 from . import snapshot
 from .render import render_monthly_report
@@ -128,9 +128,6 @@ def _collect_activity(spec, start: dt.date, end: dt.date) -> AppMetricaActivity:
 
 def _collect_reg(spec, start: dt.date, end: dt.date) -> RegActivation:
     try:
-        if spec.reg_source == "centry":
-            db = centry_db.fetch_funnel(start, end)
-            return RegActivation(registrations=db.users, activations=db.activations)
         if spec.reg_source == "diktum":
             db = diktum_db.fetch_registrations(start, end)
             return RegActivation(registrations=db.registrations, activations=db.activated)

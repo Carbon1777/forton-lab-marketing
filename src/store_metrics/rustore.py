@@ -35,8 +35,8 @@ Env required (real-mode):
     RUSTORE_KEY_ID             — service token Key ID (e.g. "2351028465").
     RUSTORE_COMPANY_ID         — RuStore company ID (metadata; не используется
                                   в auth, но требуется в env для sanity).
-    RUSTORE_PACKAGE_CENTRY     — Centry packageName (same as Play).
-    RUSTORE_PACKAGE_DIKTUM     — Diktum packageName (same as Play).
+    RUSTORE_PACKAGE_DIKTUM     — Diktum packageName (same as Play; якорь гейта).
+    RUSTORE_PACKAGE_<PRODUCT>  — для остальных продуктов (per-product, опц.).
 
 Without these → mock data (preserves CLI / dev behaviour).
 
@@ -97,10 +97,13 @@ _TOKEN_CACHE: dict[str, object] = {"token": None, "expires_at": None}
 _MOCK_INSTALLS: dict[Product, int] = {"centry": 4, "diktum": 2, "lucea": 1, "lapulya": 2, "unia": 1}
 _MOCK_PREV: dict[Product, int] = {"centry": 3, "diktum": 5, "lucea": 0, "lapulya": 1, "unia": 0}
 
+# Гейт «сконфигурирован» якорится на Diktum. Раньше требовался и Centry-env —
+# после закрытия Centry (2026-10-01) и удаления его env из workflow это увело
+# бы ВЕСЬ стор (включая Diktum) в mock. App ID/package остальных продуктов
+# проверяются per-product (_app_id_for/_package_for → error-снапшот).
 _REQUIRED_BASE_ENVS: Final[tuple[str, ...]] = (
     "RUSTORE_KEY_ID",
     "RUSTORE_COMPANY_ID",
-    "RUSTORE_PACKAGE_CENTRY",
     "RUSTORE_PACKAGE_DIKTUM",
 )
 
@@ -123,7 +126,7 @@ def _is_configured() -> bool:
 
     Либо ``RUSTORE_PRIVATE_KEY`` (raw PEM, GH Secret form), либо
     ``RUSTORE_PRIVATE_KEY_PATH`` (path, local dev) — хотя бы один.
-    Плюс KEY_ID + COMPANY_ID + 2 package names.
+    Плюс KEY_ID + COMPANY_ID + package Diktum (якорь).
     """
     pk_set = bool(
         os.environ.get("RUSTORE_PRIVATE_KEY")
