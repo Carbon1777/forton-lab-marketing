@@ -26,7 +26,8 @@ media:
 - path: assets/posts/2026-10/diktum-oct6-parazity.png
   sha256: 7fa0422e7925b7ebc144d0d9dc478402e65f1fe3f8839007fd974daae5c49f58
   role: image
-status: draft
+status: published
+published_at: '2026-10-06T12:12:25.380672+00:00'
 ```
 
 «Как бы», «типа», «в общем», «короче» — сам их почти не слышишь. А собеседник на третьем «как бы» уже считает их вместо того, чтобы слушать тебя 🎙
