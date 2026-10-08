@@ -63,7 +63,8 @@ media:
 - path: assets/posts/2026-10/lapulya-oct8-kleshchi.png
   sha256: bbd09ee77f0817c2601fb95621cfc54a116594add44e150f6fd451c7d6359f21
   role: image
-status: draft
+status: published
+published_at: '2026-10-08T09:12:42.974389+00:00'
 ```
 
 Многие думают, что с первыми холодами клещи исчезают. Но осень — их второй сезон, и питомец рискует до самых заморозков 🐾
