@@ -98,7 +98,8 @@ media:
 - path: assets/posts/2026-10/listvia-oct10-karantin.png
   sha256: c759ea55e4ae9843e6c8d09fb820d634efbd2f987309b77bca7bd426fe22318b
   role: image
-status: draft
+status: published
+published_at: '2026-10-10T09:07:03.793272+00:00'
 ```
 
 Похолодало — и цветы с балкона или дачи переезжают в квартиру. Только вместе с ними часто переезжают и вредители 🌿
