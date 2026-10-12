@@ -5,8 +5,10 @@ name: monthly_report
 # Источники: AppMetrica (installs/активность/воронка/экраны) + Supabase
 # (регистрации→активация для Diktum). Centry/Lucea/Unia убраны 2026-10-01.
 #
-# Cron: 5-е число каждого месяца 06:00 UTC = 09:00 МСК.
-# Sub-hour offset не нужен (0 мин) — нет конкурентных ежемесячных запусков.
+# Cron: 5-е число каждого месяца 14:00 UTC = 17:00 МСК.
+# Primary trigger (с 2026-10-12) — CF Worker `forton-cron-trigger`: GH-cron
+# троттлится (05.10 отчёт ушёл в 00:19 МСК). GH schedule — backup; повтор в
+# том же месяце отсекает job `guard` (report_dedup_guard.yml).
 #
 # Snapshot коммитится обратно в repo через BOT_DISPATCH_PAT.
 on:
@@ -16,13 +18,23 @@ on:
 
 permissions:
   contents: write
+  actions: read     # report_dedup_guard: список прошлых запусков
 
 concurrency:
   group: monthly-report
   cancel-in-progress: false
 
 jobs:
+  # CF Worker (primary) + GH schedule (backup) → без проверки 2 отчёта в день.
+  guard:
+    uses: ./.github/workflows/report_dedup_guard.yml
+    with:
+      workflow: monthly_report.yml
+      period: month
+
   collect-and-send:
+    needs: guard
+    if: ${{ needs.guard.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
