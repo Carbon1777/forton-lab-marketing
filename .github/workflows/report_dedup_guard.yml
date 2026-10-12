@@ -1,0 +1,61 @@
+name: report_dedup_guard
+
+# Переиспользуемая проверка «отчёт за этот период уже ушёл?» для отчётов,
+# у которых ДВА триггера: primary — CF Worker `forton-cron-trigger`
+# (workflow_dispatch, точно по времени), backup — GH `schedule` (троттлится,
+# срабатывает на часы позже). Без проверки в один день приходят два
+# одинаковых отчёта.
+#
+# skip=true только для event=schedule, если в текущем периоде (ISO-неделя с
+# понедельника UTC / календарный месяц) уже есть УСПЕШНЫЙ запуск этого
+# workflow. Ручной запуск и CF-запуск (workflow_dispatch) не блокируются.
+# Ошибка запроса к API → skip=false: лучше дубль, чем потерянный отчёт.
+on:
+  workflow_call:
+    inputs:
+      workflow:
+        description: "Файл workflow, например store_metrics.yml"
+        required: true
+        type: string
+      period:
+        description: "week | month"
+        required: true
+        type: string
+    outputs:
+      skip:
+        description: "true — отчёт за период уже отправлен, пропустить"
+        value: ${{ jobs.check.outputs.skip }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          WF: ${{ inputs.workflow }}
+          PERIOD: ${{ inputs.period }}
+        run: |
+          if [[ "$EVENT" != "schedule" ]]; then
+            echo "event=$EVENT — проверка не нужна"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "$PERIOD" == "month" ]]; then
+            since=$(date -u +%Y-%m-01)
+          else
+            since=$(date -u -d "-$(( $(date -u +%u) - 1 )) days" +%Y-%m-%d)
+          fi
+          n=$(gh api "repos/${REPO}/actions/workflows/${WF}/runs?status=success&created=%3E%3D${since}" \
+                --jq '.total_count' 2>/dev/null || echo 0)
+          echo "успешных запусков ${WF} с ${since}: ${n}"
+          if [[ "${n:-0}" -gt 0 ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi

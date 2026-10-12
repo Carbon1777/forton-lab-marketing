@@ -46,13 +46,23 @@ on:
 
 permissions:
   contents: write   # commit snapshot JSON в repo
+  actions: read     # report_dedup_guard: список прошлых запусков
 
 concurrency:
   group: store-metrics
   cancel-in-progress: false
 
 jobs:
+  # CF Worker (primary) + GH schedule (backup) → без проверки 2 отчёта в день.
+  guard:
+    uses: ./.github/workflows/report_dedup_guard.yml
+    with:
+      workflow: store_metrics.yml
+      period: week
+
   collect-and-send:
+    needs: guard
+    if: ${{ needs.guard.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

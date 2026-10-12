@@ -4,9 +4,15 @@
 //
 // Cron → workflow map (single source of truth, кодом, а не Dashboard):
 //   "0 9 * * *"   — daily 12:00 МСК → preview_bot.yml
-//   "37 6 * * 1"  — Mon 09:37 МСК   → store_metrics.yml   (per-app reports)
-//   "7 7 * * 1"   — Mon 10:07 МСК   → channel_metrics.yml (channels report)
-//   "7 12 * * 2"  — Tue 15:07 МСК   → funnel_metrics.yml (Diktum funnel)
+//   "37 6 * * mon" — Mon 09:37 МСК  → store_metrics.yml   (per-app reports)
+//   "7 7 * * mon"  — Mon 10:07 МСК  → channel_metrics.yml (channels report)
+//   "7 12 * * tue" — Tue 15:07 МСК  → funnel_metrics.yml (Diktum funnel)
+//   "0 14 5 * *"   — 5-е 17:00 МСК  → monthly_report.yml (monthly report)
+//
+// ★ День недели — ТОЛЬКО именем (mon/tue/…). У Cloudflare цифры дней
+// недели 1–7 начинаются с ВОСКРЕСЕНЬЯ (1=Sun), а не с понедельника как в
+// GH Actions/crontab. Incident 2026-10-04/11: «* * 1» стрелял в воскресенье →
+// недельный отчёт уходил в Вс за позапрошлую неделю, в Пн не приходил.
 //   (centry_funnel.yml снят 2026-10-03: Centry закрыт, workflow отключён)
 //
 // Triggers in wrangler.jsonc MUST match keys in CRON_TO_WORKFLOW. If they
@@ -18,9 +24,10 @@ const REPO = 'forton-lab-marketing';
 
 const CRON_TO_WORKFLOW = {
 	'0 9 * * *': 'preview_bot.yml',
-	'37 6 * * 1': 'store_metrics.yml',
-	'7 7 * * 1': 'channel_metrics.yml',
-	'7 12 * * 2': 'funnel_metrics.yml',
+	'37 6 * * mon': 'store_metrics.yml',
+	'7 7 * * mon': 'channel_metrics.yml',
+	'7 12 * * tue': 'funnel_metrics.yml',
+	'0 14 5 * *': 'monthly_report.yml',
 };
 
 async function triggerWorkflow(env, workflow) {
@@ -40,7 +47,9 @@ async function triggerWorkflow(env, workflow) {
 
 export default {
 	async scheduled(event, env, ctx) {
-		const workflow = CRON_TO_WORKFLOW[event.cron];
+		// Регистр/пробелы нормализуем: ключи в CRON_TO_WORKFLOW — lowercase.
+		const cron = String(event.cron).trim().toLowerCase().replace(/\s+/g, ' ');
+		const workflow = CRON_TO_WORKFLOW[cron];
 		if (!workflow) {
 			console.log('UNKNOWN cron — no workflow mapped:', event.cron);
 			return;
