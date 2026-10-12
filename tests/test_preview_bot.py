@@ -874,6 +874,55 @@ async def test_pre_flight_generates_for_fresh_entry(multi_entry_plan, tmp_path, 
 
 
 @pytest.mark.asyncio
+async def test_pre_flight_send_timeout_still_polls(multi_entry_plan, tmp_path, monkeypatch):
+    """Incident 2026-10-06: TimedOut на send_photo (TG уже принял фото) не должен
+    ронять бота — иначе run_polling не стартует и «Публикуй» никто не слушает."""
+    from telegram.error import TimedOut
+    monkeypatch.setenv("BOT_DISPATCH_PAT", "ghp_test")
+    plan_path, _ = multi_entry_plan
+    drafts_dir = tmp_path / "drafts"; drafts_dir.mkdir(parents=True, exist_ok=True)
+    ctx_dict = {
+        "plan_path": plan_path,
+        "drafts_dir": drafts_dir,
+        "repo_root": tmp_path,
+        "spend_file": tmp_path / ".metrics" / "spend.json",
+        "bot": MagicMock(),
+        "owner_chat_id": 12345,
+    }
+
+    with patch("src.preview_bot.dt") as mock_dt:
+        mock_dt.date.today.return_value = dt.date(2026, 6, 14)
+        mock_dt.datetime = dt.datetime
+        mock_dt.timezone = dt.timezone
+        mock_dt.timedelta = dt.timedelta
+
+        def fake_generate(entry, repo_root, spend_file, drafts_dir):
+            draft_path = drafts_dir / f"{entry.slug}.md"
+            p = frontmatter.Post(content="x", slug=entry.slug)
+            p.metadata["generated_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+            draft_path.write_text(frontmatter.dumps(p), encoding="utf-8")
+            return draft_path
+
+        with patch("src.preview_bot.generate_one", side_effect=fake_generate), \
+             patch("src.preview_bot._send_preview_for_draft",
+                    new_callable=AsyncMock, side_effect=TimedOut()) as mock_send, \
+             patch("src.preview_bot._store_message_id") as mock_store:
+            result = await pre_flight_generate(None, ctx_dict)
+            assert "forton-jun14" in result["pending_slugs"]
+            assert result["should_poll"] is True
+            mock_send.assert_called_once()   # без повторной отправки (дубль превью)
+            mock_store.assert_not_called()
+
+
+def test_build_application_raises_send_timeouts():
+    """Дефолтные 5 сек PTB мало для upload медиа с GH-раннера."""
+    app = build_application("1:dummy_token")
+    req = app.bot.request
+    assert req.read_timeout >= 30
+    assert req._media_write_timeout >= 120
+
+
+@pytest.mark.asyncio
 async def test_pre_flight_skips_pending_and_approved(multi_entry_plan, tmp_path, monkeypatch):
     """Pending (recent draft exists) → just append; no re-gen."""
     monkeypatch.setenv("BOT_DISPATCH_PAT", "ghp_test")

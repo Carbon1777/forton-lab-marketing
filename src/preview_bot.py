@@ -56,7 +56,7 @@ from telegram import (
     Update,
 )
 from telegram.constants import ParseMode
-from telegram.error import BadRequest
+from telegram.error import BadRequest, TimedOut
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -1002,10 +1002,23 @@ async def pre_flight_generate(app: Application | None, ctx_dict: dict) -> dict:
                     generate_one, entry, repo_root, spend_file, drafts_dir,
                 )
                 sha8 = _draft_sha8(generated_path)
-                msg_id = await _send_preview_for_draft(
-                    bot, preview_chat_id, generated_path, sha8, repo_root,
-                )
-                _store_message_id(generated_path, msg_id)
+                # Incident 2026-10-06: send_photo упал на клиентском ReadTimeout,
+                # хотя TG фото уже принял — превью с кнопками дошло, а процесс
+                # умер до run_polling → «Публикуй» никто не слушал. Таймаут ≠
+                # недоставка: не роняем бота, всё равно входим в polling.
+                # Повторно НЕ шлём — получили бы дубль превью.
+                try:
+                    msg_id = await _send_preview_for_draft(
+                        bot, preview_chat_id, generated_path, sha8, repo_root,
+                    )
+                except TimedOut as exc:
+                    sys.stderr.write(
+                        f"WARN: preview send timed out for {entry.slug} "
+                        f"({exc!r}); TG мог уже доставить — входим в polling\n"
+                    )
+                    msg_id = None
+                if msg_id is not None:
+                    _store_message_id(generated_path, msg_id)
                 pending.append(entry.slug)
             except (BudgetExceededError, BrandViolationError,
                      GenerationError) as exc:
@@ -1049,6 +1062,12 @@ def build_application(token: str) -> Application:
         Application.builder()
         .token(token)
         .defaults(defaults)
+        # PTB по умолчанию ждёт ответ TG 5 сек — на upload картинки/видео из
+        # GH-раннера этого мало (incident 2026-10-06: ReadTimeout на send_photo).
+        .connect_timeout(15)
+        .read_timeout(30)
+        .write_timeout(30)
+        .media_write_timeout(120)
         .concurrent_updates(False)   # single-operator — no need for parallel updates
         .build()
     )
