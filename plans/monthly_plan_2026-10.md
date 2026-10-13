@@ -133,7 +133,8 @@ media:
 - path: assets/posts/2026-10/diktum-oct13-golosovye.png
   sha256: eff8c45ed6dc4ce53f0556c876f5d7602667d0451d2feccff7df46931772d690
   role: image
-status: draft
+status: published
+published_at: '2026-10-13T09:08:32.392475+00:00'
 ```
 
 Голосовое на три минуты. Ты его, скорее всего, прослушаешь на скорости ×2 — или не прослушаешь вовсе. А ведь свои мы записываем так же 🎙
