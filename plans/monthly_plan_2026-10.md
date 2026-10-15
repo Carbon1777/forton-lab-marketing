@@ -168,7 +168,8 @@ media:
 - path: assets/posts/2026-10/lapulya-oct15-igry.png
   sha256: 89d88d7ff1b7a455c7497e320135d78e20bc812fb18775c1a8cef1dd36e70b60
   role: image
-status: draft
+status: published
+published_at: '2026-10-15T09:11:00.650059+00:00'
 ```
 
 Темнеет рано, прогулки короче — и вдруг кот носится ночью по квартире, а собака принимается за обувь 🐾
