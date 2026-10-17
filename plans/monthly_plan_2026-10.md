@@ -203,7 +203,8 @@ media:
 - path: assets/posts/2026-10/listvia-oct17-lukovichnye.png
   sha256: 22e58ac7de52f592fa7390cda3092d47556c298dc688bf3938f1cae605788ae3
   role: image
-status: draft
+status: published
+published_at: '2026-10-17T09:41:30.247932+00:00'
 ```
 
 Тюльпаны, которые хочется увидеть в мае, и чеснок на следующий год сажают сейчас. Главное — не опоздать и не поспешить 🌿
