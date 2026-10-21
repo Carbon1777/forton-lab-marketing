@@ -35,7 +35,9 @@
     "rustore": []
   },
   "listvia": {
-    "app_store": [],
+    "app_store": [
+      "14688255632"
+    ],
     "google_play": [
       "f0b36e22-ab81-45cf-88ed-57ee9f07d336",
       "c440b4c5-79e3-4f5d-9f9b-313adf9febdd",
