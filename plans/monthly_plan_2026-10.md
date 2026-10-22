@@ -273,7 +273,8 @@ media:
 - path: assets/posts/2026-10/lapulya-oct22-ves.png
   sha256: 08ff4289798730044385b112a77691725ccc8f069bd4ac5b3298c91e35b05bc8
   role: image
-status: draft
+status: published
+published_at: '2026-10-22T09:03:43.269283+00:00'
 ```
 
 Осенью питомец меньше гуляет и больше спит, а порция в миске прежняя. Через пару месяцев оказывается, что он заметно округлился 🐾
