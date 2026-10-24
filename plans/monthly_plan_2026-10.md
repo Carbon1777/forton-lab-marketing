@@ -308,7 +308,8 @@ media:
 - path: assets/posts/2026-10/listvia-oct24-svet.png
   sha256: daf112d2a0b54fc54b4fe21a7c36e8f11e6a29100beb74e2d808e35c1c602e1c
   role: image
-status: draft
+status: published
+published_at: '2026-10-24T10:03:27.517504+00:00'
 ```
 
 Твоё растение тянется к окну на длинных тонких стеблях, а новые листья мельче и бледнее старых. Это не болезнь — ему просто не хватает света 🌿
