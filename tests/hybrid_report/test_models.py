@@ -36,7 +36,7 @@ def test_products_appmetrica_app_ids():
     assert by_key["diktum"].appmetrica_app_id == "6301663"
     assert by_key["lapulya"].appmetrica_app_id == "6307939"
     assert by_key["listvia"].appmetrica_app_id == "6316003"
-    assert by_key["lucea"].appmetrica_app_id == "6303610"
+    assert by_key["lucea"].appmetrica_app_id == "6375118"
 
 
 def test_screen_event_label_per_product():
