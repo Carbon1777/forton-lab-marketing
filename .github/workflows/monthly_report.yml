@@ -71,6 +71,7 @@ jobs:
           # store_metrics.yml — новых не заводим.
           ASC_APP_ID_DIKTUM: ${{ secrets.ASC_APP_ID_DIKTUM }}
           ASC_APP_ID_LAPULYA: ${{ secrets.ASC_APP_ID_LAPULYA }}
+          ASC_APP_ID_LUCEA: ${{ secrets.ASC_APP_ID_LUCEA }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
 
@@ -79,6 +80,7 @@ jobs:
           GPLAY_DEVELOPER_ID: ${{ secrets.GPLAY_DEVELOPER_ID }}
           GPLAY_PACKAGE_DIKTUM: ${{ secrets.GPLAY_PACKAGE_DIKTUM }}
           GPLAY_PACKAGE_LAPULYA: ${{ secrets.GPLAY_PACKAGE_LAPULYA }}
+          GPLAY_PACKAGE_LUCEA: ${{ secrets.GPLAY_PACKAGE_LUCEA }}
 
           # ------------ RuStore — reviews via JWS API (installs N/A, Mail.ru) ----
           RUSTORE_PRIVATE_KEY: ${{ secrets.RUSTORE_PRIVATE_KEY }}
@@ -86,6 +88,7 @@ jobs:
           RUSTORE_COMPANY_ID: ${{ secrets.RUSTORE_COMPANY_ID }}
           RUSTORE_PACKAGE_DIKTUM: ${{ secrets.RUSTORE_PACKAGE_DIKTUM }}
           RUSTORE_PACKAGE_LAPULYA: ${{ secrets.RUSTORE_PACKAGE_LAPULYA }}
+          RUSTORE_PACKAGE_LUCEA: ${{ secrets.RUSTORE_PACKAGE_LUCEA }}
         run: PYTHONPATH=. python -m src.monthly_report.cli
 
       - name: Commit updated monthly snapshots

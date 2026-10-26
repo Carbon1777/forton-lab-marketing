@@ -20,7 +20,7 @@ class ProductSpec:
     для воронки онбординга AppMetrica (метрика ym:ce:devices, фильтр по
     ym:ce:eventLabel). reg_source выбирает supabase_src в gather.
     """
-    key: str                       # "diktum" / "lapulya" / "listvia"
+    key: str                       # "diktum" / "lapulya" / "listvia" / "lucea"
     display: str                   # "Diktum" / "Лапуля" / "Листвия"
     appmetrica_app_id: str         # Diktum "6301663"
     onboarding_steps: list[tuple[str, str]]
@@ -194,6 +194,41 @@ _DIKTUM_SCREEN_NAMES: dict[str, str] = {
 # analytics_service.dart). Экраны шлются как screen_entered + int screen_id,
 # поэтому screen_event_label="screen_entered", а screen_names мапит "<id>". ---
 
+# Lucea воронка онбординга (drop-off от запуска до первого портрета).
+_LUCEA_ONBOARDING: list[tuple[str, str]] = [
+    ("app_opened_first", "открыли приложение"),
+    ("intro_seen", "посмотрели интро"),
+    ("onboarding_started", "начали онбординг"),
+    ("onboarding_completed", "прошли онбординг"),
+    ("consent_accepted", "приняли согласие"),
+    ("email_submitted", "ввели email"),
+    ("otp_verified", "подтвердили код"),
+    ("account_activated", "активировали аккаунт"),
+    ("home_first_shown", "дошли до главной"),
+    ("first_checkin_submitted", "сделали первый чек-ин"),
+    ("first_portrait_shown", "увидели первый портрет"),
+]
+
+# Lucea: int screen_id (как строка) → человекочитаемое (LuceaScreen 1..46, v2.0).
+_LUCEA_SCREEN_NAMES: dict[str, str] = {
+    "1": "интро", "2": "онбординг", "3": "согласие", "4": "вход",
+    "5": "подтверждение кода", "6": "главная", "7": "чек-ин", "8": "портрет",
+    "9": "разбор недели", "10": "профиль", "11": "рефералы", "12": "настройки",
+    "13": "Pro", "14": "новости", "15": "новость",
+    "16": "редактирование профиля", "17": "портрет в профиле", "18": "ранги",
+    "19": "достижения", "20": "запись голоса", "21": "разрешения",
+    "22": "поделиться портретом", "23": "восстановление пароля",
+    "24": "восстановление пароля (код)", "25": "данные рождения",
+    "26": "натальная карта", "27": "нумерология", "28": "матрица судьбы",
+    "29": "Луна", "30": "таро", "31": "близкие", "32": "добавить близкого",
+    "33": "карточка близкого", "34": "правка близкого", "35": "карта ребёнка",
+    "36": "приглашение к совместимости", "37": "Спроси Lucea",
+    "38": "утренний прогноз", "39": "прогнозы", "40": "Твой год",
+    "41": "виджеты", "42": "первый запуск: рождение",
+    "43": "первый запуск: wow", "44": "сохранить портрет",
+    "45": "привязка аккаунта", "46": "привязка аккаунта (код)",
+}
+
 # Лапуля воронка активации (без сервера/аккаунта — ключевой порог = первый питомец).
 _LAPULYA_ONBOARDING: list[tuple[str, str]] = [
     ("app_opened_first", "открыли приложение"),
@@ -263,5 +298,15 @@ PRODUCTS: list[ProductSpec] = [
         reg_source="listvia",  # offline (drift), без Supabase → reg «данные собираются»
         screen_names=_LISTVIA_SCREEN_NAMES,
         screen_event_label="screen_entered",
+    ),
+    ProductSpec(
+        key="lucea",
+        display="Lucea",
+        appmetrica_app_id="6303610",
+        onboarding_steps=_LUCEA_ONBOARDING,
+        reg_source="lucea",  # Supabase-RPC нет → reg-блок «данные собираются»
+        screen_names=_LUCEA_SCREEN_NAMES,
+        screen_event_label="screen_entered",
+        review_event="review_prompt_triggered",  # In-App Review (порт из Diktum)
     ),
 ]

@@ -99,6 +99,7 @@ jobs:
           # удалить из GH Secrets когда удобно.
           ASC_APP_ID_DIKTUM: ${{ secrets.ASC_APP_ID_DIKTUM }}
           ASC_APP_ID_LAPULYA: ${{ secrets.ASC_APP_ID_LAPULYA }}
+          ASC_APP_ID_LUCEA: ${{ secrets.ASC_APP_ID_LUCEA }}
           # Individual ASC API Key (quick 260530-q69, 2026-05-30): installs
           # через Analytics Reports API. JWT sub:user, Issuer ID НЕ нужен.
           # Заглушка cert-recovery снята (PR #82) — installs активны.
@@ -118,6 +119,7 @@ jobs:
           GPLAY_DEVELOPER_ID: ${{ secrets.GPLAY_DEVELOPER_ID }}
           GPLAY_PACKAGE_DIKTUM: ${{ secrets.GPLAY_PACKAGE_DIKTUM }}
           GPLAY_PACKAGE_LAPULYA: ${{ secrets.GPLAY_PACKAGE_LAPULYA }}
+          GPLAY_PACKAGE_LUCEA: ${{ secrets.GPLAY_PACKAGE_LUCEA }}
 
           # ------------ RuStore — reviews via JWS API (installs N/A) -------------
           # Installs не доступны через Public API (Mail.ru ограничение,
@@ -130,6 +132,7 @@ jobs:
           RUSTORE_COMPANY_ID: ${{ secrets.RUSTORE_COMPANY_ID }}
           RUSTORE_PACKAGE_DIKTUM: ${{ secrets.RUSTORE_PACKAGE_DIKTUM }}
           RUSTORE_PACKAGE_LAPULYA: ${{ secrets.RUSTORE_PACKAGE_LAPULYA }}
+          RUSTORE_PACKAGE_LUCEA: ${{ secrets.RUSTORE_PACKAGE_LUCEA }}
 
           # ------------ Anthropic Haiku 4.5 — hypothesis injection ---------
           # METRICS-09 / D-5-06. hybrid_report его НЕ использует — оставлен в env
