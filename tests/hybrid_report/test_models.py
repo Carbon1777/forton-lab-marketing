@@ -18,17 +18,17 @@ from src.hybrid_report.models import (
 
 
 def test_products_has_active_studio_apps():
-    assert len(PRODUCTS) == 3
+    assert len(PRODUCTS) == 4
     keys = [p.key for p in PRODUCTS]
-    assert keys == ["diktum", "lapulya", "listvia"]
-    assert {p.display for p in PRODUCTS} == {"Diktum", "Лапуля", "Листвия"}
+    assert keys == ["diktum", "lapulya", "listvia", "lucea"]
+    assert {p.display for p in PRODUCTS} == {"Diktum", "Лапуля", "Листвия", "Lucea"}
 
 
 def test_products_exclude_closed_apps():
-    """Centry/Lucea/Unia закрыты и сняты со сторов (2026-10-01) — в отчёте их
-    быть не должно (иначе шлём мусор по мёртвым приложениям)."""
+    """Centry/Unia закрыты и сняты со сторов (2026-10-01) — в отчёте их быть не
+    должно (иначе шлём мусор по мёртвым приложениям). Lucea вернулась (2.0)."""
     keys = {p.key for p in PRODUCTS}
-    assert keys.isdisjoint({"centry", "lucea", "unia"})
+    assert keys.isdisjoint({"centry", "unia"})
 
 
 def test_products_appmetrica_app_ids():
@@ -36,6 +36,7 @@ def test_products_appmetrica_app_ids():
     assert by_key["diktum"].appmetrica_app_id == "6301663"
     assert by_key["lapulya"].appmetrica_app_id == "6307939"
     assert by_key["listvia"].appmetrica_app_id == "6316003"
+    assert by_key["lucea"].appmetrica_app_id == "6303610"
 
 
 def test_screen_event_label_per_product():
