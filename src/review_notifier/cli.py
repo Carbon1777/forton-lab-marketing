@@ -51,7 +51,7 @@ from src.store_metrics.models import Product
 
 # Centry/Lucea/Unia закрыты и сняты со сторов (2026-10-01) — убраны из опроса.
 PRODUCTS: Final[list[Product]] = [
-    "diktum", "lapulya", "listvia",
+    "diktum", "lapulya", "listvia", "lucea",
 ]
 SEEN_PATH: Final[Path] = Path(".metrics/reviews_seen.json")
 # Состояние счётчиков оценок без текста — рядом с seen (тот же каталог).
@@ -70,6 +70,7 @@ PRODUCT_LABELS: Final[dict[str, str]] = {
     "diktum": "Diktum",
     "lapulya": "Лапуля",
     "listvia": "Листвия",
+    "lucea": "Lucea",
 }
 
 
