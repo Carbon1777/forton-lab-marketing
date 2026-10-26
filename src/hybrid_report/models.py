@@ -302,7 +302,7 @@ PRODUCTS: list[ProductSpec] = [
     ProductSpec(
         key="lucea",
         display="Lucea",
-        appmetrica_app_id="6303610",
+        appmetrica_app_id="6375118",
         onboarding_steps=_LUCEA_ONBOARDING,
         reg_source="lucea",  # Supabase-RPC нет → reg-блок «данные собираются»
         screen_names=_LUCEA_SCREEN_NAMES,
