@@ -65,10 +65,12 @@ jobs:
           # RSS отзывы не требуют ASC API Key — только numeric app id per продукт.
           # ASC_APP_ID_LISTVIA — НОВЫЙ опциональный секрет: если не заведён,
           # Apple-отзывы по Листвии просто пропускаются (мягкая деградация),
-          # остальные продукты работают. Centry/Lucea/Unia убраны 2026-10-01.
+          # остальные продукты работают. Centry/Unia убраны 2026-10-01; Lucea вернулась
+          с релизом 2.0 (2026-10).
           ASC_APP_ID_DIKTUM: ${{ secrets.ASC_APP_ID_DIKTUM }}
           ASC_APP_ID_LAPULYA: ${{ secrets.ASC_APP_ID_LAPULYA }}
           ASC_APP_ID_LISTVIA: ${{ secrets.ASC_APP_ID_LISTVIA }}
+          ASC_APP_ID_LUCEA: ${{ secrets.ASC_APP_ID_LUCEA }}
 
           # ------------ Google Play — androidpublisher v3 reviews ---------------
           # Reviews via androidpublisher v3 (тот же Service Account что
@@ -78,6 +80,7 @@ jobs:
           GPLAY_PACKAGE_DIKTUM: ${{ secrets.GPLAY_PACKAGE_DIKTUM }}
           GPLAY_PACKAGE_LAPULYA: ${{ secrets.GPLAY_PACKAGE_LAPULYA }}
           GPLAY_PACKAGE_LISTVIA: ${{ secrets.GPLAY_PACKAGE_LISTVIA }}
+          GPLAY_PACKAGE_LUCEA: ${{ secrets.GPLAY_PACKAGE_LUCEA }}
 
           # ------------ RuStore — comment API via JWS auth ----------------------
           # Reviews via JWS RSA-SHA512 auth + paginated
@@ -88,6 +91,7 @@ jobs:
           RUSTORE_PACKAGE_DIKTUM: ${{ secrets.RUSTORE_PACKAGE_DIKTUM }}
           RUSTORE_PACKAGE_LAPULYA: ${{ secrets.RUSTORE_PACKAGE_LAPULYA }}
           RUSTORE_PACKAGE_LISTVIA: ${{ secrets.RUSTORE_PACKAGE_LISTVIA }}
+          RUSTORE_PACKAGE_LUCEA: ${{ secrets.RUSTORE_PACKAGE_LUCEA }}
         run: PYTHONPATH=. python -m src.review_notifier.cli
 
       - name: Commit updated seen state
