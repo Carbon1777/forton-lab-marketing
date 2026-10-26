@@ -66,7 +66,7 @@ jobs:
           # ASC_APP_ID_LISTVIA — НОВЫЙ опциональный секрет: если не заведён,
           # Apple-отзывы по Листвии просто пропускаются (мягкая деградация),
           # остальные продукты работают. Centry/Unia убраны 2026-10-01; Lucea вернулась
-          с релизом 2.0 (2026-10).
+          # с релизом 2.0 (2026-10).
           ASC_APP_ID_DIKTUM: ${{ secrets.ASC_APP_ID_DIKTUM }}
           ASC_APP_ID_LAPULYA: ${{ secrets.ASC_APP_ID_LAPULYA }}
           ASC_APP_ID_LISTVIA: ${{ secrets.ASC_APP_ID_LISTVIA }}
