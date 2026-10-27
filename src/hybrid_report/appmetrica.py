@@ -382,6 +382,60 @@ def fetch_onboarding_funnel(
         )
 
 
+def fetch_event_funnel(
+    app_id: str,
+    steps,
+    week_start: dt.date,
+    week_end: dt.date,
+    token: str | None = None,
+) -> AppMetricaFunnel:
+    """Воронка по FunnelStepSpec: ym:ce:devices на шаг.
+
+    Шаг без param — фильтр по eventLabel. Шаг с param (ключ, значение) —
+    dimension paramsLevel2 + фильтр paramsLevel1==ключ, берём строку со
+    значением (нет строки → 0). Любая ошибка → AppMetricaFunnel(steps=[], error).
+    """
+    try:
+        tok = _token(token)
+        result: list[FunnelStep] = []
+        for st in steps:
+            params = {
+                "id": app_id,
+                "date1": week_start.isoformat(),
+                "date2": week_end.isoformat(),
+                "metrics": "ym:ce:devices",
+                "filters": f"ym:ce:eventLabel=='{st.event}'",
+                "accuracy": "full",
+                "lang": "ru",
+            }
+            if st.param is not None:
+                key, value = st.param
+                params["dimensions"] = "ym:ce:paramsLevel2"
+                params["filters"] += f" AND ym:ce:paramsLevel1=='{key}'"
+            resp = fetch_with_retry(
+                STAT_URL,
+                method="GET",
+                headers={"Authorization": f"OAuth {tok}"},
+                params=params,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            if st.param is None:
+                totals = _totals(body)
+                devices = int(totals[0]) if totals else 0
+            else:
+                devices = 0
+                for row in body.get("data", []):
+                    if row["dimensions"][0]["name"] == st.param[1]:
+                        devices += int(row["metrics"][0] or 0)
+            result.append(FunnelStep(label=st.phrase, devices=devices))
+        return AppMetricaFunnel(steps=result, error=None)
+    except Exception as exc:  # noqa: BLE001 — мягкая деградация секции
+        return AppMetricaFunnel(
+            steps=[], error=f"{type(exc).__name__}: {str(exc)[:80]}"
+        )
+
+
 def fetch_top_screens(
     app_id: str,
     week_start: dt.date,

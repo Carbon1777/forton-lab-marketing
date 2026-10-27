@@ -119,3 +119,36 @@ def test_product_report_defaults():
     assert report.reg.registrations is None
     assert report.prev_am_installs_total is None
     assert isinstance(report.spec, ProductSpec)
+
+
+def test_lapulya_v2_funnels_and_screens():
+    import re
+    from src.hybrid_report.models import FunnelSpec, FunnelStepSpec
+
+    lap = next(p for p in PRODUCTS if p.key == "lapulya")
+    assert [f.name for f in lap.extra_funnels] == [
+        "Облако", "Вход", "Pro", "Семья", "Дежурства",
+        "Отчёт и расходы", "ИИ",
+    ]
+    assert lap.review_event == "review_prompt_triggered"
+    assert {str(i) for i in range(1, 35)} <= set(lap.screen_names)
+    assert lap.screen_names["24"] == "вход"
+    assert lap.screen_names["34"] == "удаление аккаунта"
+    hash(lap.extra_funnels)  # хешируемость (frozen + tuple)
+    for f in lap.extra_funnels:
+        assert isinstance(f, FunnelSpec)
+        for s in f.steps:
+            assert isinstance(s, FunnelStepSpec)
+            assert re.fullmatch(r"[a-z0-9_]+", s.event)
+            assert s.phrase
+            if s.param is not None:
+                k, v = s.param
+                assert isinstance(k, str) and k and isinstance(v, str) and v
+    reg = lap.extra_funnels[0].steps[3]
+    assert (reg.event, reg.param) == ("account_signin_ok", ("method", "2"))
+
+
+def test_other_products_have_no_extra_funnels():
+    for p in PRODUCTS:
+        if p.key != "lapulya":
+            assert p.extra_funnels == ()

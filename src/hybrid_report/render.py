@@ -162,6 +162,22 @@ def _block_funnel(r: ProductReport) -> str:
     return line
 
 
+def _block_extra_funnels(r: ProductReport) -> str | None:
+    if not r.extra_funnels:
+        return None
+    lines = [
+        "Воронки v2 (сколько устройств сделали шаг за неделю, "
+        "не последовательность):"
+    ]
+    for name, f in r.extra_funnels:
+        if f.error or len(f.steps) < 2:
+            lines.append(f"{name}: данные собираются.")
+        else:
+            body = " → ".join(f"{s.label} {s.devices}" for s in f.steps)
+            lines.append(f"{name}: {body}.")
+    return "\n".join(lines)
+
+
 def _block_screens(r: ProductReport) -> str:
     s = r.screens
     if s.error or not s.screens:
@@ -252,10 +268,11 @@ def render_report(report: ProductReport) -> str:
         _block_am_installs(report),
         _block_activity(report),
         _block_funnel(report),
+        _block_extra_funnels(report),
         _block_screens(report),
         _block_reg(report),
         _block_review(report),
         _block_retention(),
         _block_wow(report),
     ]
-    return "\n".join(lines)
+    return "\n".join(ln for ln in lines if ln is not None)

@@ -233,3 +233,30 @@ def test_render_degraded_activity_none():
     ))
     # активность деградирует, но сообщение не падает
     assert "App Store — 5" in text
+
+
+def test_render_extra_funnels_block_and_limits():
+    lap = next(p for p in PRODUCTS if p.key == "lapulya")
+    extra = [
+        (f.name, AppMetricaFunnel(steps=[
+            FunnelStep(s.phrase, 123456) for s in f.steps]))
+        for f in lap.extra_funnels
+    ]
+    text = render_report(_report(spec=lap, extra_funnels=extra))
+    assert "Облако: показали карточку 123456 → начали вход 123456" in text
+    assert text.index("Воронка онбординга") < text.index("Воронки v2")
+    assert text.index("Воронки v2") < text.index("Экраны")
+    for _, f in extra:
+        pass
+    assert len(text) <= 4096
+
+
+def test_render_extra_funnels_degraded_and_absent():
+    lap = next(p for p in PRODUCTS if p.key == "lapulya")
+    text = render_report(_report(spec=lap, extra_funnels=[
+        ("Облако", AppMetricaFunnel(steps=[], error="X")),
+        ("Pro", AppMetricaFunnel(steps=[FunnelStep("a", 1)])),
+    ]))
+    assert "Облако: данные собираются." in text
+    assert "Pro: данные собираются." in text
+    assert "Воронки v2" not in render_report(_report())

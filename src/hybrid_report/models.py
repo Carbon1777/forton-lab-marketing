@@ -13,6 +13,22 @@ from src.store_metrics.models import StoreSnapshot
 
 
 @dataclass(frozen=True)
+class FunnelStepSpec:
+    """Шаг именованной воронки: wire-событие, фраза, опциональный фильтр по
+    параметру события (ключ, значение-строка) → paramsLevel1/paramsLevel2."""
+    event: str
+    phrase: str
+    param: tuple[str, str] | None = None
+
+
+@dataclass(frozen=True)
+class FunnelSpec:
+    """Именованная воронка (строка в отчёте)."""
+    name: str
+    steps: tuple[FunnelStepSpec, ...]
+
+
+@dataclass(frozen=True)
 class ProductSpec:
     """Per-product параметры — источник истины для loop по продуктам.
 
@@ -36,6 +52,9 @@ class ProductSpec:
     # приложений, где механизм уже внедрён в код (шлют review_prompt_triggered).
     # None → в отчёте секция «пока не внедрён» без запроса к AppMetrica.
     review_event: str | None = None
+    # Дополнительные именованные воронки (по строке в отчёте). Пусто у всех
+    # продуктов, кроме Лапули v2.
+    extra_funnels: tuple[FunnelSpec, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -146,6 +165,11 @@ class ProductReport:
         default_factory=lambda: AppMetricaScreens(screens=[])
     )
 
+    # Воронки v2 (Лапуля): [(имя, воронка)]. В снапшот не пишутся.
+    extra_funnels: list[tuple[str, AppMetricaFunnel]] = field(
+        default_factory=list
+    )
+
     # Блок 6 — регистрации → активация (Supabase)
     reg: RegActivation = field(
         default_factory=lambda: RegActivation(None, None)
@@ -239,14 +263,75 @@ _LAPULYA_ONBOARDING: list[tuple[str, str]] = [
     ("home_first_shown", "дошли до ленты дел"),
 ]
 
-# Лапуля: int screen_id → человекочитаемое (LapulyaScreen 1..13).
+# Лапуля: int screen_id → человекочитаемое (LapulyaScreen 1..34).
 _LAPULYA_SCREEN_NAMES: dict[str, str] = {
     "1": "лента дел", "2": "питомцы", "3": "карточка питомца", "4": "ещё",
     "5": "онбординг приветствие", "6": "онбординг вид", "7": "онбординг имя",
     "8": "онбординг пол", "9": "онбординг дата рождения",
     "10": "онбординг детали", "11": "онбординг история",
     "12": "онбординг уведомления", "13": "онбординг готово",
+    "14": "история распорядка", "15": "семья", "16": "приглашение (принять)",
+    "17": "новое приглашение", "18": "приглашение готово", "19": "дежурства",
+    "20": "Pro", "21": "отчёт врачу", "22": "отчёт готов",
+    "23": "расходы: диаграммы", "24": "вход", "25": "смена пароля",
+    "26": "онбординг фото", "27": "ИИ: фото документа",
+    "28": "ИИ: проверка записей", "29": "ИИ: вопрос", "30": "вопросы врачу",
+    "31": "перенос в аккаунт", "32": "выбор данных при входе",
+    "33": "замена данных", "34": "удаление аккаунта",
 }
+
+# Лапуля v2: воронки по неделе (устройства, сделавшие шаг; не строгая
+# последовательность). Шаги — wire-имена из lapulya analytics_service.dart.
+_S = FunnelStepSpec
+_LAPULYA_FUNNELS: tuple[FunnelSpec, ...] = (
+    FunnelSpec("Облако", (
+        _S("cloud_card", "показали карточку", ("action", "1")),
+        _S("account_signin_started", "начали вход"),
+        _S("account_code_sent", "отправили код"),
+        _S("account_signin_ok", "зарегистрировались", ("method", "2")),
+        _S("account_transfer_done", "перенесли данные"),
+        _S("sync_first_done", "первая синхронизация"),
+    )),
+    FunnelSpec("Вход", (
+        _S("account_signin_ok", "вошли по паролю", ("method", "1")),
+        _S("account_signin_ok", "восстановили пароль", ("method", "3")),
+    )),
+    FunnelSpec("Pro", (
+        _S("pro_screen_view", "открыли Pro"),
+        _S("pro_gate_shown", "упёрлись в лимит"),
+        _S("pro_trial_started", "начали пробный"),
+        _S("pro_checkout_start", "перешли к оплате", ("result", "0")),
+        _S("pro_state_changed", "получили Pro", ("to", "2")),
+    )),
+    FunnelSpec("Семья", (
+        _S("family_tab_view", "открыли семью"),
+        _S("family_create", "создали семью", ("result", "0")),
+        _S("family_invite_create", "создали приглашение", ("result", "0")),
+        _S("family_invite_share", "поделились"),
+        _S("family_invite_view", "открыли приглашение"),
+        _S("family_invite_result", "приняли", ("result", "0")),
+    )),
+    FunnelSpec("Дежурства", (
+        _S("duty_section_view", "открыли дежурства"),
+        _S("duty_assign", "назначили", ("result", "0")),
+        _S("duty_take", "взяли", ("result", "0")),
+    )),
+    FunnelSpec("Отчёт и расходы", (
+        _S("report_built", "собрали отчёт"),
+        _S("report_shared", "отправили", ("result", "1")),
+        _S("expense_charts_opened", "открыли диаграммы"),
+        _S("expense_budget_set", "задали бюджет"),
+    )),
+    FunnelSpec("ИИ", (
+        _S("ai_consent_view", "открыли согласие ИИ"),
+        _S("ai_consent_action", "разрешили", ("action", "1")),
+        _S("ai_capture_start", "сфотографировали"),
+        _S("ai_recognize_result", "распознали"),
+        _S("ai_confirm_done", "подтвердили"),
+        _S("ai_chat_open", "открыли вопрос"),
+        _S("ai_chat_send", "спросили"),
+    )),
+)
 
 # Листвия воронка активации (offline care-first, без сервера/регистрации; после
 # пивота 2026-06-18 распознавание по фото убрано → ключевой порог = первое
@@ -286,9 +371,11 @@ PRODUCTS: list[ProductSpec] = [
         display="Лапуля",
         appmetrica_app_id="6307939",
         onboarding_steps=_LAPULYA_ONBOARDING,
-        reg_source="lapulya",  # on-device, без сервера → reg-блок «данные собираются»
+        reg_source="lapulya",  # v2: сервер есть, RPC регистраций — бэклог (17.2 P-6)
         screen_names=_LAPULYA_SCREEN_NAMES,
         screen_event_label="screen_entered",
+        review_event="review_prompt_triggered",
+        extra_funnels=_LAPULYA_FUNNELS,
     ),
     ProductSpec(
         key="listvia",

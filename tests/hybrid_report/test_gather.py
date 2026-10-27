@@ -225,3 +225,21 @@ def test_gather_reads_prev_installs():
             stack.enter_context(cm)
         report = gather.gather_product(DIKTUM, W_START, W_END, snapshots)
     assert report.prev_am_installs_total == 20
+
+
+def test_gather_lapulya_collects_extra_funnels_only_for_lapulya():
+    from contextlib import ExitStack
+    lap = next(p for p in PRODUCTS if p.key == "lapulya")
+    fake = AppMetricaFunnel(steps=[FunnelStep("x", 1), FunnelStep("y", 1)])
+    with ExitStack() as stack:
+        for cm in _patch_all_success():
+            stack.enter_context(cm)
+        m = stack.enter_context(patch.object(
+            gather.appmetrica, "fetch_event_funnel", return_value=fake))
+        report = gather.gather_product(lap, W_START, W_END, {})
+        assert m.call_count == 7
+        assert [n for n, _ in report.extra_funnels][0] == "Облако"
+        m.reset_mock()
+        other = gather.gather_product(LISTVIA, W_START, W_END, {})
+        assert m.call_count == 0
+    assert other.extra_funnels == []

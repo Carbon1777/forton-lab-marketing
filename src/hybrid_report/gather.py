@@ -116,8 +116,9 @@ def _collect_reg(spec: ProductSpec, week_start: dt.date, week_end: dt.date) -> R
     """Supabase регистрации → активация. Семантика per продукт (см. модуль-doc).
 
     Supabase-RPC есть только у Diktum. Остальные продукты (reg_source не
-    diktum) → None: Лапуля/Листвия без сервера. Render покажет «данные
-    собираются»; рег/актив видна в воронке онбординга AppMetrica.
+    diktum) → None: Лапуля v2 (сервер есть, RPC регистраций — бэклог, 17.2 P-6)
+    и Листвия. Render покажет «данные собираются»; рег/актив видна в воронках
+    AppMetrica.
     """
     try:
         if spec.reg_source == "diktum":
@@ -187,6 +188,13 @@ def gather_product(
         event_label=spec.screen_event_label,
     )
 
+    extra = [
+        (f.name, appmetrica.fetch_event_funnel(
+            spec.appmetrica_app_id, f.steps, week_start, week_end
+        ))
+        for f in spec.extra_funnels
+    ]
+
     reg = _collect_reg(spec, week_start, week_end)
     review_prompts = _collect_review_prompts(spec, week_start, week_end)
 
@@ -208,6 +216,7 @@ def gather_product(
         activity=activity,
         funnel=funnel,
         screens=screens,
+        extra_funnels=extra,
         reg=reg,
         review_prompts=review_prompts,
         prev_am_installs_total=prev,

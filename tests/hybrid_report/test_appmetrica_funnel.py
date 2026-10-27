@@ -174,3 +174,48 @@ def test_fetch_installs_all_organic_when_no_ads():
     assert result.total == 10
     assert result.organic == 10
     assert result.ads == 0
+
+
+# ----------------------------- event funnel (v2) -----------------------------
+
+def test_fetch_event_funnel_plain_and_param_steps():
+    from src.hybrid_report.models import FunnelStepSpec
+
+    steps = (
+        FunnelStepSpec("cloud_card", "показали карточку"),
+        FunnelStepSpec("account_signin_ok", "зарегистрировались", ("method", "2")),
+        FunnelStepSpec("account_signin_ok", "вошли", ("method", "9")),
+    )
+    rows = {"data": [
+        {"dimensions": [{"name": "1"}], "metrics": [7.0]},
+        {"dimensions": [{"name": "2"}], "metrics": [5.0]},
+    ]}
+    with patch.object(
+        appmetrica, "fetch_with_retry",
+        side_effect=[_mock_resp({"totals": [12.0]}), _mock_resp(rows),
+                     _mock_resp(rows)],
+    ) as f:
+        r = appmetrica.fetch_event_funnel("6307939", steps, W_START, W_END, token="t")
+    assert r == AppMetricaFunnel(steps=[
+        FunnelStep("показали карточку", 12),
+        FunnelStep("зарегистрировались", 5),
+        FunnelStep("вошли", 0),
+    ])
+    c = f.call_args_list
+    assert c[0].kwargs["params"]["filters"] == "ym:ce:eventLabel=='cloud_card'"
+    assert "dimensions" not in c[0].kwargs["params"]
+    p1 = c[1].kwargs["params"]
+    assert p1["dimensions"] == "ym:ce:paramsLevel2"
+    assert p1["filters"] == (
+        "ym:ce:eventLabel=='account_signin_ok' AND ym:ce:paramsLevel1=='method'"
+    )
+    assert p1["metrics"] == "ym:ce:devices"
+
+
+def test_fetch_event_funnel_degrades_on_error():
+    from src.hybrid_report.models import FunnelStepSpec
+
+    with patch.object(appmetrica, "fetch_with_retry", side_effect=RuntimeError("boom")):
+        r = appmetrica.fetch_event_funnel(
+            "1", (FunnelStepSpec("a", "a"),), W_START, W_END, token="t")
+    assert r.steps == [] and r.error and "RuntimeError" in r.error
