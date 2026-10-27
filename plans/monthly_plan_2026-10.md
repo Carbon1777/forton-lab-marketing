@@ -343,7 +343,8 @@ media:
 - path: assets/posts/2026-10/diktum-oct27-slaidy.png
   sha256: 16a8ded2606a3884686f47d4c501782fa9ac5165e92d1d25e08880a586e752b2
   role: image
-status: draft
+status: published
+published_at: '2026-10-27T09:16:45.867871+00:00'
 ```
 
 Выступающий поворачивается к экрану и читает слайд вслух — слово в слово. Зал за это время прочитал его сам и уже скучает 🎙
