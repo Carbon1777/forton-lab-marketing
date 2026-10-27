@@ -105,6 +105,17 @@ YAML_BLOCK = re.compile(
     re.S | re.M,
 )
 
+# Поля yaml-блока записи, которые пробрасываются в draft frontmatter без изменений.
+ENTRY_EXTRA_KEYS = (
+    "title",
+    "youtube_title",
+    "youtube_description",
+    "youtube_tags",
+    "youtube_privacy",
+    "youtube_category",
+    "publish_at_msk",   # "HH:MM" по Москве; если задано — публикация откладывается до этого времени
+)
+
 # Top-level frontmatter `month` must look like 2026-06.
 _MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
 
@@ -157,6 +168,9 @@ class PlanEntry:
     status: str
     content: str
     verbatim: bool = False  # если True — публиковать content как есть, без Claude-генерации
+    # Необязательные поля записи, которые переходят в draft/queue frontmatter как есть
+    # (видео-посты: youtube_title/description/tags, publish_at_msk и т.п.).
+    extras: dict = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -281,6 +295,7 @@ def parse_plan_text(text: str, plan_path_for_meta: Path) -> Plan:
                 status=str(meta.get("status", "draft")),
                 content=content,
                 verbatim=bool(meta.get("verbatim", False)),
+                extras={k: meta[k] for k in ENTRY_EXTRA_KEYS if k in meta},
             )
         )
 

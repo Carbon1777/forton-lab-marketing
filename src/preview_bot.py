@@ -256,7 +256,7 @@ def _classify_entry_state(entry: PlanEntry, drafts_dir: Path) -> str:
     no draft generation. Bot saw 'published' record and tried to re-generate
     until this guard was added.
     """
-    if entry.status in ("skipped", "approved", "expired", "published"):
+    if entry.status in ("skipped", "approved", "scheduled", "expired", "published"):
         return entry.status
     draft_path = drafts_dir / f"{entry.slug}.md"
     if not draft_path.exists():
@@ -480,6 +480,16 @@ async def _send_preview_for_draft(bot, chat_id: int, draft_path: Path,
 # Path helpers
 # ---------------------------------------------------------------------------
 
+def _before_msk_time(hhmm: str) -> bool:
+    """True, если текущее время по Москве раньше ``HH:MM`` (иначе публикуем сразу)."""
+    try:
+        hh, mm = (int(x) for x in hhmm.split(":", 1))
+    except ValueError:
+        return False
+    now_msk = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=3)
+    return (now_msk.hour, now_msk.minute) < (hh, mm)
+
+
 def _resolve_plan_path(ctx) -> Path:
     """Current month plan path from bot_data."""
     plans_dir = ctx.application.bot_data["plans_dir"]
@@ -554,6 +564,36 @@ async def _handle_publish(query, ctx, slug: str, draft_path: Path) -> None:
             sys.stderr.write("INFO: duplicate publish callback (already removed)\n")
             raise _SoftFail("duplicate publish")
         raise
+
+    # Видео-посты с publish_at_msk («HH:MM» по Москве): одобряем сейчас, публикуем
+    # в назначенное время (publish_scheduled.yml по крону CF в 20:00 МСК).
+    draft = frontmatter.load(draft_path)
+    publish_at = draft.metadata.get("publish_at_msk")
+    if publish_at and _before_msk_time(str(publish_at)):
+        plan_path = _resolve_plan_path(ctx)
+        repo_root = ctx.application.bot_data["repo_root"]
+        try:
+            await asyncio.to_thread(
+                set_entry_status, plan_path, repo_root, slug, "scheduled",
+                {"scheduled_for": str(publish_at),
+                 "scheduled_at": dt.datetime.now(dt.timezone.utc).isoformat()},
+            )
+        except Exception as exc:
+            sys.stderr.write(f"ERROR: schedule mutation failed: {type(exc).__name__}\n")
+            try:
+                await query.message.reply_text(
+                    f"❌ Не удалось запланировать: <code>{type(exc).__name__}</code>",
+                    parse_mode=ParseMode.HTML,
+                )
+            except Exception:
+                pass
+            raise _SoftFail("schedule mutation failed")
+        await query.message.reply_text(
+            f"✅ <b>Одобрено</b>\nSlug: <code>{slug}</code>\n"
+            f"Выйдет во все каналы в {publish_at} МСК.",
+            parse_mode=ParseMode.HTML,
+        )
+        return
 
     # Trigger publish.yml workflow
     try:

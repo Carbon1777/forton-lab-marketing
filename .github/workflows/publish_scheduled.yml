@@ -1,0 +1,39 @@
+name: publish_scheduled
+
+# Отложенные видео-публикации (plan entry status: scheduled).
+# Триггер ТОЛЬКО через workflow_dispatch: Cloudflare Worker `forton-cron-trigger`,
+# cron `0 17 * * *` (= 20:00 МСК). Воркфлоу находит одобренные записи и
+# запускает publish.yml по одной (src/dispatch_scheduled.py).
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-scheduled
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Dispatch due scheduled posts
+        env:
+          BOT_DISPATCH_PAT: ${{ secrets.BOT_DISPATCH_PAT }}
+        run: PYTHONPATH=. python -m src.dispatch_scheduled

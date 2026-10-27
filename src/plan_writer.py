@@ -231,7 +231,7 @@ def plan_sha8(plan_path: Path) -> str:
 import re as _re_p2
 import yaml as _yaml_p2
 
-ALLOWED_ENTRY_STATUSES = {"draft", "approved", "skipped", "expired", "published"}
+ALLOWED_ENTRY_STATUSES = {"draft", "approved", "scheduled", "skipped", "expired", "published"}
 
 # Match fenced ```yaml ... ``` blocks inside plan body. Non-greedy body match,
 # DOTALL so newlines included. Used by _mutate_entry_status to find per-entry

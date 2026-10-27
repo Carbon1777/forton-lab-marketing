@@ -268,6 +268,9 @@ def generate_one(entry: PlanEntry, repo_root: Path,
         daily_regen_count=0,
         plan_date=entry.date.isoformat(),
     )
+    # Видео-посты: youtube_*, title, publish_at_msk из записи плана → draft.
+    for key, value in (getattr(entry, "extras", None) or {}).items():
+        draft.metadata[key] = value
     draft_path = drafts_dir / f"{entry.slug}.md"
     _atomic_write_text(draft_path, frontmatter.dumps(draft))
 
