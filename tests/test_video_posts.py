@@ -262,3 +262,21 @@ def test_build_entry_text_parses_back():
     assert (e.slug, e.verbatim, e.status) == ("s1", True, "draft")
     assert e.extras["publish_at_msk"] == "20:00" and e.extras["youtube_tags"] == ["a", "b"]
     assert e.media[0].role == "video" and e.content == "Тело"
+
+
+# ------------------------------------------------------------ режимы превью (12:00 / 18:00)
+
+def test_entry_in_mode_splits_regular_and_video():
+    plan = parse_plan_text(PLAN, Path("x.md"))
+    video, regular = plan.entries[0], plan.entries[1]   # у v1 есть publish_at_msk
+    assert preview_bot._entry_in_mode(video, "video") and not preview_bot._entry_in_mode(video, "regular")
+    assert preview_bot._entry_in_mode(regular, "regular") and not preview_bot._entry_in_mode(regular, "video")
+
+
+def test_preview_mode_env(monkeypatch):
+    monkeypatch.delenv("PREVIEW_MODE", raising=False)
+    assert preview_bot._preview_mode() == "regular"
+    monkeypatch.setenv("PREVIEW_MODE", "VIDEO")
+    assert preview_bot._preview_mode() == "video"
+    monkeypatch.setenv("PREVIEW_MODE", "что-то")
+    assert preview_bot._preview_mode() == "regular"
