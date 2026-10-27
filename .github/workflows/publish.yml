@@ -151,6 +151,21 @@ jobs:
           fi
           python src/youtube_post.py
 
+      - name: Publish video-bearing posts to Instagram + Facebook Reels (Meta Graph API)
+        env:
+          META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
+          META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
+          META_IG_USER_ID: ${{ secrets.META_IG_USER_ID }}
+        run: |
+          # Без META_PAGE_TOKEN модуль сам пропускает шаг (Meta ещё не настроена).
+          python src/meta_post.py
+
+      - name: Send manual package (VK video / Rutube) to owner DM
+        env:
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+        run: python src/manual_package.py
+
       - name: Update plan entry status → published (workflow_dispatch path)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.slug != '' && success() }}
         env:

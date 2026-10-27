@@ -430,3 +430,64 @@ status: draft
 Листвия подскажет уход для дачных растений по сезону и напомнит, что пора сделать на участке.
 
 Листвия — <a href="https://fortonlab.ru/listvia/">ссылка</a>
+
+## 2026-10-28
+
+```yaml
+slug: video-pipeline-test
+channels:
+- tg
+- vk
+- dzen
+- yt
+- ig
+- fb
+- rutube
+product: listvia
+rubric: test
+verbatim: true
+media:
+- path: assets/video/video-pipeline-test.mp4
+  sha256: 49de952cbe9903891e5aceefeefc72d03fcb5e8df7997abef67325e994e44b65
+  role: video
+status: draft
+youtube_title: Тест публикации Forton Lab
+```
+
+Тестовая публикация видео-конвейера Forton Lab. Этот ролик скоро удалим.
+listviaweb.ru
+
+## 2026-10-30
+
+```yaml
+slug: listvia-promo-01-poliv
+channels:
+- tg
+- vk
+- dzen
+- yt
+- ig
+- fb
+- rutube
+product: listvia
+rubric: promo_video
+verbatim: true
+media:
+- path: assets/video/listvia-promo-01-poliv.mp4
+  sha256: bf0f3df66282b6b852115d81ff32e81a3e2d38de81e3cc5df29ea9371eb5bc4a
+  role: video
+status: draft
+publish_at_msk: '20:00'
+youtube_title: Ты поливаешь растения неправильно?
+youtube_tags:
+- Листвия
+- растения
+- уход за растениями
+- полив
+- комнатные растения
+```
+
+«Поливать всех раз в неделю» — одна из главных ошибок. Листвия считает график полива под конкретное растение: по виду, размеру и материалу горшка, освещению и сезону.
+listviaweb.ru
+
+#Листвия #уходзарастениями #комнатныерастения #поливрастений #растения #Shorts #Reels

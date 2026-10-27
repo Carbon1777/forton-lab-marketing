@@ -28,6 +28,7 @@ const CRON_TO_WORKFLOW = {
 	'7 7 * * mon': 'channel_metrics.yml',
 	'7 12 * * tue': 'funnel_metrics.yml',
 	'0 14 5 * *': 'monthly_report.yml',
+	'0 17 * * *': 'publish_scheduled.yml', // 20:00 МСК — отложенные видео-посты
 };
 
 async function triggerWorkflow(env, workflow) {
