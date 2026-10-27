@@ -103,6 +103,8 @@ def main() -> int:
     for entry in entries:
         if entry.status not in ("draft", None, ""):
             continue
+        if (getattr(entry, "extras", None) or {}).get("publish_at_msk"):
+            continue   # видео-пост: превью в 18:00 МСК вечерним тиком, не дневным
         draft_path = drafts_dir / f"{entry.slug}.md"
         if draft_path.exists():
             continue   # preview already sent (draft cached)

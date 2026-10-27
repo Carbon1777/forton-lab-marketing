@@ -23,15 +23,37 @@ const OWNER = 'Carbon1777';
 const REPO = 'forton-lab-marketing';
 
 const CRON_TO_WORKFLOW = {
-	'0 9 * * *': 'preview_bot.yml',
 	'37 6 * * mon': 'store_metrics.yml',
 	'7 7 * * mon': 'channel_metrics.yml',
 	'7 12 * * tue': 'funnel_metrics.yml',
 	'0 14 5 * *': 'monthly_report.yml',
-	'0 17 * * *': 'publish_scheduled.yml', // 20:00 МСК — отложенные видео-посты
 };
 
-async function triggerWorkflow(env, workflow) {
+// Один cron-триггер на три ежедневных тика (лимит Workers Free: 5 триггеров на аккаунт):
+//   09:00 UTC = 12:00 МСК → preview_bot.yml (обычные посты)
+//   15:00 UTC = 18:00 МСК → preview_bot.yml mode=video (превью видео, за 2 ч до публикации)
+//   17:00 UTC = 20:00 МСК → publish_scheduled.yml (отложенные видео-публикации)
+const DAILY = '0 9,15,17 * * *';
+
+export function resolveDispatch(cron, scheduledTime) {
+	if (cron === DAILY) {
+		const hour = new Date(scheduledTime).getUTCHours();
+		if (hour === 9) return { workflow: 'preview_bot.yml' };
+		if (hour === 15) return { workflow: 'preview_bot.yml', inputs: { mode: 'video' } };
+		if (hour === 17) return { workflow: 'publish_scheduled.yml' };
+		return null;
+	}
+	const workflow = CRON_TO_WORKFLOW[cron];
+	return workflow ? { workflow } : null;
+}
+
+const ALLOWED_WORKFLOWS = new Set([
+	...Object.values(CRON_TO_WORKFLOW),
+	'preview_bot.yml',
+	'publish_scheduled.yml',
+]);
+
+async function triggerWorkflow(env, workflow, inputs) {
 	const url = `https://api.github.com/repos/${OWNER}/${REPO}/actions/workflows/${workflow}/dispatches`;
 	const res = await fetch(url, {
 		method: 'POST',
@@ -41,7 +63,7 @@ async function triggerWorkflow(env, workflow) {
 			'X-GitHub-Api-Version': '2022-11-28',
 			'User-Agent': 'forton-cron-trigger',
 		},
-		body: JSON.stringify({ ref: 'main' }),
+		body: JSON.stringify(inputs ? { ref: 'main', inputs } : { ref: 'main' }),
 	});
 	return { status: res.status, body: await res.text() };
 }
@@ -50,13 +72,13 @@ export default {
 	async scheduled(event, env, ctx) {
 		// Регистр/пробелы нормализуем: ключи в CRON_TO_WORKFLOW — lowercase.
 		const cron = String(event.cron).trim().toLowerCase().replace(/\s+/g, ' ');
-		const workflow = CRON_TO_WORKFLOW[cron];
-		if (!workflow) {
+		const target = resolveDispatch(cron, event.scheduledTime);
+		if (!target) {
 			console.log('UNKNOWN cron — no workflow mapped:', event.cron);
 			return;
 		}
-		const r = await triggerWorkflow(env, workflow);
-		console.log('scheduled dispatch', event.cron, '→', workflow, r.status, r.body.slice(0, 200));
+		const r = await triggerWorkflow(env, target.workflow, target.inputs);
+		console.log('scheduled dispatch', event.cron, '→', target.workflow, JSON.stringify(target.inputs || {}), r.status, r.body.slice(0, 200));
 	},
 	async fetch(request, env, ctx) {
 		const u = new URL(request.url);
@@ -64,13 +86,14 @@ export default {
 		// /trigger?wf=X.yml → triggers X.yml (must be in CRON_TO_WORKFLOW values)
 		if (u.pathname !== '/trigger') return new Response('OK', { status: 200 });
 		const workflow = u.searchParams.get('wf') || 'preview_bot.yml';
-		if (!Object.values(CRON_TO_WORKFLOW).includes(workflow)) {
+		if (!ALLOWED_WORKFLOWS.has(workflow)) {
 			return new Response(JSON.stringify({ error: 'workflow not in allowlist', workflow }), {
 				status: 400,
 				headers: { 'content-type': 'application/json' },
 			});
 		}
-		const r = await triggerWorkflow(env, workflow);
+		const mode = u.searchParams.get('mode');   // preview_bot.yml?mode=video
+		const r = await triggerWorkflow(env, workflow, mode ? { mode } : undefined);
 		return new Response(JSON.stringify({ workflow, ...r }), {
 			status: r.status === 204 ? 200 : r.status,
 			headers: { 'content-type': 'application/json' },

@@ -480,6 +480,21 @@ async def _send_preview_for_draft(bot, chat_id: int, draft_path: Path,
 # Path helpers
 # ---------------------------------------------------------------------------
 
+PREVIEW_MODES: Final[tuple[str, ...]] = ("regular", "video")
+
+
+def _entry_in_mode(entry, mode: str) -> bool:
+    """regular — обычные посты (дневной тик 12:00 МСК); video — записи с
+    ``publish_at_msk`` (вечерний тик 18:00 МСК, за 2 часа до публикации в 20:00)."""
+    deferred = bool((getattr(entry, "extras", None) or {}).get("publish_at_msk"))
+    return deferred if mode == "video" else not deferred
+
+
+def _preview_mode() -> str:
+    mode = os.environ.get("PREVIEW_MODE", "regular").strip().lower()
+    return mode if mode in PREVIEW_MODES else "regular"
+
+
 def _before_msk_time(hhmm: str) -> bool:
     """True, если текущее время по Москве раньше ``HH:MM`` (иначе публикуем сразу)."""
     try:
@@ -1017,9 +1032,10 @@ async def pre_flight_generate(app: Application | None, ctx_dict: dict) -> dict:
         return {"should_poll": False, "pending_slugs": []}
 
     today = _today_msk()
-    entries = get_today_entries(plan, today)
+    mode = ctx_dict.get("mode", "regular")
+    entries = [e for e in get_today_entries(plan, today) if _entry_in_mode(e, mode)]
     if not entries:
-        sys.stderr.write(f"INFO: no entries for {today.isoformat()}\n")
+        sys.stderr.write(f"INFO: no {mode} entries for {today.isoformat()}\n")
         return {"should_poll": False, "pending_slugs": []}
 
     drafts_dir = ctx_dict["drafts_dir"]
@@ -1195,6 +1211,7 @@ def main() -> None:
         "bot": app.bot,
         "owner_chat_id": owner_user_id,
         "preview_chat_id": preview_chat_id,
+        "mode": _preview_mode(),
     }
 
     # Pre-flight + run_polling должны делить ОДИН event loop, иначе

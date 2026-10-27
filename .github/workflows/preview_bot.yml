@@ -16,7 +16,14 @@ on:
   #
   # CF Worker source-of-truth: marketing-v3/cf-worker/forton-cron-trigger/
   # (2026-05-26: расширен на funnel_metrics.yml + centry_funnel.yml).
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "regular = обычные посты (12:00 МСК); video = видео-посты с publish_at_msk (18:00 МСК)"
+        required: false
+        type: choice
+        options: [regular, video]
+        default: regular
 
 permissions:
   # Bot reads (checkout); все mutations через BOT_DISPATCH_PAT (Contents API),
@@ -87,4 +94,5 @@ jobs:
           BOT_DISPATCH_PAT: ${{ secrets.BOT_DISPATCH_PAT }}
           REPO_OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
+          PREVIEW_MODE: ${{ inputs.mode || 'regular' }}
         run: PYTHONPATH=. python -m src.preview_bot
