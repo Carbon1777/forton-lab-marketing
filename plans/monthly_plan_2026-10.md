@@ -476,7 +476,7 @@ media:
 - path: assets/video/listvia-promo-01-poliv.mp4
   sha256: bf0f3df66282b6b852115d81ff32e81a3e2d38de81e3cc5df29ea9371eb5bc4a
   role: video
-status: scheduled
+status: published
 publish_at_msk: '20:00'
 youtube_title: Ты поливаешь растения неправильно?
 youtube_tags:
@@ -487,6 +487,7 @@ youtube_tags:
 - комнатные растения
 scheduled_for: '20:00'
 scheduled_at: '2026-10-28T15:03:52.141147+00:00'
+published_at: '2026-10-28T17:05:06.130722+00:00'
 ```
 
 «Поливать всех раз в неделю» — одна из главных ошибок. Листвия считает график полива под конкретное растение: по виду, размеру и материалу горшка, освещению и сезону.
