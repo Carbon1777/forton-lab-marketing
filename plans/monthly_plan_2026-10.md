@@ -450,7 +450,7 @@ media:
 - path: assets/video/video-pipeline-test.mp4
   sha256: 49de952cbe9903891e5aceefeefc72d03fcb5e8df7997abef67325e994e44b65
   role: video
-status: draft
+status: published
 youtube_title: Тест публикации Forton Lab
 ```
 
