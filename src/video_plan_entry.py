@@ -13,7 +13,11 @@
 для TG/Дзена), вертикаль 9:16 и длительность, считает sha256, прогоняет текст
 через brand-lint и дописывает секцию ``## YYYY-MM-DD`` в план месяца.
 План месяца должен уже существовать. Запись создаётся со статусом ``draft``:
-preview_bot пришлёт превью в 12:00 МСК даты публикации.
+preview_bot пришлёт превью в 18:00 МСК даты публикации (при ``publish_at_msk``).
+
+Если плана месяца ещё нет, добавьте ``--stage``: запись кладётся в
+``plans/video_entries/<дата>_<slug>.md``, а после генерации плана её дописывает
+``src.apply_video_entries`` (шаг в monthly_plan.yml).
 """
 from __future__ import annotations
 
@@ -33,6 +37,7 @@ from src.plan_reader import parse_plan_text, sha256_of_file
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PLANS_DIR = REPO_ROOT / "plans"
+ENTRIES_DIR = PLANS_DIR / "video_entries"
 VIDEO_DIR = REPO_ROOT / "assets" / "video"
 TG_DZEN_LIMIT = 19 * 1024 * 1024
 DEFAULT_CHANNELS = ["tg", "vk", "dzen", "yt", "ig", "fb", "rutube"]
@@ -105,11 +110,18 @@ def build_entry_text(*, date: dt.date, slug: str, channels: list[str], product: 
 def add_entry(args: argparse.Namespace) -> Path:
     date = dt.date.fromisoformat(args.date)
     plan_path = PLANS_DIR / f"monthly_plan_{date.strftime('%Y-%m')}.md"
-    if not plan_path.exists():
-        raise SystemExit(f"план месяца не найден: {plan_path.name} — сначала нужен план этого месяца")
-    plan_text = plan_path.read_text(encoding="utf-8")
-    if re.search(rf"^slug: {re.escape(args.slug)}\s*$", plan_text, re.M):
-        raise SystemExit(f"slug {args.slug!r} уже есть в {plan_path.name}")
+    stage = bool(getattr(args, "stage", False))
+    if stage:
+        plan_text = ""
+        staged_path = ENTRIES_DIR / f"{date.isoformat()}_{args.slug}.md"
+        if staged_path.exists():
+            raise SystemExit(f"{staged_path.name} уже есть в plans/video_entries/")
+    else:
+        if not plan_path.exists():
+            raise SystemExit(f"план месяца не найден: {plan_path.name} — добавьте --stage или дождитесь плана")
+        plan_text = plan_path.read_text(encoding="utf-8")
+        if re.search(rf"^slug: {re.escape(args.slug)}\s*$", plan_text, re.M):
+            raise SystemExit(f"slug {args.slug!r} уже есть в {plan_path.name}")
 
     src_video = Path(args.video).expanduser().resolve()
     VIDEO_DIR.mkdir(parents=True, exist_ok=True)
@@ -140,6 +152,11 @@ def add_entry(args: argparse.Namespace) -> Path:
         publish_at=args.publish_at, youtube_title=yt_title,
         youtube_tags=[t for t in (args.youtube_tags or "").split(",") if t],
     )
+    if stage:
+        parse_plan_text(f"---\nmonth: {date.strftime('%Y-%m')}\n---\n# stage\n{entry}", staged_path)    # секция должна парситься как запись плана
+        ENTRIES_DIR.mkdir(parents=True, exist_ok=True)
+        staged_path.write_text(entry.lstrip("\n"), encoding="utf-8")
+        return staged_path
     new_text = plan_text.rstrip() + "\n" + entry
     parse_plan_text(new_text, plan_path)          # не ломаем план: валидируем до записи
     plan_path.write_text(new_text, encoding="utf-8")
@@ -162,13 +179,15 @@ def main(argv: list[str] | None = None) -> int:
     src.add_argument("--descriptions", help="путь к описания.txt (вместе с --number)")
     src.add_argument("--text-file", help="файл с текстом поста")
     ap.add_argument("--number", type=int, help="номер блока в описания.txt")
+    ap.add_argument("--stage", action="store_true",
+                    help="плана месяца ещё нет: положить запись в plans/video_entries/")
     args = ap.parse_args(argv)
     if args.descriptions and not args.number:
         ap.error("--descriptions требует --number")
     if args.publish_at == "":
         args.publish_at = None
     path = add_entry(args)
-    print(f"✓ запись {args.slug} добавлена в {path.name}")
+    print(f"✓ запись {args.slug} → {path.name}")
     return 0
 
 

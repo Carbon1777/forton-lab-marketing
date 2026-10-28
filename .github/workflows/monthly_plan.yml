@@ -87,6 +87,14 @@ jobs:
           PYTHONPATH=. python -m src.monthly_plan_generator
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
+      - name: Apply staged video entries (success only)
+        if: steps.gen.outputs.rc == '0'
+        run: |
+          MONTH="${MONTH_OVERRIDE:-$(date -u +%Y-%m)}"
+          PYTHONPATH=. python -m src.apply_video_entries --month "$MONTH"
+        env:
+          MONTH_OVERRIDE: ${{ inputs.month }}
+
       - name: Commit draft (success only)
         if: steps.gen.outputs.rc == '0'
         run: |

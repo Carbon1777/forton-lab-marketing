@@ -493,3 +493,39 @@ scheduled_at: '2026-10-28T15:03:52.141147+00:00'
 listviaweb.ru
 
 #Листвия #уходзарастениями #комнатныерастения #поливрастений #растения #Shorts #Reels
+
+## 2026-10-30
+
+```yaml
+slug: listvia-promo-02-opredelitel
+channels:
+- tg
+- vk
+- dzen
+- yt
+- ig
+- fb
+- rutube
+product: listvia
+rubric: promo_video
+verbatim: true
+media:
+- path: assets/video/listvia-promo-02-opredelitel.mp4
+  sha256: 6803997965df6176fb0dd77e182415f3beb84bff450401748c3cf7c9622ca4c9
+  role: video
+status: draft
+publish_at_msk: '20:00'
+youtube_title: Не знаешь, что это за растение? Сфотографируй, и Листвия узнает вид
+  и сразу предложит уход. А если в
+youtube_tags:
+- Листвия
+- определительрастений
+- комнатныерастения
+- растенияпофото
+- цветы
+```
+
+Не знаешь, что это за растение? Сфотографируй, и Листвия узнает вид и сразу предложит уход. А если вида нет в каталоге, ИИ соберёт карточку ухода именно для твоего растения. В каталоге 800+ видов.
+listviaweb.ru
+
+#Листвия #определительрастений #комнатныерастения #растенияпофото #цветы #Shorts #Reels
