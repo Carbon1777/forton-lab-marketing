@@ -457,7 +457,7 @@ youtube_title: Тест публикации Forton Lab
 Тестовая публикация видео-конвейера Forton Lab. Этот ролик скоро удалим.
 listviaweb.ru
 
-## 2026-10-30
+## 2026-10-28
 
 ```yaml
 slug: listvia-promo-01-poliv
