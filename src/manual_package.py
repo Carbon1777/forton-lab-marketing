@@ -36,8 +36,16 @@ def _plain(text: str) -> str:
     return re.sub(r"<[^>]+>", "", text).strip()
 
 
+def _manual_channels() -> tuple[str, ...]:
+    # Пока Meta API не настроен (нет токена), Instagram/Facebook выкладываются вручную
+    # (Claude через Chrome → Business Suite); с токеном их берёт meta_post.py.
+    if os.environ.get("META_PAGE_TOKEN"):
+        return MANUAL_CHANNELS
+    return MANUAL_CHANNELS + ("ig", "fb")
+
+
 def targets(post: frontmatter.Post) -> list[str]:
-    return [c for c in MANUAL_CHANNELS if c in (post.metadata.get("channels") or [])]
+    return [c for c in _manual_channels() if c in (post.metadata.get("channels") or [])]
 
 
 def find_pending_files() -> list[Path]:
@@ -52,7 +60,9 @@ def find_pending_files() -> list[Path]:
 
 
 def build_header(post: frontmatter.Post, slug: str) -> str:
-    where = " и ".join({"vk": "VK (прикрепить видео к посту)", "rutube": "Rutube (загрузить в Студии)"}[c]
+    where = " и ".join({"vk": "VK (прикрепить видео к посту)", "rutube": "Rutube (загрузить в Студии)",
+                        "ig": "Instagram Reels (скажи Claude «выложи в инсту»)",
+                        "fb": "Facebook Reels (скажи Claude «выложи в фб»)"}[c]
                        for c in targets(post))
     return f"📦 Ролик для ручной выкладки: {where}\nСлаг: {slug}"
 
