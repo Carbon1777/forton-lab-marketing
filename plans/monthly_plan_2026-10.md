@@ -378,7 +378,8 @@ media:
 - path: assets/posts/2026-10/lapulya-oct29-privivka.png
   sha256: 35a0b3ecc0386679d85a4874edf3e61ea0bfa6ba64470ffb569039fa3d224d09
   role: image
-status: draft
+status: published
+published_at: '2026-10-29T09:06:06.881880+00:00'
 ```
 
 Прививку сделали год назад, и вроде всё в порядке. Но защита от прививки не вечная — со временем она слабеет, а срок легко пропустить 🐾
