@@ -8,12 +8,15 @@ channels:
 - fb
 - rutube
 daily_regen_count: 0
+fb_video_id: manual
 generated_at: '2026-10-30T15:02:06.946480+00:00'
+ig_media_id: manual
 image: null
 media:
 - path: assets/video/listvia-promo-02-opredelitel.mp4
   role: video
   sha256: 6803997965df6176fb0dd77e182415f3beb84bff450401748c3cf7c9622ca4c9
+meta_posted_at: '2026-10-30T17:00:00+00:00'
 plan_date: '2026-10-30'
 preview_message_id: 993
 product: listvia

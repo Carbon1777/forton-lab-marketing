@@ -8,13 +8,16 @@ channels:
 - fb
 - rutube
 daily_regen_count: 1
+fb_video_id: manual
 generated_at: '2026-10-28T15:01:46.549194+00:00'
+ig_media_id: manual
 image: null
 last_edited_at: '2026-10-28T15:03:45.020699+00:00'
 media:
 - path: assets/video/listvia-promo-01-poliv.mp4
   role: video
   sha256: bf0f3df66282b6b852115d81ff32e81a3e2d38de81e3cc5df29ea9371eb5bc4a
+meta_posted_at: '2026-10-28T16:53:00+00:00'
 plan_date: '2026-10-28'
 preview_message_id: 971
 product: listvia
