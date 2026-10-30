@@ -515,7 +515,7 @@ media:
 - path: assets/video/listvia-promo-02-opredelitel.mp4
   sha256: 6803997965df6176fb0dd77e182415f3beb84bff450401748c3cf7c9622ca4c9
   role: video
-status: scheduled
+status: published
 publish_at_msk: '20:00'
 youtube_title: Не знаешь, что это за растение?
 youtube_tags:
@@ -526,6 +526,7 @@ youtube_tags:
 - цветы
 scheduled_for: '20:00'
 scheduled_at: '2026-10-30T15:09:54.228651+00:00'
+published_at: '2026-10-30T17:03:47.883357+00:00'
 ```
 
 Не знаешь, что это за растение? Сфотографируй, и Листвия узнает вид и сразу предложит уход. А если вида нет в каталоге, ИИ соберёт карточку ухода именно для твоего растения. В каталоге 800+ видов.
