@@ -21,7 +21,8 @@ frontmatter ``ig_media_id`` / ``fb_video_id`` / ``meta_posted_at``.
 Переменные окружения (GitHub Secrets):
     META_PAGE_TOKEN     — Page access token (бессрочный, из долгоживущего user-токена)
     META_PAGE_ID        — id страницы Facebook «Forton Lab»
-    META_IG_USER_ID     — id Instagram Business аккаунта (forton_lab)
+    META_IG_USER_ID     — id Instagram Business аккаунта (forton_lab); необязательно:
+                          если не задан, берётся из страницы (instagram_business_account)
     META_GRAPH_VERSION  — необязательно, по умолчанию v25.0
 
 Ограничения Reels через API: MP4/MOV, H.264, до 90 c, вертикаль 9:16.
@@ -215,6 +216,27 @@ def find_pending_files() -> list[Path]:
     return pending
 
 
+def discover_page_assets(page_id: str, token: str) -> tuple[str, str | None]:
+    """По id страницы берёт токен страницы и id привязанного Instagram-аккаунта.
+
+    Токен системного пользователя (бессрочный) публикует через токен страницы, а
+    ``META_IG_USER_ID`` можно не задавать: он читается из ``instagram_business_account``.
+    Любая ошибка → (исходный токен, None): остаётся прежнее поведение.
+    """
+    try:
+        resp = requests.get(
+            f"{GRAPH}/{version()}/{page_id}",
+            params={"fields": "access_token,instagram_business_account", "access_token": token},
+            timeout=HTTP_TIMEOUT,
+        )
+        data = _check(resp, "page lookup")
+    except Exception as exc:
+        sys.stderr.write(f"WARN: page lookup failed: {exc}\n")
+        return token, None
+    ig = (data.get("instagram_business_account") or {}).get("id")
+    return data.get("access_token") or token, ig
+
+
 def publish_one(post_path: Path, *, token: str, page_id: str | None,
                 ig_user_id: str | None) -> list[str]:
     """Публикует недостающие каналы. Возвращает список ошибок (пусто = всё ок)."""
@@ -272,6 +294,9 @@ def main() -> int:
         return 0
     page_id = os.environ.get("META_PAGE_ID")
     ig_user_id = os.environ.get("META_IG_USER_ID")
+    if page_id:
+        token, found_ig = discover_page_assets(page_id, token)
+        ig_user_id = ig_user_id or found_ig
 
     failures = 0
     for p in pending:
