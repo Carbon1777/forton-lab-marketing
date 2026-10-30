@@ -19,8 +19,7 @@ media:
   role: video
 status: draft
 publish_at_msk: '20:00'
-youtube_title: 'Дача, где нет связи? Листвия работает без интернета. Режим дачи и
-  огорода: томаты, огурцы и рассада '
+youtube_title: Дача, где нет связи?
 youtube_tags:
 - Листвия
 - дача
