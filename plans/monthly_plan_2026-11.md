@@ -430,3 +430,472 @@ status: draft
 Lucea собирает три зеркала в одном месте: голос, звёзды и числа, чтобы лучше понять себя и увидеть, как ты меняешься.
 
 Lucea — luceaweb.ru · 18+
+
+## 2026-11-02
+
+```yaml
+slug: listvia-promo-03-diagnostika
+channels:
+- tg
+- vk
+- dzen
+- yt
+- ig
+- fb
+- rutube
+product: listvia
+rubric: promo_video
+verbatim: true
+media:
+- path: assets/video/listvia-promo-03-diagnostika.mp4
+  sha256: 9250c792928d3faf64b07a497db913ddeb57484e8a4d1d3fb5c10f7dd8056b40
+  role: video
+status: draft
+publish_at_msk: '20:00'
+youtube_title: Желтеют листья, появились пятна, растение вянет?
+youtube_tags:
+- Листвия
+- болезнирастений
+- желтыелистья
+- комнатныерастения
+- уходзарастениями
+```
+
+Желтеют листья, появились пятна, растение вянет? Отметь симптомы или сфотографируй лист, и Листвия подскажет вероятную причину и что делать. Честно: это помощник, а не агроном.
+listviaweb.ru
+
+#Листвия #болезнирастений #желтыелистья #комнатныерастения #уходзарастениями #Shorts #Reels
+
+## 2026-11-04
+
+```yaml
+slug: listvia-promo-04-dacha
+channels:
+- tg
+- vk
+- dzen
+- yt
+- ig
+- fb
+- rutube
+product: listvia
+rubric: promo_video
+verbatim: true
+media:
+- path: assets/video/listvia-promo-04-dacha.mp4
+  sha256: 32d4463aa217c4c368c3cb4c488d1f83c51e23b09ed97eb8ffeb46f2dafb8afe
+  role: video
+status: draft
+publish_at_msk: '20:00'
+youtube_title: Дача, где нет связи?
+youtube_tags:
+- Листвия
+- дача
+- огород
+- рассада
+- томаты
+- календарьсадовода
+```
+
+Дача, где нет связи? Листвия работает без интернета. Режим дачи и огорода: томаты, огурцы и рассада по фазам сезона, с привязкой к заморозкам твоего региона, плюс календарь садовода.
+listviaweb.ru
+
+#Листвия #дача #огород #рассада #томаты #календарьсадовода #Shorts #Reels
+
+## 2026-11-06
+
+```yaml
+slug: listvia-promo-05-koshka
+channels:
+- tg
+- vk
+- dzen
+- yt
+- ig
+- fb
+- rutube
+product: listvia
+rubric: promo_video
+verbatim: true
+media:
+- path: assets/video/listvia-promo-05-koshka.mp4
+  sha256: de48f7b1d609fe963676ac63e280d6b7901d0c160ff0cd29ccc650cb9505e02d
+  role: video
+status: draft
+publish_at_msk: '20:00'
+youtube_title: Кошка грызёт цветок. Это опасно?
+youtube_tags:
+- Листвия
+- растенияикошки
+- безопасностьпитомцев
+- комнатныерастения
+- кошки
+```
+
+Кошка грызёт цветок. Это опасно? В карточке каждого растения в Листвии есть токсичность для кошек и собак. Проверь до покупки. Если питомец съел растение, обратись к ветеринару.
+listviaweb.ru
+
+#Листвия #растенияикошки #безопасностьпитомцев #комнатныерастения #кошки #Shorts #Reels
+
+## 2026-11-09
+
+```yaml
+slug: listvia-promo-06-napominaniya
+channels:
+- tg
+- vk
+- dzen
+- yt
+- ig
+- fb
+- rutube
+product: listvia
+rubric: promo_video
+verbatim: true
+media:
+- path: assets/video/listvia-promo-06-napominaniya.mp4
+  sha256: 74e75a138127362a529469fb95f654355762b585d9ddc5bef98a6525b4719331
+  role: video
+status: draft
+publish_at_msk: '20:00'
+youtube_title: Цветок опять остался без воды?
+youtube_tags:
+- Листвия
+- напоминанияополиве
+- комнатныерастения
+- уходзарастениями
+- растения
+```
+
+Цветок опять остался без воды? Экран «Сегодня» собирает все задачи дня: полив, подкормку, обрезку, пересадку. Отметил одним тапом. Без рекламы, по-русски.
+listviaweb.ru
+
+#Листвия #напоминанияополиве #комнатныерастения #уходзарастениями #растения #Shorts #Reels
+
+## 2026-11-11
+
+```yaml
+slug: lucea-promo-01-horoscope
+channels:
+- tg
+- vk
+- dzen
+- yt
+- ig
+- fb
+- rutube
+product: lucea
+rubric: promo_video
+verbatim: true
+media:
+- path: assets/video/lucea-promo-01-horoscope.mp4
+  sha256: 92ec25d28f024c404603bd32352f992a622e940551afb691043794d65da380cb
+  role: video
+status: draft
+publish_at_msk: '20:00'
+youtube_title: Гороскоп один на всех. А ты — один.
+youtube_tags:
+- Lucea
+- самопознание
+- гороскоп
+- натальнаякарта
+- нумерология
+```
+
+Гороскоп один на всех. А ты — один.
+Lucea собирает три зеркала: твой голос, твои звёзды и твои числа. Расскажи, как прошёл день, а приложение запомнит и поможет увидеть себя.
+Скачать: luceaweb.ru · 18+
+
+#Lucea #самопознание #гороскоп #натальнаякарта #нумерология #Shorts #Reels
+
+## 2026-11-13
+
+```yaml
+slug: lucea-promo-02-memory
+channels:
+- tg
+- vk
+- dzen
+- yt
+- ig
+- fb
+- rutube
+product: lucea
+rubric: promo_video
+verbatim: true
+media:
+- path: assets/video/lucea-promo-02-memory.mp4
+  sha256: 2eb09cce2e14e7da51b2b9262a2b6769a95f3d470182dff55a9ebb1d93ac7ce3
+  role: video
+status: draft
+publish_at_msk: '20:00'
+youtube_title: Обычный чат забывает тебя к утру. Lucea — нет.
+youtube_tags:
+- Lucea
+- ИИ
+- самопознание
+- личныйдневник
+- осознанность
+```
+
+Обычный чат забывает тебя к утру. Lucea — нет.
+Она помнит твою историю: что вымотало вчера и о чём ты говорил на прошлой неделе. И спрашивает с этого места, а не с нуля.
+luceaweb.ru · 18+
+
+#Lucea #ИИ #самопознание #личныйдневник #осознанность #Shorts #Reels
+
+## 2026-11-16
+
+```yaml
+slug: lucea-promo-03-evening
+channels:
+- tg
+- vk
+- dzen
+- yt
+- ig
+- fb
+- rutube
+product: lucea
+rubric: promo_video
+verbatim: true
+media:
+- path: assets/video/lucea-promo-03-evening.mp4
+  sha256: 4b6ab41198bd58259e65ad10a63847fd1dfee626f9b0955bc2dd227201b2fc11
+  role: video
+status: draft
+publish_at_msk: '20:00'
+youtube_title: Три часа в ленте. А три минуты с собой?
+youtube_tags:
+- Lucea
+- вечернийритуал
+- осознанность
+- самопознание
+- дневник
+```
+
+Три часа в ленте. А три минуты с собой?
+Вечером просто расскажи вслух, как прошёл день. Lucea выслушает, запомнит и поможет заметить то, что обычно ускользает.
+luceaweb.ru · 18+
+
+#Lucea #вечернийритуал #осознанность #самопознание #дневник #Shorts #Reels
+
+## 2026-11-18
+
+```yaml
+slug: lucea-promo-04-stars
+channels:
+- tg
+- vk
+- dzen
+- yt
+- ig
+- fb
+- rutube
+product: lucea
+rubric: promo_video
+verbatim: true
+media:
+- path: assets/video/lucea-promo-04-stars.mp4
+  sha256: c4918f0d10950899593b5675f09b8e7e159c31d0787820bfb0f67bb946c57f3d
+  role: video
+status: draft
+publish_at_msk: '20:00'
+youtube_title: Ты — не просто знак зодиака.
+youtube_tags:
+- Lucea
+- натальнаякарта
+- астрология
+- гороскоп
+- знакзодиака
+```
+
+Ты — не просто знак зодиака.
+Знак — это только Солнце. В натальной карте ещё Луна и Асцендент: твоя суть, то, что нужно тебе внутри, и то, как тебя видят. Lucea разберёт твою карту простым языком.
+luceaweb.ru · 18+
+
+#Lucea #натальнаякарта #астрология #гороскоп #знакзодиака #Shorts #Reels
+
+## 2026-11-20
+
+```yaml
+slug: lucea-promo-05-numbers
+channels:
+- tg
+- vk
+- dzen
+- yt
+- ig
+- fb
+- rutube
+product: lucea
+rubric: promo_video
+verbatim: true
+media:
+- path: assets/video/lucea-promo-05-numbers.mp4
+  sha256: 78335c83e500ac690d722fda4a94d91db7285accf0f27e83697c6bd1c16503ca
+  role: video
+status: draft
+publish_at_msk: '20:00'
+youtube_title: Одна дата. Девять клеток. Что у тебя пустое?
+youtube_tags:
+- Lucea
+- нумерология
+- квадратПифагора
+- матрицасудьбы
+- самопознание
+```
+
+Одна дата. Девять клеток. Что у тебя пустое?
+Квадрат Пифагора по дате рождения: какие качества выражены ярко, а где пустая клетка. Это не приговор, а повод задуматься. Lucea посчитает и объяснит.
+luceaweb.ru · 18+
+
+#Lucea #нумерология #квадратПифагора #матрицасудьбы #самопознание #Shorts #Reels
+
+## 2026-11-23
+
+```yaml
+slug: lucea-promo-06-questions
+channels:
+- tg
+- vk
+- dzen
+- yt
+- ig
+- fb
+- rutube
+product: lucea
+rubric: promo_video
+verbatim: true
+media:
+- path: assets/video/lucea-promo-06-questions.mp4
+  sha256: 5ce40ac21520cf647ab8d59a5edd644ea058bcbfb157e435949266a9b5126e8b
+  role: video
+status: draft
+publish_at_msk: '20:00'
+youtube_title: '3 вопроса себе на сегодня:'
+youtube_tags:
+- Lucea
+- вопросысебе
+- самопознание
+- рефлексия
+- осознанность
+```
+
+3 вопроса себе на сегодня:
+1. Что тебя сейчас выматывает больше всего?
+2. Что ты откладываешь — и почему?
+3. Чего ты ждёшь от себя через год?
+Ответь вслух, а Lucea запомнит и вернётся к этому позже.
+luceaweb.ru · 18+
+
+#Lucea #вопросысебе #самопознание #рефлексия #осознанность #Shorts #Reels
+
+## 2026-11-25
+
+```yaml
+slug: diktum-promo-01-parazity
+channels:
+- tg
+- vk
+- dzen
+- yt
+- ig
+- fb
+- rutube
+product: diktum
+rubric: promo_video
+verbatim: true
+media:
+- path: assets/video/diktum-promo-01-parazity.mp4
+  sha256: cf2b295c08b295df23902026803b04bd13eb7e24d17060264216df951fe91af3
+  role: video
+status: draft
+publish_at_msk: '20:00'
+youtube_title: Сколько раз ты сказал "как бы"?
+youtube_tags:
+- Diktum
+- словапаразиты
+- речь
+- ораторскоемастерство
+- красиваяречь
+- софтскиллс
+- тренажёрречи
+```
+
+Слова-паразиты слышат все, кроме тебя самого. Diktum считает «ну», «э-э» и «как бы» в твоей речи, оценивает от 0 до 100 и показывает, где именно сбиваешься — с цитатами из твоей записи. Попробуй 30 секунд: diktumweb.ru
+
+#Diktum #словапаразиты #речь #ораторскоемастерство #красиваяречь #софтскиллс #тренажёрречи
+
+## 2026-11-27
+
+```yaml
+slug: diktum-promo-02-sobesedovanie
+channels:
+- tg
+- vk
+- dzen
+- yt
+- ig
+- fb
+- rutube
+product: diktum
+rubric: promo_video
+verbatim: true
+media:
+- path: assets/video/diktum-promo-02-sobesedovanie.mp4
+  sha256: 0dfb53eb86eabe9aa31ea52af6be3ab1b53afd39ff79b6610b930717f41f45ea
+  role: video
+status: draft
+publish_at_msk: '20:00'
+youtube_title: Знал ответы, но завалил собеседование?
+youtube_tags:
+- Diktum
+- собеседование
+- интервью
+- карьера
+- поискработы
+- STAR
+- HR
+- софтскиллс
+```
+
+На интервью решает не только что ты говоришь, но и как. В Diktum вставляешь вакансию и резюме, а ИИ проводит три этапа — HR, руководитель, директор — и оценивает каждый ответ, в том числе по структуре STAR. Отрепетируй заранее: diktumweb.ru
+
+#Diktum #собеседование #интервью #карьера #поискработы #STAR #HR #софтскиллс
+
+## 2026-11-30
+
+```yaml
+slug: diktum-promo-03-temp
+channels:
+- tg
+- vk
+- dzen
+- yt
+- ig
+- fb
+- rutube
+product: diktum
+rubric: promo_video
+verbatim: true
+media:
+- path: assets/video/diktum-promo-03-temp.mp4
+  sha256: b66c0467524f4c4470c5958cd1c51f71d70649ceefcfc78317a0d81b5e0f1165
+  role: video
+status: draft
+publish_at_msk: '20:00'
+youtube_title: Ты говоришь слишком быстро?
+youtube_tags:
+- Diktum
+- темпречи
+- речь
+- публичныевыступления
+- дикция
+- ораторскоемастерство
+- тренировкаречи
+```
+
+Слишком быстро — не успевают понять. Слишком медленно — теряют интерес. Diktum измеряет темп в словах в минуту, паузы и произношение и показывает динамику неделя за неделей. Узнай свой темп: diktumweb.ru
+
+#Diktum #темпречи #речь #публичныевыступления #дикция #ораторскоемастерство #тренировкаречи
