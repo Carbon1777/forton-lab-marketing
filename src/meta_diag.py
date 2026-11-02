@@ -23,8 +23,20 @@ def call(path: str, token: str, **params) -> dict:
     return {"http": r.status_code, **({"error": data["error"]} if "error" in data else {"data": data})}
 
 
+SECRET_KEYS = {"access_token", "token", "client_secret", "refresh_token"}
+
+
+def scrub(o):
+    """Рекурсивно прячет значения секретных ключей (репозиторий публичный — логи видны всем)."""
+    if isinstance(o, dict):
+        return {k: ("<скрыто>" if k in SECRET_KEYS else scrub(v)) for k, v in o.items()}
+    if isinstance(o, list):
+        return [scrub(x) for x in o]
+    return o
+
+
 def mask(d):
-    s = json.dumps(d, ensure_ascii=False, default=str)
+    s = json.dumps(scrub(d), ensure_ascii=False, default=str)
     for k in ("META_PAGE_TOKEN",):
         v = os.environ.get(k)
         if v:
