@@ -7,8 +7,6 @@ channels:
 - vk
 - dzen
 - yt
-- ig
-- fb
 - rutube
 product: diktum
 rubric: promo_video
