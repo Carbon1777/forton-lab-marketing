@@ -152,6 +152,10 @@ jobs:
           python src/youtube_post.py
 
       - name: Publish video-bearing posts to Instagram + Facebook Reels (Meta Graph API)
+        id: meta
+        # Ошибка Meta не должна блокировать запись статуса и коммит: TG/VK/YouTube к этому
+        # моменту уже опубликованы, потеря статуса привела бы к повторной публикации.
+        continue-on-error: true
         env:
           META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
           META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
@@ -159,6 +163,18 @@ jobs:
         run: |
           # Без META_PAGE_TOKEN модуль сам пропускает шаг (Meta ещё не настроена).
           python src/meta_post.py
+
+      - name: Notify owner if Instagram/Facebook failed
+        if: ${{ steps.meta.outcome == 'failure' }}
+        env:
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+          SLUG: ${{ inputs.slug || 'queued posts' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${TG_PLANNER_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TG_OWNER_CHAT_ID}" \
+            --data-urlencode "text=⚠️ Instagram/Facebook НЕ опубликовались: ${SLUG}. Остальные каналы вышли. Выложи вручную (Business Suite) или скажи Claude «выложи в инсту и фб». Лог: ${RUN_URL}" > /dev/null
 
       - name: Update plan entry status → published (workflow_dispatch path)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.slug != '' && success() }}
@@ -193,6 +209,7 @@ jobs:
           PY
 
       - name: Commit moved files (queue → published) + VK + YouTube metadata
+        if: ${{ !cancelled() }}
         run: |
           if [[ -n "$(git status --porcelain)" ]]; then
             git config user.name "github-actions[bot]"

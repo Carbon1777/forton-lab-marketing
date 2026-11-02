@@ -450,7 +450,8 @@ media:
 - path: assets/video/listvia-promo-03-diagnostika.mp4
   sha256: 9250c792928d3faf64b07a497db913ddeb57484e8a4d1d3fb5c10f7dd8056b40
   role: video
-status: scheduled
+status: published
+published_at: '2026-11-02T17:05:00+00:00'
 publish_at_msk: '20:00'
 youtube_title: Желтеют листья, появились пятна, растение вянет?
 youtube_tags:
