@@ -478,8 +478,6 @@ channels:
 - vk
 - dzen
 - yt
-- ig
-- fb
 - rutube
 product: listvia
 rubric: promo_video
@@ -514,8 +512,6 @@ channels:
 - vk
 - dzen
 - yt
-- ig
-- fb
 - rutube
 product: listvia
 rubric: promo_video
@@ -549,8 +545,6 @@ channels:
 - vk
 - dzen
 - yt
-- ig
-- fb
 - rutube
 product: listvia
 rubric: promo_video
@@ -584,8 +578,6 @@ channels:
 - vk
 - dzen
 - yt
-- ig
-- fb
 - rutube
 product: lucea
 rubric: promo_video
@@ -620,8 +612,6 @@ channels:
 - vk
 - dzen
 - yt
-- ig
-- fb
 - rutube
 product: lucea
 rubric: promo_video
@@ -656,8 +646,6 @@ channels:
 - vk
 - dzen
 - yt
-- ig
-- fb
 - rutube
 product: lucea
 rubric: promo_video
@@ -692,8 +680,6 @@ channels:
 - vk
 - dzen
 - yt
-- ig
-- fb
 - rutube
 product: lucea
 rubric: promo_video
@@ -728,8 +714,6 @@ channels:
 - vk
 - dzen
 - yt
-- ig
-- fb
 - rutube
 product: lucea
 rubric: promo_video
@@ -764,8 +748,6 @@ channels:
 - vk
 - dzen
 - yt
-- ig
-- fb
 - rutube
 product: lucea
 rubric: promo_video
@@ -803,8 +785,6 @@ channels:
 - vk
 - dzen
 - yt
-- ig
-- fb
 - rutube
 product: diktum
 rubric: promo_video
@@ -839,8 +819,6 @@ channels:
 - vk
 - dzen
 - yt
-- ig
-- fb
 - rutube
 product: diktum
 rubric: promo_video
@@ -876,8 +854,6 @@ channels:
 - vk
 - dzen
 - yt
-- ig
-- fb
 - rutube
 product: diktum
 rubric: promo_video

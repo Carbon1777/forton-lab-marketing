@@ -7,8 +7,6 @@ channels:
 - vk
 - dzen
 - yt
-- ig
-- fb
 - rutube
 product: listvia
 rubric: promo_video
