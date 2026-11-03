@@ -26,7 +26,8 @@ media:
 - path: assets/posts/2026-11/diktum-nov3-neznayu.png
   sha256: 0db8c9ce731cabf6b91f302f9aaef6b14fe5b1a670c392988eae191a6f77b99e
   role: image
-status: draft
+status: published
+published_at: '2026-11-03T09:06:32.792874+00:00'
 ```
 
 Тебе задали вопрос, а ответа ты не знаешь. Внутри паника, снаружи «э-э-э… ну… как бы…» — и именно эта заминка запоминается сильнее, чем сам пробел в знаниях 🎙
