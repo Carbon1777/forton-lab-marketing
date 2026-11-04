@@ -469,7 +469,7 @@ media:
 - path: assets/video/listvia-promo-04-dacha.mp4
   sha256: 32d4463aa217c4c368c3cb4c488d1f83c51e23b09ed97eb8ffeb46f2dafb8afe
   role: video
-status: draft
+status: scheduled
 publish_at_msk: '20:00'
 youtube_title: Дача, где нет связи?
 youtube_tags:
@@ -479,6 +479,8 @@ youtube_tags:
 - рассада
 - томаты
 - календарьсадовода
+scheduled_for: '20:00'
+scheduled_at: '2026-11-04T15:08:35.655122+00:00'
 ```
 
 Дача, где нет связи? Листвия работает без интернета. Режим дачи и огорода: томаты, огурцы и рассада по фазам сезона, с привязкой к заморозкам твоего региона, плюс календарь садовода.
