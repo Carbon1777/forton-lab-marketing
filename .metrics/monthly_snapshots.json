@@ -69,5 +69,19 @@
     "listvia": {
       "am_installs_total": 723
     }
+  },
+  "2026-10": {
+    "diktum": {
+      "am_installs_total": 750
+    },
+    "lapulya": {
+      "am_installs_total": 90
+    },
+    "listvia": {
+      "am_installs_total": 421
+    },
+    "lucea": {
+      "am_installs_total": 15
+    }
   }
 }
