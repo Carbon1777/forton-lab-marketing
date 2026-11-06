@@ -507,7 +507,7 @@ media:
 - path: assets/video/listvia-promo-05-koshka.mp4
   sha256: de48f7b1d609fe963676ac63e280d6b7901d0c160ff0cd29ccc650cb9505e02d
   role: video
-status: scheduled
+status: published
 publish_at_msk: '20:00'
 youtube_title: Кошка грызёт цветок. Это опасно?
 youtube_tags:
@@ -518,6 +518,7 @@ youtube_tags:
 - кошки
 scheduled_for: '20:00'
 scheduled_at: '2026-11-06T15:03:41.028486+00:00'
+published_at: '2026-11-06T17:05:56.893994+00:00'
 ```
 
 Кошка грызёт цветок. Это опасно? В карточке каждого растения в Листвии есть токсичность для кошек и собак. Проверь до покупки. Если питомец съел растение, обратись к ветеринару.
