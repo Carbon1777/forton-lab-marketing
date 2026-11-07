@@ -96,7 +96,8 @@ media:
 - path: assets/posts/2026-11/listvia-nov7-moshki.png
   sha256: 4b6e356c6a50be3f856f039f104614b740560eb49c66a6572763b69c62084b1f
   role: image
-status: draft
+status: published
+published_at: '2026-11-07T09:46:04.718922+00:00'
 ```
 
 Маленькие чёрные мошки над горшком появляются из ниоткуда и никуда не деваются. Хочется бежать за аэрозолем, но дело не в мошках, а в земле 🌿
