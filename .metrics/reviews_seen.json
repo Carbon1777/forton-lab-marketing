@@ -77,7 +77,11 @@
     "app_store": [
       "14202913339"
     ],
-    "google_play": [],
+    "google_play": [
+      "a8b75e0f-2568-41fc-8324-c7ed1307568a",
+      "6e94f87d-ce04-4bd4-9843-5002062bd67f",
+      "c45cb180-2580-488f-b685-c57d2c6646c8"
+    ],
     "rustore": []
   },
   "unia": {
