@@ -544,7 +544,7 @@ media:
 - path: assets/video/listvia-promo-06-napominaniya.mp4
   sha256: 74e75a138127362a529469fb95f654355762b585d9ddc5bef98a6525b4719331
   role: video
-status: scheduled
+status: published
 publish_at_msk: '20:00'
 youtube_title: Цветок опять остался без воды?
 youtube_tags:
@@ -555,6 +555,7 @@ youtube_tags:
 - растения
 scheduled_for: '20:00'
 scheduled_at: '2026-11-09T15:03:01.697672+00:00'
+published_at: '2026-11-09T17:04:37.765361+00:00'
 ```
 
 Цветок опять остался без воды? Экран «Сегодня» собирает все задачи дня: полив, подкормку, обрезку, пересадку. Отметил одним тапом. Без рекламы, по-русски.
