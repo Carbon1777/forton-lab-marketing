@@ -15,7 +15,7 @@ handler, который POST'ит на GitHub API `/actions/workflows/{wf}/dispa
 
 | Cron (UTC) | МСК | Workflow |
 |---|---|---|
-| `0 9,15,17 * * *` | Daily 12:00 / 18:00 / 20:00 | 09 UTC → `preview_bot.yml`; 15 UTC → `preview_bot.yml` `mode=video`; 17 UTC → `publish_scheduled.yml` (маппинг по часу в `resolveDispatch`) |
+| `0 6-20 * * *` | Ежечасно 09:00–23:00 | каждый час → `review_notifier.yml`; плюс 09 UTC → `preview_bot.yml`; 15 UTC → `preview_bot.yml` `mode=video`; 17 UTC → `publish_scheduled.yml` (маппинг по часу в `resolveDispatch`, на тик может быть несколько workflow) |
 | `7 12 * * 2` | Tue 15:07 | `funnel_metrics.yml` (Diktum funnel) |
 | `12 12 * * 2` | Tue 15:12 | `centry_funnel.yml` (Centry funnel) |
 
