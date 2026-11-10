@@ -129,7 +129,8 @@ media:
 - path: assets/posts/2026-11/lucea-nov10-troyka.png
   sha256: 626b24fd20fa1bbde78ed16fee2115c6770093b99a3713e1c2c8a8fb8df502fa
   role: image
-status: draft
+status: published
+published_at: '2026-11-10T09:04:37.390263+00:00'
 ```
 
 Когда говорят «я Лев» или «я Рак», речь только про одну часть натальной карты. А в ней три главные точки — и каждая описывает своё «я» ✨
