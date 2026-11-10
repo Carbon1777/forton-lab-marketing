@@ -58,10 +58,10 @@
         "sum": 5
       },
       "ru": {
-        "count": 15,
-        "no_text": 11,
-        "no_text_sum": 53,
-        "sum": 69
+        "count": 16,
+        "no_text": 12,
+        "no_text_sum": 58,
+        "sum": 74
       },
       "ua": {
         "count": 0,
@@ -121,13 +121,13 @@
       }
     },
     "rustore": {
-      "no_comments": 1,
+      "no_comments": 2,
       "per_star_no_text": {
         "1": 0,
         "2": 0,
         "3": 0,
         "4": 0,
-        "5": 1
+        "5": 2
       }
     }
   },
@@ -165,13 +165,13 @@
       }
     },
     "rustore": {
-      "no_comments": 3,
+      "no_comments": 10,
       "per_star_no_text": {
         "1": 0,
         "2": 0,
         "3": 0,
         "4": 0,
-        "5": 3
+        "5": 10
       }
     }
   },
@@ -197,13 +197,13 @@
       }
     },
     "rustore": {
-      "no_comments": 3,
+      "no_comments": 9,
       "per_star_no_text": {
         "1": 0,
         "2": 0,
         "3": 0,
         "4": 0,
-        "5": 3
+        "5": 9
       }
     }
   },
