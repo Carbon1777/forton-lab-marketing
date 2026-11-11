@@ -581,7 +581,7 @@ media:
 - path: assets/video/lucea-promo-01-horoscope.mp4
   sha256: 92ec25d28f024c404603bd32352f992a622e940551afb691043794d65da380cb
   role: video
-status: scheduled
+status: published
 publish_at_msk: '20:00'
 youtube_title: Гороскоп один на всех. А ты — один.
 youtube_tags:
@@ -592,6 +592,7 @@ youtube_tags:
 - нумерология
 scheduled_for: '20:00'
 scheduled_at: '2026-11-11T15:04:37.525560+00:00'
+published_at: '2026-11-11T17:04:02.071032+00:00'
 ```
 
 Гороскоп один на всех. А ты — один.
