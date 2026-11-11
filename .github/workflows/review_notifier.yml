@@ -21,6 +21,10 @@ name: review_notifier
 # Оценки без текста (App Store lookup + RuStore statistic) — state в
 #   .metrics/ratings_seen.json, коммитится вместе с reviews_seen.json.
 #
+# Сводка оценок для дашборда студии (quick 261111-rts) — .metrics/ratings_summary.json:
+#   средняя / число оценок / отзывов / разбивка 5→1 по продукту и стору (только
+#   числа со страниц сторов). Дашборд читает её из raw.githubusercontent.com.
+#
 # Concurrency: group=review-notifier, cancel-in-progress=false — две сборки
 #   никогда не пересекаются (защита от гонок при коммите seen-state).
 #
@@ -107,8 +111,8 @@ jobs:
           # git add сначала: на первом запуске файл untracked, и `git diff
           # --quiet` его НЕ видит (вернул бы 0 → коммит пропускался). Стейджим,
           # затем проверяем staged-дифф (как в store_metrics.yml).
-          git add .metrics/reviews_seen.json .metrics/ratings_seen.json
-          if git diff --cached --quiet -- .metrics/reviews_seen.json .metrics/ratings_seen.json; then
+          git add .metrics/reviews_seen.json .metrics/ratings_seen.json .metrics/ratings_summary.json
+          if git diff --cached --quiet -- .metrics/reviews_seen.json .metrics/ratings_seen.json .metrics/ratings_summary.json; then
             echo "seen state unchanged — no commit"
             exit 0
           fi

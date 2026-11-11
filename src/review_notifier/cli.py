@@ -551,6 +551,14 @@ def main(
 
     save_seen(seen_path, seen)
     save_seen(ratings_path, ratings_state)
+    # Сводка оценок для дашборда студии (quick 261111-rts) — never raises.
+    try:
+        from src.review_notifier import ratings_summary
+        ratings_summary.write_summary(
+            seen_path.parent / ratings_summary.SUMMARY_NAME, PRODUCTS, seen,
+        )
+    except Exception as exc:  # noqa: BLE001
+        sys.stderr.write(f"WARN: ratings summary failed: {exc!r}\n")
     # Сводка в лог — чтобы «тихий ноль» по стору было видно в GH Actions.
     print("\n".join(summary))
     return 0
