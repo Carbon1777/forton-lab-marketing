@@ -68,15 +68,16 @@ def vk_call(method: str, token: str, **params) -> dict:
     return data["response"]
 
 
-def vk_wall_post(token: str, group_id: str, message: str) -> int:
-    """Post text-only to community wall as the community. Returns post_id."""
-    result = vk_call(
-        "wall.post",
-        token,
-        owner_id=f"-{group_id}",
-        from_group=1,
-        message=message,
-    )
+def vk_wall_post(token: str, group_id: str, message: str, link: str | None = None) -> int:
+    """Post to community wall as the community. Returns post_id.
+
+    ``link`` (frontmatter ``vk_link``) прикрепляется вложением-ссылкой: VK рисует
+    карточку с og:image страницы, и вся карточка кликабельна.
+    """
+    params = dict(owner_id=f"-{group_id}", from_group=1, message=message)
+    if link:
+        params["attachments"] = link
+    result = vk_call("wall.post", token, **params)
     return result["post_id"]
 
 
@@ -125,7 +126,10 @@ def publish_one(post_path: Path, token: str, group_id: str) -> int:
     if len(body) > VK_TEXT_LIMIT:
         raise ValueError(f"{post_path.name}: body too long for VK ({len(body)} > {VK_TEXT_LIMIT})")
 
-    post_id = vk_wall_post(token, group_id, body)
+    vk_link = post.metadata.get("vk_link")
+    if vk_link is not None and not (isinstance(vk_link, str) and vk_link.startswith("https://")):
+        raise ValueError(f"{post_path.name}: vk_link must be an https:// URL")
+    post_id = vk_wall_post(token, group_id, body, vk_link)
 
     # Persist vk_post_id back into the file
     post.metadata["vk_post_id"] = post_id
