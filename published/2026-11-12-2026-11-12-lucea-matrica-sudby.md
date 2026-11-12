@@ -1,12 +1,15 @@
 ---
-title: Матрица судьбы — бесплатно по дате рождения
-slug: lucea-matrica-sudby
-product: lucea
 channels:
 - tg
 - vk
 - dzen
-vk_link: https://luceaweb.ru/matrica-sudby/?src=fortonlab
+product: lucea
+slug: lucea-matrica-sudby
+title: Матрица судьбы — бесплатно по дате рождения
+vk_note: 'опубликован вручную в браузере с картинкой og-matrica.png: VK API отклонил
+  карточку ссылки (link_photo_sizing_rule)'
+vk_post_id: 184
+vk_posted_at: '2026-11-12T20:40:43.947487+00:00'
 ---
 
 Матрица судьбы — за минуту и бесплатно
