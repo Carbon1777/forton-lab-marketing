@@ -164,7 +164,8 @@ media:
 - path: assets/posts/2026-11/diktum-nov12-vozrazit.png
   sha256: 7c84f94744829e7cef9861d9d8443cad3a99a1d3aac2c57422e6d1a5c8e0f630
   role: image
-status: draft
+status: published
+published_at: '2026-11-12T09:08:35.922263+00:00'
 ```
 
 Коллега предлагает то, с чем ты не согласен. Промолчишь — пожалеешь. Скажешь «нет, так не пойдёт» — разговор превратится в спор 🎙
