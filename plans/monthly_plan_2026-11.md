@@ -619,7 +619,7 @@ media:
 - path: assets/video/lucea-promo-02-memory.mp4
   sha256: 2eb09cce2e14e7da51b2b9262a2b6769a95f3d470182dff55a9ebb1d93ac7ce3
   role: video
-status: draft
+status: scheduled
 publish_at_msk: '20:00'
 youtube_title: Обычный чат забывает тебя к утру. Lucea — нет.
 youtube_tags:
@@ -628,6 +628,8 @@ youtube_tags:
 - самопознание
 - личныйдневник
 - осознанность
+scheduled_for: '20:00'
+scheduled_at: '2026-11-13T15:04:49.791620+00:00'
 ```
 
 Обычный чат забывает тебя к утру. Lucea — нет.
