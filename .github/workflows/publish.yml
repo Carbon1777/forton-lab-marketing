@@ -139,6 +139,16 @@ jobs:
           VK_GROUP_ID: ${{ secrets.VK_GROUP_ID }}
         run: python src/vk_post.py
 
+      # MAX-канал студии: повторяет Telegram (см. src/max_post.py). Без секретов — пропуск.
+      # Бежит и после сбоя VK, чтобы один канал не блокировал другой.
+      - name: Publish freshly-published posts to MAX channel
+        if: ${{ !cancelled() }}
+        env:
+          MAX_BOT_TOKEN: ${{ secrets.MAX_BOT_TOKEN }}
+          MAX_CHANNEL_ID: ${{ secrets.MAX_CHANNEL_ID }}
+          MAX_START_DATE: ${{ vars.MAX_START_DATE }}
+        run: python src/max_post.py
+
       - name: Publish video-bearing posts to YouTube
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
