@@ -53,6 +53,9 @@ def repo(tmp_path, monkeypatch):
     monkeypatch.setattr(tg_post, "PUBLISHED_DIR", published)
     monkeypatch.setattr(tg_post, "_probe_video", lambda p: None)
     monkeypatch.setattr(tg_post, "_make_thumbnail", lambda v, d: None)
+    # проверка публичного канала (сеть + sleep) в тестах отключена: «проверить нельзя»
+    monkeypatch.setattr(tg_post, "_verify_after_transient", lambda *a, **k: None)
+    monkeypatch.setattr(tg_post, "_notify_owner", lambda *a, **k: None)
     (assets / "v.mp4").write_bytes(b"\x00\x00\x00\x18ftypmp42fakevideo")
     return {"queue": queue, "published": published, "assets": assets}
 
@@ -140,3 +143,58 @@ def test_main_400_exits_one(repo, monkeypatch):
     _write_video_post(repo["queue"])
 
     assert tg_post.main() == 1
+
+
+def test_post_missing_in_channel_after_error_is_retried_once(repo, monkeypatch):
+    """Инцидент 2026-11-13: ошибка отправки, а поста в канале нет → один повтор."""
+    monkeypatch.setattr(tg_post, "_verify_after_transient", lambda *a, **k: False)
+    calls = {"n": 0}
+
+    def fake_post(*a, **k):
+        calls["n"] += 1
+        return _resp_raising(504) if calls["n"] == 1 else _ok_resp()
+
+    monkeypatch.setattr("src.tg_post.requests.post", fake_post)
+    src = _write_video_post(repo["queue"])
+
+    new_path = tg_post.publish_one(src, "tok", "@chan")
+
+    assert calls["n"] == 2                       # первая попытка + повтор
+    assert new_path.exists()
+    assert "tg_delivery" not in frontmatter.load(new_path).metadata   # доставлено штатно
+
+
+def test_post_present_in_channel_after_error_is_not_resent(repo, monkeypatch):
+    """Ошибка, но пост в канале уже есть → без повтора (нет дубля)."""
+    monkeypatch.setattr(tg_post, "_verify_after_transient", lambda *a, **k: True)
+    post_mock = MagicMock(return_value=_resp_raising(504))
+    monkeypatch.setattr("src.tg_post.requests.post", post_mock)
+    src = _write_video_post(repo["queue"])
+
+    tg_post.publish_one(src, "tok", "@chan")
+
+    assert post_mock.call_count == 1
+
+
+def test_retry_also_fails_marks_uncertain_and_notifies(repo, monkeypatch):
+    monkeypatch.setattr(tg_post, "_verify_after_transient", lambda *a, **k: False)
+    sent = []
+    monkeypatch.setattr(tg_post, "_notify_owner", lambda text: sent.append(text))
+    monkeypatch.setattr("src.tg_post.requests.post",
+                        MagicMock(return_value=_resp_raising(504)))
+    src = _write_video_post(repo["queue"])
+
+    new_path = tg_post.publish_one(src, "tok", "@chan")
+
+    assert frontmatter.load(new_path).metadata.get("tg_delivery") == "uncertain"
+    assert sent and "не отправился" in sent[0]
+
+
+def test_verify_uses_public_page(monkeypatch):
+    page = MagicMock(status_code=200, text="<div>Обычный чат забывает тебя к утру. Lucea — нет.</div>")
+    monkeypatch.setattr("src.tg_post.requests.get", MagicMock(return_value=page))
+    assert tg_post._verify_after_transient("Обычный чат забывает тебя к утру. Lucea — нет. Она помнит", 0) is True
+    assert tg_post._verify_after_transient("Совсем другой текст про питомцев и прививки у кошек", 0) is False
+    monkeypatch.setattr("src.tg_post.requests.get",
+                        MagicMock(side_effect=requests.exceptions.ConnectionError()))
+    assert tg_post._verify_after_transient("Обычный чат", 0) is None
