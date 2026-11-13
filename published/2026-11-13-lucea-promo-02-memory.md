@@ -20,7 +20,7 @@ rubric: promo_video
 slug: lucea-promo-02-memory
 status: draft
 tg_delivery: uncertain
-tg_uncertain_reason: 'HTTPError: 504 Server Error: Gateway Time-out for url: https://api.telegram.org/bot8684428758:AAFjKF4naqWxpu3gLCyD7OvV8i-ggEfzoqk/sendVideo'
+tg_uncertain_reason: 'HTTPError: 504 Server Error: Gateway Time-out for url: https://api.telegram.org/bot***/sendVideo'
 title: lucea-promo-02-memory
 video: assets/video/lucea-promo-02-memory.mp4
 vk_post_id: 185

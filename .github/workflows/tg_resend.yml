@@ -1,0 +1,52 @@
+name: tg_resend
+
+# Досылка в Telegram поста, который отмечен опубликованным, но в канал не дошёл
+# (tg_delivery: uncertain). VK/YouTube/Meta не трогает. Только вручную.
+on:
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: "slug поста (например lucea-promo-02-memory)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tg-resend
+  cancel-in-progress: false
+
+jobs:
+  resend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Setup ffmpeg
+        continue-on-error: true
+        uses: FedericoCarboni/setup-ffmpeg@v3
+        with:
+          ffmpeg-version: release
+      - run: pip install -r requirements.txt
+      - name: Resend to Telegram
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHANNEL_ID: ${{ secrets.TG_CHANNEL_ID }}
+          SLUG: ${{ inputs.slug }}
+        run: PYTHONPATH=. python -m src.tg_resend "$SLUG"
+      - name: Commit
+        env:
+          SLUG: ${{ inputs.slug }}
+        run: |
+          if [ -z "$(git status --porcelain published/)" ]; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add published/
+          git commit -m "auto: tg_resend ${SLUG} [skip ci]"
+          git pull --rebase origin main
+          git push

@@ -24,12 +24,15 @@ Exit codes:
 from __future__ import annotations
 
 import datetime as dt
+import html as _html
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import frontmatter
@@ -268,6 +271,15 @@ def _is_transient_send_error(exc: BaseException) -> bool:
     return False
 
 
+_TOKEN_IN_URL = re.compile(r"bot\d+:[A-Za-z0-9_-]+")
+
+
+def _scrub(text: str) -> str:
+    """Прячет токен бота из текста ошибки (requests вставляет URL с токеном).
+    Репозиторий публичный: токен в published/*.md = утечка (инцидент 2026-11-13)."""
+    return _TOKEN_IN_URL.sub("bot***", text or "")
+
+
 def _move_uncertain_to_published(
     post: frontmatter.Post, post_path: Path, kind: str, exc: BaseException
 ) -> Path:
@@ -282,7 +294,7 @@ def _move_uncertain_to_published(
     """
     new_path = _move_to_published(post_path)
     post.metadata["tg_delivery"] = "uncertain"
-    post.metadata["tg_uncertain_reason"] = f"{type(exc).__name__}: {str(exc)[:180]}"
+    post.metadata["tg_uncertain_reason"] = _scrub(f"{type(exc).__name__}: {str(exc)[:180]}")
     with new_path.open("w", encoding="utf-8") as f:
         f.write(frontmatter.dumps(post))
     sys.stderr.write(
@@ -295,6 +307,48 @@ def _move_uncertain_to_published(
         f"(tg_delivery=uncertain, kind={kind}) — проверь канал вручную"
     )
     return new_path
+
+
+def _norm(text: str) -> str:
+    text = re.sub(r"<[^>]+>", " ", text or "")
+    return re.sub(r"\s+", " ", _html.unescape(text)).strip().lower()
+
+
+def _verify_after_transient(body: str, sleep_s: float | None = None) -> bool | None:
+    """После временной ошибки отправки проверяет по ПУБЛИЧНОЙ странице канала
+    (t.me/s/<канал>, без токенов), появился ли пост: True — есть, False — нет,
+    None — проверить не удалось.
+
+    Инцидент 2026-11-13 (Lucea №2): sendVideo упал, скрипт «предположил, что
+    доставлено», а в канале поста не оказалось — его никто не заметил.
+    """
+    snippet = _norm(body)[:45]
+    if not snippet:
+        return None
+    if sleep_s is None:
+        sleep_s = float(os.environ.get("TG_VERIFY_DELAY_S", "25"))
+    time.sleep(sleep_s)
+    channel = os.environ.get("TG_PUBLIC_CHANNEL", "fortonlab")
+    try:
+        r = requests.get(f"https://t.me/s/{channel}", timeout=20)
+        if r.status_code != 200:
+            return None
+        return snippet in _norm(r.text)
+    except requests.exceptions.RequestException:
+        return None
+
+
+def _notify_owner(text: str) -> None:
+    """Личное сообщение владельцу (бот-планировщик), если доступны секреты."""
+    token = os.environ.get("TG_PLANNER_BOT_TOKEN")
+    chat = os.environ.get("TG_OWNER_CHAT_ID")
+    if not token or not chat:
+        return
+    try:
+        requests.post(f"{TG_API_BASE}/bot{token}/sendMessage",
+                      data={"chat_id": chat, "text": text}, timeout=20)
+    except requests.exceptions.RequestException:
+        pass
 
 
 def publish_one(post_path: Path, token: str, chat_id: str) -> Path:
@@ -348,35 +402,61 @@ def publish_one(post_path: Path, token: str, chat_id: str) -> Path:
     split_caption = len(body) > TG_CAPTION_LIMIT
     caption = "" if split_caption else body
 
-    try:
+    def _send() -> dict:
         if video_rel:
             video_path = (REPO_ROOT / video_rel).resolve()
             if not video_path.exists():
                 raise FileNotFoundError(f"video not found: {video_path}")
-            result = tg_post_video(token, chat_id, video_path, caption)
+            res = tg_post_video(token, chat_id, video_path, caption)
             if split_caption:
                 tg_post_text(token, chat_id, body)
-        elif image_rel:
+            return res
+        if image_rel:
             image_path = (REPO_ROOT / image_rel).resolve()
             if not image_path.exists():
                 raise FileNotFoundError(f"image not found: {image_path}")
-            result = tg_post_photo(token, chat_id, image_path, caption)
+            res = tg_post_photo(token, chat_id, image_path, caption)
             if split_caption:
                 tg_post_text(token, chat_id, body)
-        else:
-            if len(body) > TG_TEXT_LIMIT:
-                raise ValueError(
-                    f"{post_path.name}: body {len(body)} > {TG_TEXT_LIMIT}; split into multiple posts"
-                )
-            result = tg_post_text(token, chat_id, body)
+            return res
+        if len(body) > TG_TEXT_LIMIT:
+            raise ValueError(
+                f"{post_path.name}: body {len(body)} > {TG_TEXT_LIMIT}; split into multiple posts"
+            )
+        return tg_post_text(token, chat_id, body)
+
+    try:
+        result = _send()
     except requests.exceptions.RequestException as exc:
-        # Transient TG-side failure (HTTP 5xx / timeout / connection drop): the
-        # message was very likely still delivered. Don't retry (would duplicate)
-        # and don't hard-fail (would abort VK/YouTube/commit/report downstream —
-        # incident 2026-06-16). Assume delivered, move on, flag for manual check.
-        if _is_transient_send_error(exc):
+        # Временный сбой TG (5xx / таймаут / обрыв). Бывает, что сообщение всё же
+        # дошло (инцидент 2026-06-16) — и бывает, что нет (инцидент 2026-11-13).
+        # Не падаем (иначе пропадут VK/YouTube/коммит), но и не «предполагаем»:
+        # смотрим в публичный канал; если поста нет — один повтор; если проверить
+        # нельзя или повтор тоже упал — помечаем uncertain и пишем владельцу.
+        if not _is_transient_send_error(exc):
+            raise   # genuine 4xx (bad request / 413 too large / 429) → hard fail
+        verdict = _verify_after_transient(body)
+        if verdict is False:
+            sys.stderr.write(
+                f"WARN: {post_path.name}: TG send failed and the post is NOT in the channel — retrying once\n"
+            )
+            try:
+                result = _send()
+            except requests.exceptions.RequestException as exc2:
+                if not _is_transient_send_error(exc2):
+                    raise
+                _notify_owner(
+                    f"⚠️ Telegram: {post_path.name} не отправился (повтор тоже упал). "
+                    "Остальные каналы вышли. Скажи Claude «досылай в телеграм»."
+                )
+                return _move_uncertain_to_published(post, post_path, kind, exc2)
+        else:
+            if verdict is None:
+                _notify_owner(
+                    f"⚠️ Telegram: {post_path.name} — ошибка отправки, проверить канал не удалось. "
+                    "Посмотри, вышел ли пост."
+                )
             return _move_uncertain_to_published(post, post_path, kind, exc)
-        raise   # genuine 4xx (bad request / 413 too large / 429) → hard fail
 
     if not result.get("ok"):
         raise RuntimeError(f"Telegram API returned not-ok: {result}")
