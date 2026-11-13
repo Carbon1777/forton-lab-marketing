@@ -281,7 +281,8 @@ def _scrub(text: str) -> str:
 
 
 def _move_uncertain_to_published(
-    post: frontmatter.Post, post_path: Path, kind: str, exc: BaseException
+    post: frontmatter.Post, post_path: Path, kind: str, exc: BaseException,
+    verified: bool = False,
 ) -> Path:
     """Handle a transient send error: move the queue file to published/ (so
     VK/YouTube/commit/report downstream still run), tag the frontmatter with
@@ -293,7 +294,7 @@ def _move_uncertain_to_published(
     report. This path keeps the pipeline alive on transient TG hiccups.
     """
     new_path = _move_to_published(post_path)
-    post.metadata["tg_delivery"] = "uncertain"
+    post.metadata["tg_delivery"] = "delivered_late" if verified else "uncertain"
     post.metadata["tg_uncertain_reason"] = _scrub(f"{type(exc).__name__}: {str(exc)[:180]}")
     with new_path.open("w", encoding="utf-8") as f:
         f.write(frontmatter.dumps(post))
@@ -314,28 +315,36 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", _html.unescape(text)).strip().lower()
 
 
-def _verify_after_transient(body: str, sleep_s: float | None = None) -> bool | None:
-    """После временной ошибки отправки проверяет по ПУБЛИЧНОЙ странице канала
-    (t.me/s/<канал>, без токенов), появился ли пост: True — есть, False — нет,
-    None — проверить не удалось.
+def _verify_after_transient(body: str, window_s: float | None = None,
+                            interval_s: float | None = None) -> bool | None:
+    """После временной ошибки отправки ждёт и смотрит ПУБЛИЧНУЮ страницу канала
+    (t.me/s/<канал>, без токенов): True — пост появился, False — не появился за
+    окно, None — проверить не удалось.
 
-    Инцидент 2026-11-13 (Lucea №2): sendVideo упал, скрипт «предположил, что
-    доставлено», а в канале поста не оказалось — его никто не заметил.
+    Telegram иногда отвечает 504, а видео доставляет позже (13.11.2026: ошибка в
+    20:05, пост №183 появился в 20:10; 16.06 — аналогично). Поэтому НЕ повторяем
+    отправку (повтор дал бы дубль), а только ждём и сообщаем владельцу.
     """
     snippet = _norm(body)[:45]
     if not snippet:
         return None
-    if sleep_s is None:
-        sleep_s = float(os.environ.get("TG_VERIFY_DELAY_S", "25"))
-    time.sleep(sleep_s)
+    window_s = float(os.environ.get("TG_VERIFY_WINDOW_S", "360")) if window_s is None else window_s
+    interval_s = float(os.environ.get("TG_VERIFY_INTERVAL_S", "45")) if interval_s is None else interval_s
     channel = os.environ.get("TG_PUBLIC_CHANNEL", "fortonlab")
-    try:
-        r = requests.get(f"https://t.me/s/{channel}", timeout=20)
-        if r.status_code != 200:
-            return None
-        return snippet in _norm(r.text)
-    except requests.exceptions.RequestException:
-        return None
+    deadline = time.monotonic() + window_s
+    reachable = False
+    while True:
+        time.sleep(min(interval_s, max(0.0, deadline - time.monotonic())) if window_s else 0)
+        try:
+            r = requests.get(f"https://t.me/s/{channel}", timeout=20)
+            if r.status_code == 200:
+                reachable = True
+                if snippet in _norm(r.text):
+                    return True
+        except requests.exceptions.RequestException:
+            pass
+        if time.monotonic() >= deadline:
+            return False if reachable else None
 
 
 def _notify_owner(text: str) -> None:
@@ -436,27 +445,14 @@ def publish_one(post_path: Path, token: str, chat_id: str) -> Path:
         if not _is_transient_send_error(exc):
             raise   # genuine 4xx (bad request / 413 too large / 429) → hard fail
         verdict = _verify_after_transient(body)
-        if verdict is False:
-            sys.stderr.write(
-                f"WARN: {post_path.name}: TG send failed and the post is NOT in the channel — retrying once\n"
-            )
-            try:
-                result = _send()
-            except requests.exceptions.RequestException as exc2:
-                if not _is_transient_send_error(exc2):
-                    raise
-                _notify_owner(
-                    f"⚠️ Telegram: {post_path.name} не отправился (повтор тоже упал). "
-                    "Остальные каналы вышли. Скажи Claude «досылай в телеграм»."
-                )
-                return _move_uncertain_to_published(post, post_path, kind, exc2)
-        else:
-            if verdict is None:
-                _notify_owner(
-                    f"⚠️ Telegram: {post_path.name} — ошибка отправки, проверить канал не удалось. "
-                    "Посмотри, вышел ли пост."
-                )
-            return _move_uncertain_to_published(post, post_path, kind, exc)
+        if verdict is True:
+            return _move_uncertain_to_published(post, post_path, kind, exc, verified=True)
+        _notify_owner(
+            f"⚠️ Telegram: {post_path.name} — ошибка отправки, и поста "
+            + ("нет в канале спустя 6 минут" if verdict is False else "не удалось проверить в канале")
+            + ". Остальные каналы вышли. Проверь канал; если поста нет, скажи Claude «досылай в телеграм»."
+        )
+        return _move_uncertain_to_published(post, post_path, kind, exc)
 
     if not result.get("ok"):
         raise RuntimeError(f"Telegram API returned not-ok: {result}")
