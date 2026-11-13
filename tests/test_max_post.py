@@ -127,3 +127,30 @@ def test_ca_bundle_contains_mincifry_cert():
     text = Path(max_post.ca_bundle()).read_text(encoding="utf-8")
     assert max_post.MAX_CA_PEM.strip() in text
     assert text.count("BEGIN CERTIFICATE") > 10
+
+
+def test_mime_passed_for_uploads(tmp_path, monkeypatch):
+    """Без MIME видеосервер MAX отвечает 400 — тип обязателен и для видео, и для картинок."""
+    seen = {}
+
+    class R:
+        status_code = 200
+        text = "<retval>1</retval>"
+
+    def fake_post(url, files=None, headers=None, timeout=None, verify=None):
+        seen["video"] = files["data"][2]
+        return R()
+
+    def fake_call(method, path, token, *, params=None, json=None, files=None, url=None):
+        if path == "/uploads":
+            return {"url": "https://u.example", "token": "vtok"}
+        seen["image"] = files["data"][2]
+        return {"photos": {"1": {"token": "itok"}}}
+
+    monkeypatch.setattr(max_post.requests, "post", fake_post)
+    monkeypatch.setattr(max_post, "max_call", fake_call)
+    (tmp_path / "v.mp4").write_bytes(b"x")
+    (tmp_path / "p.png").write_bytes(b"x")
+    assert max_post.upload_video("t", tmp_path / "v.mp4") == "vtok"
+    assert max_post.upload_image("t", tmp_path / "p.png") == "itok"
+    assert seen == {"video": "video/mp4", "image": "image/png"}

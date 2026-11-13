@@ -140,14 +140,30 @@ jobs:
         run: python src/vk_post.py
 
       # MAX-канал студии: повторяет Telegram (см. src/max_post.py). Без секретов — пропуск.
-      # Бежит и после сбоя VK, чтобы один канал не блокировал другой.
+      # Бежит и после сбоя VK, чтобы один канал не блокировал другой. Ошибка MAX не должна
+      # останавливать YouTube/Meta, запись статуса в план и коммит (иначе повторная публикация),
+      # поэтому continue-on-error + уведомление владельцу, как у Meta.
       - name: Publish freshly-published posts to MAX channel
+        id: max
         if: ${{ !cancelled() }}
+        continue-on-error: true
         env:
           MAX_BOT_TOKEN: ${{ secrets.MAX_BOT_TOKEN }}
           MAX_CHANNEL_ID: ${{ secrets.MAX_CHANNEL_ID }}
           MAX_START_DATE: ${{ vars.MAX_START_DATE }}
         run: python src/max_post.py
+
+      - name: Notify owner if MAX failed
+        if: ${{ steps.max.outcome == 'failure' }}
+        env:
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
+          SLUG: ${{ inputs.slug || 'queued posts' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${TG_PLANNER_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TG_OWNER_CHAT_ID}" \
+            --data-urlencode "text=⚠️ MAX-канал НЕ получил пост: ${SLUG}. Остальные каналы вышли. Скажи Claude «выложи в MAX». Лог: ${RUN_URL}" > /dev/null
 
       - name: Publish video-bearing posts to YouTube
         env:

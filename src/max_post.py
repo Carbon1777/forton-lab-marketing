@@ -31,6 +31,7 @@ API: https://platform-api2.max.ru, токен в Authorization без «Bearer»
 from __future__ import annotations
 
 import datetime as dt
+import mimetypes
 import os
 import re
 import sys
@@ -165,10 +166,16 @@ def find_pending(start_date: str) -> list[Path]:
 
 # ---------- медиа ----------
 
+def _mime(path: Path, fallback: str) -> str:
+    """MIME по расширению: без него видеосервер MAX отвечает 400 (проверено 13.11.2026)."""
+    return mimetypes.guess_type(path.name)[0] or fallback
+
+
 def upload_image(token: str, path: Path) -> str:
     slot = max_call("POST", "/uploads", token, params={"type": "image"})
     with path.open("rb") as fh:
-        res = max_call("POST", "", token, url=slot["url"], files={"data": (path.name, fh)})
+        res = max_call("POST", "", token, url=slot["url"],
+                       files={"data": (path.name, fh, _mime(path, "image/png"))})
     photos = res.get("photos") or {}
     for v in photos.values():
         if isinstance(v, dict) and v.get("token"):
@@ -184,7 +191,7 @@ def upload_video(token: str, path: Path) -> str:
     if not vtoken:
         raise MaxError("upload video: no token in /uploads response")
     with path.open("rb") as fh:
-        r = requests.post(slot["url"], files={"data": (path.name, fh)},
+        r = requests.post(slot["url"], files={"data": (path.name, fh, _mime(path, "video/mp4"))},
                           headers={"Authorization": token}, timeout=600, verify=ca_bundle())
     if r.status_code >= 400:
         raise MaxError(f"upload video: HTTP {r.status_code}")
