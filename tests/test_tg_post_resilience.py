@@ -145,59 +145,55 @@ def test_main_400_exits_one(repo, monkeypatch):
     assert tg_post.main() == 1
 
 
-def test_post_missing_in_channel_after_error_is_retried_once(repo, monkeypatch):
-    """Инцидент 2026-11-13: ошибка отправки, а поста в канале нет → один повтор."""
+def test_post_missing_after_error_is_never_resent_but_owner_notified(repo, monkeypatch):
+    """Telegram может доставить позже (13.11: ошибка 20:05, пост 20:10) — повтор дал бы дубль."""
     monkeypatch.setattr(tg_post, "_verify_after_transient", lambda *a, **k: False)
-    calls = {"n": 0}
-
-    def fake_post(*a, **k):
-        calls["n"] += 1
-        return _resp_raising(504) if calls["n"] == 1 else _ok_resp()
-
-    monkeypatch.setattr("src.tg_post.requests.post", fake_post)
-    src = _write_video_post(repo["queue"])
-
-    new_path = tg_post.publish_one(src, "tok", "@chan")
-
-    assert calls["n"] == 2                       # первая попытка + повтор
-    assert new_path.exists()
-    assert "tg_delivery" not in frontmatter.load(new_path).metadata   # доставлено штатно
-
-
-def test_post_present_in_channel_after_error_is_not_resent(repo, monkeypatch):
-    """Ошибка, но пост в канале уже есть → без повтора (нет дубля)."""
-    monkeypatch.setattr(tg_post, "_verify_after_transient", lambda *a, **k: True)
+    sent = []
+    monkeypatch.setattr(tg_post, "_notify_owner", lambda text: sent.append(text))
     post_mock = MagicMock(return_value=_resp_raising(504))
     monkeypatch.setattr("src.tg_post.requests.post", post_mock)
     src = _write_video_post(repo["queue"])
 
-    tg_post.publish_one(src, "tok", "@chan")
+    new_path = tg_post.publish_one(src, "tok", "@chan")
 
-    assert post_mock.call_count == 1
+    assert post_mock.call_count == 1                       # без повтора
+    assert frontmatter.load(new_path).metadata.get("tg_delivery") == "uncertain"
+    assert sent and "нет в канале" in sent[0]
 
 
-def test_retry_also_fails_marks_uncertain_and_notifies(repo, monkeypatch):
-    monkeypatch.setattr(tg_post, "_verify_after_transient", lambda *a, **k: False)
+def test_post_appearing_late_in_channel_is_marked_delivered_late(repo, monkeypatch):
+    monkeypatch.setattr(tg_post, "_verify_after_transient", lambda *a, **k: True)
     sent = []
     monkeypatch.setattr(tg_post, "_notify_owner", lambda text: sent.append(text))
-    monkeypatch.setattr("src.tg_post.requests.post",
-                        MagicMock(return_value=_resp_raising(504)))
+    post_mock = MagicMock(return_value=_resp_raising(504))
+    monkeypatch.setattr("src.tg_post.requests.post", post_mock)
     src = _write_video_post(repo["queue"])
 
     new_path = tg_post.publish_one(src, "tok", "@chan")
 
-    assert frontmatter.load(new_path).metadata.get("tg_delivery") == "uncertain"
-    assert sent and "не отправился" in sent[0]
+    assert post_mock.call_count == 1
+    assert frontmatter.load(new_path).metadata.get("tg_delivery") == "delivered_late"
+    assert not sent                                          # владельца не беспокоим
 
 
-def test_verify_uses_public_page(monkeypatch):
-    page = MagicMock(status_code=200, text="<div>Обычный чат забывает тебя к утру. Lucea — нет.</div>")
-    monkeypatch.setattr("src.tg_post.requests.get", MagicMock(return_value=page))
-    assert tg_post._verify_after_transient("Обычный чат забывает тебя к утру. Lucea — нет. Она помнит", 0) is True
-    assert tg_post._verify_after_transient("Совсем другой текст про питомцев и прививки у кошек", 0) is False
+def test_verify_polls_public_page_until_window_ends(monkeypatch):
+    absent = MagicMock(status_code=200, text="<div>Другой пост</div>")
+    present = MagicMock(status_code=200, text="<div>Обычный чат забывает тебя к утру. Lucea — нет.</div>")
+    pages = iter([absent, absent, present])
+    monkeypatch.setattr("src.tg_post.requests.get", lambda *a, **k: next(pages))
+    monkeypatch.setattr("src.tg_post.time.sleep", lambda s: None)
+    assert tg_post._verify_after_transient("Обычный чат забывает тебя к утру. Lucea — нет. Она помнит", 3600, 1) is True
+
+    monkeypatch.setattr("src.tg_post.requests.get", lambda *a, **k: absent)
+    t = iter(range(0, 10000, 100))
+    monkeypatch.setattr("src.tg_post.time.monotonic", lambda: next(t))
+    assert tg_post._verify_after_transient("Обычный чат забывает тебя к утру", 300, 1) is False
+
     monkeypatch.setattr("src.tg_post.requests.get",
                         MagicMock(side_effect=requests.exceptions.ConnectionError()))
-    assert tg_post._verify_after_transient("Обычный чат", 0) is None
+    t2 = iter(range(0, 10000, 100))
+    monkeypatch.setattr("src.tg_post.time.monotonic", lambda: next(t2))
+    assert tg_post._verify_after_transient("Обычный чат", 300, 1) is None
 
 
 def test_uncertain_reason_never_contains_bot_token(repo, monkeypatch):
