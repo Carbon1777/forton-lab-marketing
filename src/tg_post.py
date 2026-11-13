@@ -271,6 +271,15 @@ def _is_transient_send_error(exc: BaseException) -> bool:
     return False
 
 
+_TOKEN_IN_URL = re.compile(r"bot\d+:[A-Za-z0-9_-]+")
+
+
+def _scrub(text: str) -> str:
+    """Прячет токен бота из текста ошибки (requests вставляет URL с токеном).
+    Репозиторий публичный: токен в published/*.md = утечка (инцидент 2026-11-13)."""
+    return _TOKEN_IN_URL.sub("bot***", text or "")
+
+
 def _move_uncertain_to_published(
     post: frontmatter.Post, post_path: Path, kind: str, exc: BaseException
 ) -> Path:
@@ -285,7 +294,7 @@ def _move_uncertain_to_published(
     """
     new_path = _move_to_published(post_path)
     post.metadata["tg_delivery"] = "uncertain"
-    post.metadata["tg_uncertain_reason"] = f"{type(exc).__name__}: {str(exc)[:180]}"
+    post.metadata["tg_uncertain_reason"] = _scrub(f"{type(exc).__name__}: {str(exc)[:180]}")
     with new_path.open("w", encoding="utf-8") as f:
         f.write(frontmatter.dumps(post))
     sys.stderr.write(

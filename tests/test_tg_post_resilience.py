@@ -198,3 +198,19 @@ def test_verify_uses_public_page(monkeypatch):
     monkeypatch.setattr("src.tg_post.requests.get",
                         MagicMock(side_effect=requests.exceptions.ConnectionError()))
     assert tg_post._verify_after_transient("Обычный чат", 0) is None
+
+
+def test_uncertain_reason_never_contains_bot_token(repo, monkeypatch):
+    """Репозиторий публичный: URL с токеном не должен попадать в published/*.md."""
+    err = requests.HTTPError("504 Server Error: Gateway Time-out for url: https://api.telegram.org/bot123456:ABCdef_ghi-JKL/sendVideo")
+    err.response = MagicMock(status_code=504)
+    resp = MagicMock()
+    resp.raise_for_status.side_effect = err
+    monkeypatch.setattr("src.tg_post.requests.post", MagicMock(return_value=resp))
+    src = _write_video_post(repo["queue"])
+
+    new_path = tg_post.publish_one(src, "tok", "@chan")
+
+    reason = str(frontmatter.load(new_path).metadata.get("tg_uncertain_reason"))
+    assert "ABCdef" not in reason and "123456:" not in reason
+    assert "bot***" in reason

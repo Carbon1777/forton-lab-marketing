@@ -20,7 +20,7 @@ rubric: promo_video
 slug: listvia-promo-05-koshka
 status: draft
 tg_delivery: uncertain
-tg_uncertain_reason: 'HTTPError: 504 Server Error: Gateway Time-out for url: https://api.telegram.org/bot8684428758:AAFjKF4naqWxpu3gLCyD7OvV8i-ggEfzoqk/sendVideo'
+tg_uncertain_reason: 'HTTPError: 504 Server Error: Gateway Time-out for url: https://api.telegram.org/bot***/sendVideo'
 title: listvia-promo-05-koshka
 video: assets/video/listvia-promo-05-koshka.mp4
 vk_post_id: 175
