@@ -121,7 +121,7 @@
       }
     },
     "rustore": {
-      "no_comments": 10,
+      "no_comments": 11,
       "per_star_no_text": {
         "1": 0,
         "2": 0,
@@ -165,13 +165,13 @@
       }
     },
     "rustore": {
-      "no_comments": 39,
+      "no_comments": 51,
       "per_star_no_text": {
         "1": 0,
         "2": 0,
         "3": 0,
         "4": 0,
-        "5": 39
+        "5": 51
       }
     }
   },
@@ -197,13 +197,13 @@
       }
     },
     "rustore": {
-      "no_comments": 38,
+      "no_comments": 40,
       "per_star_no_text": {
         "1": 0,
         "2": 0,
         "3": 0,
         "4": 0,
-        "5": 38
+        "5": 40
       }
     }
   },
