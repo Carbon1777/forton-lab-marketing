@@ -6,6 +6,8 @@ channels:
 daily_regen_count: 0
 generated_at: '2026-11-14T09:02:05.707272+00:00'
 image: assets/posts/2026-11/lapulya-nov14-zuby.png
+max_post_id: mid.ffffb6289efccad301a1d9991fff4b29
+max_posted_at: '2026-11-14T10:27:33.621825+00:00'
 media:
 - path: assets/posts/2026-11/lapulya-nov14-zuby.png
   role: image
