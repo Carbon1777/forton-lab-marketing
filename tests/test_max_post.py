@@ -137,9 +137,10 @@ def test_mime_passed_for_uploads(tmp_path, monkeypatch):
         status_code = 200
         text = "<retval>1</retval>"
 
-    def fake_post(url, files=None, headers=None, timeout=None, verify=None):
-        seen["video"] = files["data"][2]
-        return R()
+    class FakeSession:
+        def post(self, url, files=None, headers=None, timeout=None):
+            seen["video"] = files["data"][2]
+            return R()
 
     def fake_call(method, path, token, *, params=None, json=None, files=None, url=None):
         if path == "/uploads":
@@ -147,10 +148,19 @@ def test_mime_passed_for_uploads(tmp_path, monkeypatch):
         seen["image"] = files["data"][2]
         return {"photos": {"1": {"token": "itok"}}}
 
-    monkeypatch.setattr(max_post.requests, "post", fake_post)
+    monkeypatch.setattr(max_post, "max_session", lambda: FakeSession())
     monkeypatch.setattr(max_post, "max_call", fake_call)
     (tmp_path / "v.mp4").write_bytes(b"x")
     (tmp_path / "p.png").write_bytes(b"x")
     assert max_post.upload_video("t", tmp_path / "v.mp4") == "vtok"
     assert max_post.upload_image("t", tmp_path / "p.png") == "itok"
     assert seen == {"video": "video/mp4", "image": "image/png"}
+
+
+def test_session_uses_partial_chain_flag():
+    """Сервер MAX не присылает корень; Python 3.12 без VERIFY_X509_PARTIAL_CHAIN даёт
+    «unable to get issuer certificate» (инцидент 2026-11-14)."""
+    import ssl
+    ctx = max_post._PartialChainAdapter()._ctx()
+    assert ctx.verify_flags & ssl.VERIFY_X509_PARTIAL_CHAIN
+    assert ctx.verify_mode == ssl.CERT_REQUIRED

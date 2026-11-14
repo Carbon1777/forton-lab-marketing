@@ -34,6 +34,7 @@ import datetime as dt
 import mimetypes
 import os
 import re
+import ssl
 import sys
 import tempfile
 import time
@@ -111,6 +112,40 @@ def ca_bundle() -> str:
     return _ca_bundle
 
 
+class _PartialChainAdapter(requests.adapters.HTTPAdapter):
+    """Доверяем промежуточному сертификату (Russian Trusted Sub CA) без корня.
+
+    Сервер MAX присылает цепочку «сайт → Sub CA», корень не присылает. Python ≥3.13
+    сам включает частичную цепочку, а Python 3.12 (GitHub Actions) — нет, и без флага
+    получаем «unable to get issuer certificate» (инцидент 2026-11-14: пост не ушёл в MAX).
+    """
+
+    def _ctx(self):
+        ctx = ssl.create_default_context(cafile=ca_bundle())
+        ctx.verify_flags |= ssl.VERIFY_X509_PARTIAL_CHAIN
+        return ctx
+
+    def init_poolmanager(self, *args, **kwargs):
+        kwargs["ssl_context"] = self._ctx()
+        return super().init_poolmanager(*args, **kwargs)
+
+    def proxy_manager_for(self, *args, **kwargs):
+        kwargs["ssl_context"] = self._ctx()
+        return super().proxy_manager_for(*args, **kwargs)
+
+
+_session: requests.Session | None = None
+
+
+def max_session() -> requests.Session:
+    """Сессия для API MAX (частичная цепочка, кэш на процесс)."""
+    global _session
+    if _session is None:
+        _session = requests.Session()
+        _session.mount("https://", _PartialChainAdapter())
+    return _session
+
+
 class MaxError(RuntimeError):
     pass
 
@@ -118,8 +153,8 @@ class MaxError(RuntimeError):
 def max_call(method: str, path: str, token: str, *, params=None, json=None, files=None,
              url: str | None = None) -> dict:
     headers = {"Authorization": token}
-    r = requests.request(method, url or f"{MAX_API}{path}", params=params, json=json,
-                         files=files, headers=headers, timeout=TIMEOUT, verify=ca_bundle())
+    r = max_session().request(method, url or f"{MAX_API}{path}", params=params, json=json,
+                              files=files, headers=headers, timeout=TIMEOUT)
     try:
         data = r.json()
     except ValueError:
@@ -191,8 +226,8 @@ def upload_video(token: str, path: Path) -> str:
     if not vtoken:
         raise MaxError("upload video: no token in /uploads response")
     with path.open("rb") as fh:
-        r = requests.post(slot["url"], files={"data": (path.name, fh, _mime(path, "video/mp4"))},
-                          headers={"Authorization": token}, timeout=600, verify=ca_bundle())
+        r = max_session().post(slot["url"], files={"data": (path.name, fh, _mime(path, "video/mp4"))},
+                               headers={"Authorization": token}, timeout=600)
     if r.status_code >= 400:
         raise MaxError(f"upload video: HTTP {r.status_code}")
     return vtoken
