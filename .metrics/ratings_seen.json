@@ -146,10 +146,10 @@
         "sum": 0
       },
       "ru": {
-        "count": 3,
+        "count": 4,
         "no_text": 1,
         "no_text_sum": 1,
-        "sum": 7
+        "sum": 12
       },
       "ua": {
         "count": 0,
@@ -197,13 +197,13 @@
       }
     },
     "rustore": {
-      "no_comments": 67,
+      "no_comments": 70,
       "per_star_no_text": {
         "1": 0,
         "2": 0,
         "3": 0,
         "4": 0,
-        "5": 67
+        "5": 70
       }
     }
   },
