@@ -190,10 +190,10 @@
         "sum": 0
       },
       "ru": {
-        "count": 2,
-        "no_text": 1,
-        "no_text_sum": 5,
-        "sum": 10
+        "count": 3,
+        "no_text": 2,
+        "no_text_sum": 10,
+        "sum": 15
       }
     },
     "rustore": {
