@@ -657,7 +657,7 @@ media:
 - path: assets/video/lucea-promo-03-evening.mp4
   sha256: 4b6ab41198bd58259e65ad10a63847fd1dfee626f9b0955bc2dd227201b2fc11
   role: video
-status: draft
+status: scheduled
 publish_at_msk: '20:00'
 youtube_title: Три часа в ленте. А три минуты с собой?
 youtube_tags:
@@ -666,6 +666,8 @@ youtube_tags:
 - осознанность
 - самопознание
 - дневник
+scheduled_for: '20:00'
+scheduled_at: '2026-11-16T15:02:52.055432+00:00'
 ```
 
 Три часа в ленте. А три минуты с собой?
