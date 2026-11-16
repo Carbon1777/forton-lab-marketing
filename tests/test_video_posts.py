@@ -67,9 +67,18 @@ def test_main_dispatches_each_due(tmp_path, monkeypatch):
     (tmp_path / "monthly_plan_2026-10.md").write_text(PLAN, encoding="utf-8")
     monkeypatch.setattr(dispatch_scheduled, "PLANS_DIR", tmp_path)
     monkeypatch.setattr(dispatch_scheduled, "_today_msk", lambda: dt.date(2026, 10, 30))
-    with patch.object(dispatch_scheduled, "dispatch_publish") as d:
+    with patch.object(dispatch_scheduled, "dispatch_publish_verified", return_value=True) as d:
         assert dispatch_scheduled.main() == 0
     d.assert_called_once_with("v1")
+
+
+def test_main_fails_when_publish_never_started(tmp_path, monkeypatch):
+    """Запуск не стартовал после всех попыток → код возврата 1 (публикация не вышла)."""
+    (tmp_path / "monthly_plan_2026-10.md").write_text(PLAN, encoding="utf-8")
+    monkeypatch.setattr(dispatch_scheduled, "PLANS_DIR", tmp_path)
+    monkeypatch.setattr(dispatch_scheduled, "_today_msk", lambda: dt.date(2026, 10, 30))
+    with patch.object(dispatch_scheduled, "dispatch_publish_verified", return_value=False):
+        assert dispatch_scheduled.main() == 1
 
 
 def test_before_msk_time():

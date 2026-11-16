@@ -43,7 +43,8 @@ def test_queued_run_is_redispatched_then_started():
     ok = plan_writer.ensure_publish_started(
         "lucea-x", T0, start_timeout_s=60, poll_s=20, attempts=3,
         list_runs=list_runs, dispatch=dispatched.append, notify=notified.append,
-        sleep=clk.sleep, monotonic=clk.monotonic)
+        sleep=clk.sleep, monotonic=clk.monotonic,
+        now=lambda: T0 + dt.timedelta(minutes=9))
     assert ok
     assert dispatched == ["lucea-x"]          # перезапуск был ровно один раз
     assert not notified
@@ -54,7 +55,8 @@ def test_never_started_notifies_owner_after_all_attempts():
     ok = plan_writer.ensure_publish_started(
         "lucea-x", T0, start_timeout_s=60, poll_s=20, attempts=3,
         list_runs=lambda: [_run("queued")], dispatch=dispatched.append,
-        notify=notified.append, sleep=clk.sleep, monotonic=clk.monotonic)
+        notify=notified.append, sleep=clk.sleep, monotonic=clk.monotonic,
+        now=lambda: T0 + dt.timedelta(minutes=9))
     assert not ok
     assert dispatched == ["lucea-x", "lucea-x"]   # 3 попытки = 2 перезапуска
     assert notified and "lucea-x" in notified[0]

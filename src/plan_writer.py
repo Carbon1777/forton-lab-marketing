@@ -383,7 +383,8 @@ def ensure_publish_started(slug: str, since: dt.datetime, *,
                            start_timeout_s: float = 240, poll_s: float = 20,
                            attempts: int = 3,
                            list_runs=None, dispatch=None, notify=None,
-                           sleep=time.sleep, monotonic=time.monotonic) -> bool:
+                           sleep=time.sleep, monotonic=time.monotonic,
+                           now=lambda: dt.datetime.now(dt.timezone.utc)) -> bool:
     """Ждёт старта запуска publish.yml после ``since``; при необходимости перезапускает.
 
     Возвращает True, если запуск стартовал. После ``attempts`` неудач уведомляет
@@ -412,7 +413,7 @@ def ensure_publish_started(slug: str, since: dt.datetime, *,
                 dispatch(slug)
             except Exception:  # noqa: BLE001
                 pass
-            since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=5)
+            since = now() - dt.timedelta(seconds=5)
     notify(
         f"⚠️ Публикация {slug}: запуск publish.yml так и не стартовал после {attempts} попыток "
         "(GitHub Actions завис в очереди). Скажи Claude «опубликуй»."
