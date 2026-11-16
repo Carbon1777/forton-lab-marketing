@@ -293,6 +293,21 @@ _REVIEW_STORE_LABEL: dict[str, str] = {
     "unknown": "Источник неизвестен",
 }
 _REVIEW_STORE_PRIORITY = ("app_store", "google_play", "rustore")
+# Листвия (152-ФЗ: параметры событий только num/bool) шлёт store int-кодом, а не
+# строкой. Коды append-only и сохраняют семантику строкового маппинга — источник
+# истины: listvia/lib/services/install_source_service.dart::_storeCode. AppMetrica
+# отдаёт paramsLevel2 строкой ("1"), поэтому приводим к каноническому ключу ДО
+# поиска подписи и порядка. Продукты со строковым store этим не затрагиваются.
+_REVIEW_STORE_CODE: dict[str, str] = {
+    "0": "unknown",
+    "1": "app_store",
+    "2": "google_play",
+    "3": "rustore",
+    "4": "huawei",
+    "5": "samsung",
+    "6": "amazon",
+    "7": "sideload",
+}
 
 
 def _fetch_review_by_store(
@@ -325,6 +340,7 @@ def _fetch_review_by_store(
         raw: dict[str, int] = {}
         for row in resp.json().get("data", []):
             name = row["dimensions"][0]["name"]
+            name = _REVIEW_STORE_CODE.get(str(name), name)
             devices = int(row["metrics"][0] or 0)
             if devices > 0:
                 raw[name] = raw.get(name, 0) + devices
