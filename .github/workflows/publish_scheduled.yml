@@ -1,11 +1,17 @@
 name: publish_scheduled
 
 # Отложенные видео-публикации (plan entry status: scheduled).
-# Триггер ТОЛЬКО через workflow_dispatch: Cloudflare Worker `forton-cron-trigger`,
+# Основной триггер: Cloudflare Worker `forton-cron-trigger` (workflow_dispatch),
 # cron `0 17 * * *` (= 20:00 МСК). Воркфлоу находит одобренные записи и
-# запускает publish.yml по одной (src/dispatch_scheduled.py).
+# запускает publish.yml по одной (src/dispatch_scheduled.py), проверяя, что запуск
+# реально стартовал, и перезапуская при зависании очереди GitHub.
+# Резервные тики по расписанию GitHub (best-effort, 20:20 и 20:45 МСК): подхватывают
+# запись, которая всё ещё `scheduled` (publish.yml идемпотентен — дубля не будет).
 on:
   workflow_dispatch: {}
+  schedule:
+    - cron: "20 17 * * *"
+    - cron: "45 17 * * *"
 
 permissions:
   contents: read
@@ -17,7 +23,7 @@ concurrency:
 jobs:
   dispatch:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -36,4 +42,8 @@ jobs:
       - name: Dispatch due scheduled posts
         env:
           BOT_DISPATCH_PAT: ${{ secrets.BOT_DISPATCH_PAT }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          TG_PLANNER_BOT_TOKEN: ${{ secrets.TG_PLANNER_BOT_TOKEN }}
+          TG_OWNER_CHAT_ID: ${{ secrets.TG_OWNER_CHAT_ID }}
         run: PYTHONPATH=. python -m src.dispatch_scheduled

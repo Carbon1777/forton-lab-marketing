@@ -56,6 +56,22 @@ jobs:
       # drafts/ в .gitignore — живёт только в GH Actions cache, который
       # сохраняет preview_bot.yml между cron-тиками. Без restore тут шаг
       # "Promote draft → queue" не найдёт drafts/<slug>.md после approve.
+      - name: Idempotency guard (пост уже опубликован → ничего не делаем)
+        id: guard
+        # 16.11.2026: dispatch завис в очереди GitHub, запуск повторили вручную; «проснувшийся»
+        # первый запуск опубликовал бы всё второй раз. Если published/*-<slug>.md уже есть —
+        # draft не промоутим, очередь пуста, все шаги публикации — no-op.
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.slug != '' }}
+        env:
+          SLUG: ${{ inputs.slug }}
+        run: |
+          if ls published/*-"${SLUG}".md >/dev/null 2>&1; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::${SLUG} уже опубликован (published/*-${SLUG}.md) — повторная публикация пропущена"
+          else
+            echo "already=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Restore drafts/ cache (Phase 2 idempotency между preview_bot и publish)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.slug != '' }}
         uses: actions/cache@v5
@@ -71,7 +87,7 @@ jobs:
       # draft inline из plan через тот же daily_post_generator. Идемпотентно
       # с preview-side: content тот же что был в preview.
       - name: Regenerate draft if missing (cache-miss fallback)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.slug != '' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.slug != '' && steps.guard.outputs.already != 'true' }}
         env:
           SLUG: ${{ inputs.slug }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -113,7 +129,7 @@ jobs:
           PYEOF
 
       - name: Promote draft → queue (workflow_dispatch path)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.slug != '' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.slug != '' && steps.guard.outputs.already != 'true' }}
         env:
           SLUG: ${{ inputs.slug }}
         run: |

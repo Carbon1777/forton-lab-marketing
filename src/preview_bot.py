@@ -79,6 +79,7 @@ from src.plan_reader import PlanEntry, get_today_entries, parse_plan
 from src.plan_writer import (
     GitHubAPIError,
     dispatch_publish,
+    ensure_publish_started,
     plan_sha8,
     set_entry_status,
 )
@@ -611,6 +612,7 @@ async def _handle_publish(query, ctx, slug: str, draft_path: Path) -> None:
         return
 
     # Trigger publish.yml workflow
+    _since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=5)
     try:
         await asyncio.to_thread(dispatch_publish, slug)
     except Exception as exc:
@@ -624,6 +626,12 @@ async def _handle_publish(query, ctx, slug: str, draft_path: Path) -> None:
             pass
         raise _SoftFail("dispatch_publish failed")
 
+    # Фоновая проверка: запуск publish.yml действительно стартовал (иначе — повторный
+    # dispatch и сообщение владельцу). Инцидент 2026-11-16.
+    _task = asyncio.create_task(asyncio.to_thread(ensure_publish_started, slug, _since))
+    _BACKGROUND_TASKS.add(_task)
+    _task.add_done_callback(_BACKGROUND_TASKS.discard)
+
     now_msk = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=3)).strftime("%H:%M")
     await query.message.reply_text(
         f"✅ <b>Публикую в каналы</b>\n"
@@ -632,6 +640,9 @@ async def _handle_publish(query, ctx, slug: str, draft_path: Path) -> None:
         f"Жди подтверждения через ~2-3 мин.",
         parse_mode=ParseMode.HTML,
     )
+
+
+_BACKGROUND_TASKS: set = set()
 
 
 async def _handle_cancel(query, ctx, slug: str, draft_path: Path) -> None:

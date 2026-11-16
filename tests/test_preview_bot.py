@@ -21,6 +21,12 @@ from telegram.error import BadRequest
 from telegram.ext import Application, CallbackQueryHandler
 
 from src.daily_post_generator import BrandViolationError, GenerationError
+
+
+@pytest.fixture(autouse=True)
+def _no_real_publish_watch(monkeypatch):
+    """Фоновая проверка старта publish.yml (опрос GitHub + минуты ожидания) в тестах отключена."""
+    monkeypatch.setattr("src.preview_bot.ensure_publish_started", lambda *a, **k: True)
 from src.preview_bot import (
     EDIT_TIMEOUT_S,
     MAX_CALLBACK_DATA_BYTES,
