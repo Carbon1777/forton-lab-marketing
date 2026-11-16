@@ -33,6 +33,7 @@ import base64
 import datetime as dt
 import hashlib
 import os
+import time
 from pathlib import Path
 
 import frontmatter
@@ -336,3 +337,92 @@ def dispatch_publish(slug: str,
         workflow="publish.yml", ref=ref,
         inputs={"slug": slug},
     )
+
+
+# ----------------------------------------------------------
+# Проверка, что dispatch publish.yml действительно стартовал
+# ----------------------------------------------------------
+# Инцидент 2026-11-16: dispatch вернул 204, но запуск «завис» в очереди GitHub
+# (queued, без задач) 20+ минут — ролик не вышел. Теперь после dispatch смотрим, что
+# запуск перешёл в in_progress/completed; не стартовал за таймаут — dispatch повторяем
+# (publish.yml идемпотентен: уже опубликованный slug повторно не публикуется); после
+# всех попыток пишем владельцу.
+
+def _list_publish_runs(pat: str, owner: str, repo: str, per_page: int = 10) -> list[dict]:
+    r = requests.get(
+        f"{GH_API}/repos/{owner}/{repo}/actions/workflows/publish.yml/runs",
+        headers=_gh_headers(pat),
+        params={"event": "workflow_dispatch", "per_page": per_page},
+        timeout=30,
+    )
+    r.raise_for_status()
+    return r.json().get("workflow_runs", [])
+
+
+def _run_started_since(runs: list[dict], since: dt.datetime) -> bool:
+    for run in runs:
+        created = dt.datetime.fromisoformat(run["created_at"].replace("Z", "+00:00"))
+        if created >= since and run.get("status") in ("in_progress", "completed"):
+            return True
+    return False
+
+
+def _notify_owner(text: str) -> None:
+    token = os.environ.get("TG_PLANNER_BOT_TOKEN")
+    chat = os.environ.get("TG_OWNER_CHAT_ID")
+    if not token or not chat:
+        return
+    try:
+        requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
+                      data={"chat_id": chat, "text": text}, timeout=20)
+    except requests.exceptions.RequestException:
+        pass
+
+
+def ensure_publish_started(slug: str, since: dt.datetime, *,
+                           start_timeout_s: float = 240, poll_s: float = 20,
+                           attempts: int = 3,
+                           list_runs=None, dispatch=None, notify=None,
+                           sleep=time.sleep, monotonic=time.monotonic,
+                           now=lambda: dt.datetime.now(dt.timezone.utc)) -> bool:
+    """Ждёт старта запуска publish.yml после ``since``; при необходимости перезапускает.
+
+    Возвращает True, если запуск стартовал. После ``attempts`` неудач уведомляет
+    владельца и возвращает False. Ошибки опроса GitHub не роняют проверку.
+    """
+    pat = os.environ.get("BOT_DISPATCH_PAT", "")
+    owner = os.environ.get("REPO_OWNER", "Carbon1777")
+    repo = os.environ.get("REPO_NAME", "forton-lab-marketing")
+    list_runs = list_runs or (lambda: _list_publish_runs(pat, owner, repo))
+    dispatch = dispatch or dispatch_publish
+    notify = notify or _notify_owner
+
+    for attempt in range(1, attempts + 1):
+        deadline = monotonic() + start_timeout_s
+        while True:
+            try:
+                if _run_started_since(list_runs(), since):
+                    return True
+            except Exception:  # noqa: BLE001 — сбой опроса не должен ронять проверку
+                pass
+            if monotonic() >= deadline:
+                break
+            sleep(poll_s)
+        if attempt < attempts:
+            try:
+                dispatch(slug)
+            except Exception:  # noqa: BLE001
+                pass
+            since = now() - dt.timedelta(seconds=5)
+    notify(
+        f"⚠️ Публикация {slug}: запуск publish.yml так и не стартовал после {attempts} попыток "
+        "(GitHub Actions завис в очереди). Скажи Claude «опубликуй»."
+    )
+    return False
+
+
+def dispatch_publish_verified(slug: str, **kwargs) -> bool:
+    """dispatch_publish + ensure_publish_started (повтор при зависании очереди)."""
+    since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=5)
+    dispatch_publish(slug)
+    return ensure_publish_started(slug, since, **kwargs)

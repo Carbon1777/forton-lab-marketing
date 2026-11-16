@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 from src.plan_reader import PlanEntry, discover_plans, parse_plan
-from src.plan_writer import dispatch_publish
+from src.plan_writer import dispatch_publish_verified
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PLANS_DIR = REPO_ROOT / "plans"
@@ -52,8 +52,10 @@ def main() -> int:
     failures = 0
     for entry in due:
         try:
-            dispatch_publish(entry.slug)
-            print(f"dispatched publish.yml slug={entry.slug} (план {entry.date.isoformat()})")
+            started = dispatch_publish_verified(entry.slug)
+            print(f"dispatched publish.yml slug={entry.slug} (план {entry.date.isoformat()}), started={started}")
+            if not started:
+                failures += 1
         except Exception as exc:  # GitHubAPIError / KeyError(BOT_DISPATCH_PAT)
             sys.stderr.write(f"FAIL {entry.slug}: {type(exc).__name__}: {exc}\n")
             failures += 1
