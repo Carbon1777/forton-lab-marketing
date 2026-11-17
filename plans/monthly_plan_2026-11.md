@@ -232,7 +232,8 @@ media:
 - path: assets/posts/2026-11/listvia-nov17-podokonnik.png
   sha256: 266d9ccd73faa821af1050b0cab2713e4c8ec247972c61c2dbf799c912445cde
   role: image
-status: draft
+status: published
+published_at: '2026-11-17T09:06:42.478796+00:00'
 ```
 
 Дома тепло, а на подоконнике растениям холодно. Ночью у стекла заметно холоднее, чем в комнате, — и растение, которому комфортно днём, к утру мёрзнет 🌿
