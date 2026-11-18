@@ -695,7 +695,7 @@ media:
 - path: assets/video/lucea-promo-04-stars.mp4
   sha256: c4918f0d10950899593b5675f09b8e7e159c31d0787820bfb0f67bb946c57f3d
   role: video
-status: draft
+status: scheduled
 publish_at_msk: '20:00'
 youtube_title: Ты — не просто знак зодиака.
 youtube_tags:
@@ -704,6 +704,8 @@ youtube_tags:
 - астрология
 - гороскоп
 - знакзодиака
+scheduled_for: '20:00'
+scheduled_at: '2026-11-18T15:06:22.080356+00:00'
 ```
 
 Ты — не просто знак зодиака.
