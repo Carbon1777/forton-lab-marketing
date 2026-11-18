@@ -885,3 +885,110 @@ youtube_tags:
 Слишком быстро — не успевают понять. Слишком медленно — теряют интерес. Diktum измеряет темп в словах в минуту, паузы и произношение и показывает динамику неделя за неделей. Узнай свой темп: diktumweb.ru
 
 #Diktum #темпречи #речь #публичныевыступления #дикция #ораторскоемастерство #тренировкаречи
+
+## 2026-11-24
+
+```yaml
+slug: vual-r1-veil
+channels:
+- tg
+- vk
+- dzen
+- yt
+- rutube
+product: forton-lab
+rubric: new_product
+verbatim: true
+media:
+- path: assets/video/vual-r1-veil.mp4
+  sha256: 0e5221f2424f1c2c7a714cb68a670aeaab2847c7c23ea0ee92c9e0faabdb6146
+  role: video
+status: draft
+publish_at_msk: '20:00'
+youtube_title: Я 6 лет хожу одной дорогой — и вот сколько города я видел
+youtube_tags:
+- вуальгорода
+- прогулки
+- город
+- игра
+```
+
+Город закрыт вуалью. Там, где ты прошёл, она спадает.
+
+Одна дорога к метро, которой ходишь годами, — это сотые доли процента города. Всё остальное ты ни разу не видел.
+
+Делаем «Вуаль города» — игру для прогулок: по пути личные клады, коллекции и спутник, который растёт вместе с тобой. Работает в любом городе и селе.
+
+Встань в лист ожидания: vualgoroda.ru/?utm_source=fl&utm_content=r1-veil
+
+#вуальгорода #прогулки #город #игра #Shorts
+
+## 2026-11-26
+
+```yaml
+slug: vual-r2-chest
+channels:
+- tg
+- vk
+- dzen
+- yt
+- rutube
+product: forton-lab
+rubric: new_product
+verbatim: true
+media:
+- path: assets/video/vual-r2-chest.mp4
+  sha256: 7253b49d86bc11822177485a88aa95ba5e4e61c6f161ca540739f87aa0a8ea4e
+  role: video
+status: draft
+publish_at_msk: '20:00'
+youtube_title: В 300 метрах от твоего метро лежит сундук
+youtube_tags:
+- вуальгорода
+- клады
+- прогулки
+- игра
+```
+
+Каждый день рядом с тобой появляются сундуки: мелкие, клад дня с таймером до полуночи и большой — за неделю прогулок.
+
+Раскладка у каждого своя, поэтому толпы у одной точки не будет. Что внутри — сюрприз, а открыть можно только на месте и стоя: смотреть в экран на ходу не нужно.
+
+Лист ожидания «Вуали города»: vualgoroda.ru/?utm_source=fl&utm_content=r2-chest
+
+#вуальгорода #клады #прогулки #игра #Shorts
+
+## 2026-11-28
+
+```yaml
+slug: vual-r6-boring
+channels:
+- tg
+- vk
+- dzen
+- yt
+- rutube
+product: forton-lab
+rubric: new_product
+verbatim: true
+media:
+- path: assets/video/vual-r6-boring.mp4
+  sha256: 813b0b4ce9f51e36192c77bdf55a4226bc1658a4eb01cafce1b0ffcb5f05a278
+  role: video
+status: draft
+publish_at_msk: '20:00'
+youtube_title: Помнишь лето 2016-го? Мы делаем новую игру для прогулок
+youtube_tags:
+- вуальгорода
+- прогулки
+- игра
+- город
+```
+
+Летом 2016-го весь город гулял с телефонами. Потом игры на ходу у нас отключили — и гулять снова стало просто гулять.
+
+Мы делаем свою: «Вуаль города». Вуаль над городом, клады, коллекции, спутник. Сделано в России и для России — для любого города и села.
+
+Лист ожидания: vualgoroda.ru/?utm_source=fl&utm_content=r6-boring
+
+#вуальгорода #прогулки #игра #город #Shorts
