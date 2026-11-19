@@ -265,7 +265,8 @@ media:
 - path: assets/posts/2026-11/lucea-nov19-chisla.png
   sha256: 482ceef96470136cafbed8e2464f7bdca0f0988c3a1c557716906e7b244126de
   role: image
-status: draft
+status: published
+published_at: '2026-11-19T09:07:03.835752+00:00'
 ```
 
 Нумерология — не «судьба по цифрам». Её удобно использовать как повод задуматься: берёшь число из даты рождения и смотришь, какие темы в нём откликаются ✨
