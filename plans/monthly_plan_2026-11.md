@@ -733,7 +733,7 @@ media:
 - path: assets/video/lucea-promo-05-numbers.mp4
   sha256: 78335c83e500ac690d722fda4a94d91db7285accf0f27e83697c6bd1c16503ca
   role: video
-status: scheduled
+status: published
 publish_at_msk: '20:00'
 youtube_title: Одна дата. Девять клеток. Что у тебя пустое?
 youtube_tags:
@@ -744,6 +744,7 @@ youtube_tags:
 - самопознание
 scheduled_for: '20:00'
 scheduled_at: '2026-11-20T15:08:57.983826+00:00'
+published_at: '2026-11-20T17:03:48.621090+00:00'
 ```
 
 Одна дата. Девять клеток. Что у тебя пустое?
