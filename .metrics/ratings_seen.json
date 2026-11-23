@@ -211,10 +211,17 @@
         "sum": 0
       },
       "ru": {
-        "count": 6,
+        "count": 7,
+        "histogram": [
+          0,
+          0,
+          0,
+          0,
+          7
+        ],
         "no_text": 5,
         "no_text_sum": 25,
-        "sum": 30
+        "sum": 35
       }
     },
     "rustore": {
