@@ -21,7 +21,9 @@ HTTP / TG / google calls are mocked via unittest.mock — no network.
 from __future__ import annotations
 
 import json
+from concurrent.futures import Future
 from pathlib import Path
+from threading import Event
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -648,3 +650,106 @@ def test_main_sends_rating_cards_and_saves_state(monkeypatch, tmp_path):
     rn.main(seen_path=p)
     assert len(sent) == 1 and "Diktum" in sent[0]
     assert rn.load_seen(tmp_path / "ratings_seen.json")["diktum"] == {"rustore": {"no_comments": 3}}
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "previous", "expected_rating"),
+    [
+        ({1: 2, 2: 0, 3: 0, 4: 0, 5: 3}, [2, 0, 0, 0, 2], "(5/5)"),
+        ({1: 2, 2: 0, 3: 0, 4: 0, 5: 2}, [2, 0, 0, 0, 2], "Без текста"),
+        ({1: 1, 2: 1, 3: 0, 4: 0, 5: 3}, [2, 0, 0, 0, 2], "Без текста"),
+        ({1: 2, 2: 0, 3: 0, 4: 0, 5: 3}, None, "Без текста"),
+        (None, [2, 0, 0, 0, 2], "Без текста"),
+        ("pending", [2, 0, 0, 0, 2], "Без текста"),
+    ],
+    ids=["one-new-five", "storefront-lag", "ratings-edited", "no-baseline", "unavailable", "pending"],
+)
+def test_main_sends_app_store_rating_with_available_stars(
+    monkeypatch, tmp_path, snapshot, previous, expected_rating
+):
+    from src.review_notifier import ratings_summary
+
+    seen_path = tmp_path / "seen.json"
+    ratings_path = tmp_path / "ratings_seen.json"
+    country = {"count": 4, "sum": 12, "no_text": 1, "no_text_sum": 1}
+    if previous is not None:
+        country["histogram"] = previous
+    rn.save_seen(ratings_path, {"listvia": {"app_store": {"ru": country}}})
+
+    page = Future()
+    if snapshot == "pending":
+        # Any attempt to wait before sending is a test failure.
+        monkeypatch.setattr(page, "result", lambda: pytest.fail("Waiting for App Store page"))
+    else:
+        page.set_result(snapshot)
+    monkeypatch.setattr(
+        ratings_summary, "prefetch_app_store_pages",
+        lambda executor, products: {"listvia": {"ru": page}},
+        raising=False,
+    )
+    monkeypatch.setattr(ratings_summary, "write_summary", lambda *args, **kwargs: None)
+    monkeypatch.setattr(rn, "PRODUCTS", ["listvia"])
+    monkeypatch.setattr(rn, "_collect_reviews", lambda product: [])
+    monkeypatch.setattr(asc, "_app_id_for", lambda product: "1")
+    monkeypatch.setattr(asc, "fetch_rating_counts", lambda app_id: {"ru": {"count": 5, "avg": 3.4}})
+    monkeypatch.setattr(asc, "fetch_reviews_by_country", lambda app_id: {"ru": _rss("ru", 5, 1)})
+    monkeypatch.setattr(rustore, "_is_configured", lambda: False)
+    sent = []
+    monkeypatch.setattr(rn, "send_card", lambda card: sent.append(card) or True)
+
+    rn.main(seen_path=seen_path, ratings_path=ratings_path)
+    rn.main(seen_path=seen_path, ratings_path=ratings_path)
+
+    assert len(sent) == 1
+    assert "Новая оценка" in sent[0] and "App Store (RU)" in sent[0]
+    assert expected_rating in sent[0]
+    saved = rn.load_seen(ratings_path)["listvia"]["app_store"]["ru"]
+    if isinstance(snapshot, dict) and sum(snapshot.values()) == 5:
+        assert saved["histogram"] == list(snapshot.values())
+    else:
+        assert "histogram" not in saved
+
+
+def test_main_sends_before_slow_storefront_and_reuses_page_for_summary(monkeypatch, tmp_path):
+    from src.review_notifier import ratings_summary
+
+    seen_path = tmp_path / "seen.json"
+    ratings_path = tmp_path / "ratings_seen.json"
+    country = {
+        "count": 4, "sum": 12, "no_text": 1, "no_text_sum": 1,
+        "histogram": [2, 0, 0, 0, 2],
+    }
+    rn.save_seen(ratings_path, {"listvia": {"app_store": {"ru": country}}})
+    card_sent = Event()
+    seen_urls = []
+
+    def get_page(url):
+        seen_urls.append(url)
+        assert card_sent.wait(timeout=2), "Telegram send waited for the storefront"
+        return '"totalNumberOfRatings":5,"ratingCounts":[3,0,0,0,2]'
+
+    def send_card(card):
+        sent.append(card)
+        card_sent.set()
+        return True
+
+    monkeypatch.setattr(ratings_summary, "_get", get_page)
+    monkeypatch.setattr(ratings_summary, "_collect", lambda *args: None)
+    monkeypatch.setattr(rn, "PRODUCTS", ["listvia"])
+    monkeypatch.setattr(rn, "_collect_reviews", lambda product: [])
+    monkeypatch.setattr(asc, "_app_id_for", lambda product: "1")
+    monkeypatch.setattr(asc, "_RSS_COUNTRIES", ("ru",))
+    monkeypatch.setattr(asc, "fetch_rating_counts", lambda app_id: {"ru": {"count": 5, "avg": 3.4}})
+    monkeypatch.setattr(asc, "fetch_reviews_by_country", lambda app_id: {"ru": _rss("ru", 5, 1)})
+    monkeypatch.setattr(rustore, "_is_configured", lambda: False)
+    sent = []
+    monkeypatch.setattr(rn, "send_card", send_card)
+
+    assert rn.main(seen_path=seen_path, ratings_path=ratings_path) == 0
+
+    assert len(sent) == 1 and "Без текста" in sent[0]
+    assert seen_urls == ["https://apps.apple.com/ru/app/id1"]
+    saved = rn.load_seen(ratings_path)["listvia"]["app_store"]["ru"]
+    assert saved["histogram"] == [2, 0, 0, 0, 3]
+    summary = rn.load_seen(tmp_path / ratings_summary.SUMMARY_NAME)
+    assert summary["products"]["listvia"]["app_store"]["stars"]["5"] == 3
