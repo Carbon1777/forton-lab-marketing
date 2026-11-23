@@ -102,10 +102,10 @@
         "sum": 0
       },
       "ru": {
-        "count": 1,
-        "no_text": 0,
-        "no_text_sum": 0,
-        "sum": 5
+        "count": 2,
+        "no_text": 1,
+        "no_text_sum": 5,
+        "sum": 10
       },
       "ua": {
         "count": 0,
