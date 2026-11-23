@@ -59,6 +59,13 @@
       },
       "ru": {
         "count": 17,
+        "histogram": [
+          1,
+          0,
+          1,
+          0,
+          15
+        ],
         "no_text": 13,
         "no_text_sum": 63,
         "sum": 79
@@ -103,6 +110,13 @@
       },
       "ru": {
         "count": 2,
+        "histogram": [
+          0,
+          0,
+          0,
+          0,
+          2
+        ],
         "no_text": 1,
         "no_text_sum": 5,
         "sum": 10
@@ -147,6 +161,13 @@
       },
       "ru": {
         "count": 6,
+        "histogram": [
+          2,
+          0,
+          0,
+          0,
+          4
+        ],
         "no_text": 3,
         "no_text_sum": 8,
         "sum": 22
@@ -191,6 +212,13 @@
       },
       "ru": {
         "count": 6,
+        "histogram": [
+          0,
+          0,
+          0,
+          0,
+          6
+        ],
         "no_text": 5,
         "no_text_sum": 25,
         "sum": 30
