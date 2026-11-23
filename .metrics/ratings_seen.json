@@ -212,13 +212,6 @@
       },
       "ru": {
         "count": 6,
-        "histogram": [
-          0,
-          0,
-          0,
-          0,
-          6
-        ],
         "no_text": 5,
         "no_text_sum": 25,
         "sum": 30
