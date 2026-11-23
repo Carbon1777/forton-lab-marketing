@@ -58,10 +58,10 @@
         "sum": 5
       },
       "ru": {
-        "count": 16,
-        "no_text": 12,
-        "no_text_sum": 58,
-        "sum": 74
+        "count": 17,
+        "no_text": 13,
+        "no_text_sum": 63,
+        "sum": 79
       },
       "ua": {
         "count": 0,
@@ -190,10 +190,10 @@
         "sum": 0
       },
       "ru": {
-        "count": 4,
-        "no_text": 3,
-        "no_text_sum": 15,
-        "sum": 20
+        "count": 6,
+        "no_text": 5,
+        "no_text_sum": 25,
+        "sum": 30
       }
     },
     "rustore": {
