@@ -771,7 +771,7 @@ media:
 - path: assets/video/lucea-promo-06-questions.mp4
   sha256: 5ce40ac21520cf647ab8d59a5edd644ea058bcbfb157e435949266a9b5126e8b
   role: video
-status: scheduled
+status: published
 publish_at_msk: '20:00'
 youtube_title: '3 вопроса себе на сегодня:'
 youtube_tags:
@@ -782,6 +782,7 @@ youtube_tags:
 - осознанность
 scheduled_for: '20:00'
 scheduled_at: '2026-11-23T15:16:15.494875+00:00'
+published_at: '2026-11-23T17:03:35.323659+00:00'
 ```
 
 3 вопроса себе на сегодня:
