@@ -41,11 +41,13 @@ import datetime as dt
 import html
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Final
 
 import requests
 
+from src.review_notifier import ratings_summary
 from src.store_metrics import asc, play, rustore
 from src.store_metrics.models import Product
 
@@ -322,6 +324,49 @@ def compute_app_store_rating_events(
     return events, new_state
 
 
+def _single_app_store_rating(
+    previous: dict, histogram: dict[int, int] | None, count: int,
+) -> int | None:
+    """Один прирост в одной категории между сопоставимыми срезами витрины."""
+    baseline = previous.get("histogram")
+    if (
+        histogram is None
+        or not isinstance(baseline, list)
+        or len(baseline) != 5
+        or any(type(n) is not int or n < 0 for n in baseline)
+        or sum(baseline) != previous.get("count")
+        or sum(histogram.values()) != count
+    ):
+        return None
+    changes = [histogram[stars] - baseline[stars - 1] for stars in range(1, 6)]
+    if sorted(changes) == [0, 0, 0, 0, 1]:
+        return changes.index(1) + 1
+    return None
+
+
+def _add_app_store_stars(
+    event: dict, previous: dict, pages: ratings_summary.AppStorePages,
+) -> None:
+    if event["store"] != "app_store" or event["delta"] != 1:
+        return
+    country = event["country"]
+    histogram = ratings_summary.read_app_store_page(pages.get(country))
+    stars = _single_app_store_rating(previous.get(country, {}), histogram, event["total"])
+    if stars is not None:
+        event["stars"] = [stars]
+
+
+def _save_app_store_histograms(
+    state: dict, pages: dict[str, ratings_summary.AppStorePages],
+) -> None:
+    """Привязать разбивку по звёздам к тому же счётчику и стране Lookup."""
+    for product, storefronts in pages.items():
+        for country, snapshot in state.get(product, {}).get("app_store", {}).items():
+            histogram = ratings_summary.read_app_store_page(storefronts.get(country))
+            if histogram is not None and sum(histogram.values()) == snapshot.get("count"):
+                snapshot["histogram"] = [histogram[stars] for stars in range(1, 6)]
+
+
 def compute_rustore_rating_events(
     state: dict | None, stats: dict, text_reviews: list[dict],
 ) -> tuple[list[dict], dict]:
@@ -511,6 +556,14 @@ def main(
     if ratings_path is None:
         ratings_path = seen_path.parent / RATINGS_STATE_NAME
 
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        pages = ratings_summary.prefetch_app_store_pages(executor, PRODUCTS)
+        return _poll_and_send(seen_path, ratings_path, pages)
+
+
+def _poll_and_send(
+    seen_path: Path, ratings_path: Path, pages: dict[str, ratings_summary.AppStorePages],
+) -> int:
     seen = load_seen(seen_path)
     ratings_state = load_seen(ratings_path)
     summary: list[str] = []
@@ -538,10 +591,13 @@ def main(
             # даже в baseline — это и есть baseline-засев.
             update_seen(seen, product, store, store_reviews)
 
+        previous_app_store = ratings_state.get(product, {}).get("app_store", {})
         events, ratings_state[product] = _collect_ratings(
             product, all_reviews, ratings_state,
         )
         for ev in events:
+            # Страница витрины дополняет карточку только если уже загрузилась.
+            _add_app_store_stars(ev, previous_app_store, pages.get(product, {}))
             _send_safely(
                 format_rating_card(ev, product),
                 f"rating product={product} store={ev['store']}",
@@ -550,15 +606,16 @@ def main(
             summary.append(f"{product}: {len(events)} rating card(s)")
 
     save_seen(seen_path, seen)
-    save_seen(ratings_path, ratings_state)
     # Сводка оценок для дашборда студии (quick 261111-rts) — never raises.
     try:
-        from src.review_notifier import ratings_summary
         ratings_summary.write_summary(
             seen_path.parent / ratings_summary.SUMMARY_NAME, PRODUCTS, seen,
+            app_store_pages=pages,
         )
+        _save_app_store_histograms(ratings_state, pages)
     except Exception as exc:  # noqa: BLE001
         sys.stderr.write(f"WARN: ratings summary failed: {exc!r}\n")
+    save_seen(ratings_path, ratings_state)
     # Сводка в лог — чтобы «тихий ноль» по стору было видно в GH Actions.
     print("\n".join(summary))
     return 0

@@ -26,12 +26,14 @@ import datetime as dt
 import json
 import re
 import sys
+from concurrent.futures import Executor, Future
 from pathlib import Path
 from typing import Final
 
 from src.store_metrics import _http, asc, play, rustore
 
 SUMMARY_NAME: Final[str] = "ratings_summary.json"
+AppStorePages = dict[str, Future[dict[int, int] | None]]
 _UA: Final[dict[str, str]] = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 "
@@ -98,13 +100,50 @@ def _get(url: str) -> str | None:
     return resp.text
 
 
-def collect_app_store(product: str, seen: dict) -> dict | None:
-    app_id = asc._app_id_for(product)  # type: ignore[arg-type]
+def _fetch_app_store_page(app_id: str, country: str) -> dict[int, int] | None:
+    html = _get(_AS_PAGE.format(cc=country, app_id=app_id))
+    return parse_app_store_page(html) if html else None
+
+
+def prefetch_app_store_pages(executor: Executor, products: list[str]) -> dict[str, AppStorePages]:
+    """Запустить запросы сводки параллельно с опросом уведомлений."""
+    pages: dict[str, AppStorePages] = {}
+    for product in products:
+        try:
+            app_id = asc._app_id_for(product)  # type: ignore[arg-type]
+        except (ValueError, RuntimeError):
+            continue
+        pages[product] = {
+            country: executor.submit(_fetch_app_store_page, app_id, country)
+            for country in asc._RSS_COUNTRIES
+        }
+    return pages
+
+
+def read_app_store_page(
+    page: Future[dict[int, int] | None] | None, *, wait: bool = False,
+) -> dict[int, int] | None:
+    if page is None or (not wait and not page.done()):
+        return None
+    try:
+        return page.result()
+    except Exception as exc:  # noqa: BLE001 — сбой одной витрины не блокирует остальные
+        sys.stderr.write(f"INFO: App Store storefront skipped: {exc!r}\n")
+        return None
+
+
+def collect_app_store(
+    product: str, seen: dict, pages: AppStorePages | None = None,
+) -> dict | None:
+    if pages is None:
+        app_id = asc._app_id_for(product)  # type: ignore[arg-type]
+        histograms = (_fetch_app_store_page(app_id, country) for country in asc._RSS_COUNTRIES)
+    else:
+        histograms = (read_app_store_page(page, wait=True) for page in pages.values())
+
     total: dict[int, int] = {s: 0 for s in range(1, 6)}
     answered = False
-    for cc in asc._RSS_COUNTRIES:
-        html = _get(_AS_PAGE.format(cc=cc, app_id=app_id))
-        hist = parse_app_store_page(html) if html else None
+    for hist in histograms:
         if hist is None:
             continue
         answered = True
@@ -188,7 +227,10 @@ def merge(prev: dict, fresh: dict[str, dict[str, dict | None]], now: str) -> dic
     return {"updated_at": now if changed else prev.get("updated_at", now), "products": products}
 
 
-def write_summary(path: Path, products: list[str], seen: dict) -> None:
+def write_summary(
+    path: Path, products: list[str], seen: dict, *,
+    app_store_pages: dict[str, AppStorePages] | None = None,
+) -> None:
     """Собрать сводку и записать файл. Никогда не падает наружу."""
     try:
         prev = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
@@ -201,7 +243,11 @@ def write_summary(path: Path, products: list[str], seen: dict) -> None:
         fresh[product] = {}
         for store in STORES:
             try:
-                fresh[product][store] = _collect(product, store, seen)
+                if store == "app_store" and app_store_pages is not None:
+                    entry = collect_app_store(product, seen, app_store_pages.get(product, {}))
+                else:
+                    entry = _collect(product, store, seen)
+                fresh[product][store] = entry
             except Exception as exc:  # noqa: BLE001 — нестроенный стор и т.п.
                 sys.stderr.write(f"INFO: ratings summary {product}/{store}: {exc!r}\n")
                 fresh[product][store] = None
