@@ -337,7 +337,8 @@ media:
 - path: assets/posts/2026-11/lapulya-nov24-yolka.png
   sha256: 8d410ed074bff16bde930ebea7a7baef847b4fef642358963696b11109fdc5ae
   role: image
-status: draft
+status: published
+published_at: '2026-11-24T05:40:54.144669+00:00'
 ```
 
 Скоро в квартирах появятся ёлки и накрытые столы — а с ними опасности, о которых хозяева обычно не думают 🐾
