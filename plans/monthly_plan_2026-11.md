@@ -915,7 +915,7 @@ media:
 - path: assets/video/vual-r1-veil.mp4
   sha256: 0e5221f2424f1c2c7a714cb68a670aeaab2847c7c23ea0ee92c9e0faabdb6146
   role: video
-status: scheduled
+status: published
 publish_at_msk: '20:00'
 youtube_title: Я 6 лет хожу одной дорогой — и вот сколько города я видел
 youtube_tags:
@@ -925,6 +925,7 @@ youtube_tags:
 - игра
 scheduled_for: '20:00'
 scheduled_at: '2026-11-24T15:05:19.860976+00:00'
+published_at: '2026-11-24T17:03:41.380643+00:00'
 ```
 
 Город закрыт вуалью. Там, где ты прошёл, она спадает.
