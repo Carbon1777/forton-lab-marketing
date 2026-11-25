@@ -812,7 +812,7 @@ media:
 - path: assets/video/diktum-promo-01-parazity.mp4
   sha256: cf2b295c08b295df23902026803b04bd13eb7e24d17060264216df951fe91af3
   role: video
-status: draft
+status: scheduled
 publish_at_msk: '20:00'
 youtube_title: Сколько раз ты сказал "как бы"?
 youtube_tags:
@@ -823,6 +823,8 @@ youtube_tags:
 - красиваяречь
 - софтскиллс
 - тренажёрречи
+scheduled_for: '20:00'
+scheduled_at: '2026-11-25T15:02:40.403062+00:00'
 ```
 
 Слова-паразиты слышат все, кроме тебя самого. Diktum считает «ну», «э-э» и «как бы» в твоей речи, оценивает от 0 до 100 и показывает, где именно сбиваешься — с цитатами из твоей записи. Попробуй 30 секунд: diktumweb.ru
