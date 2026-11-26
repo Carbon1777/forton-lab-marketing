@@ -370,7 +370,8 @@ media:
 - path: assets/posts/2026-11/listvia-nov26-giacint.png
   sha256: a6a1efd665941fcd422b0bffc491f95f0df56937e9983d439a1afc25dada8789
   role: image
-status: draft
+status: published
+published_at: '2026-11-26T09:05:57.554947+00:00'
 ```
 
 Зимой за окном всё серое, а на подоконнике может цвести гиацинт с густым ароматом. Но луковицу надо посадить именно сейчас, чтобы он зацвёл в конце зимы 🌿
