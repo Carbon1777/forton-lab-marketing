@@ -959,7 +959,7 @@ media:
 - path: assets/video/vual-r2-chest.mp4
   sha256: 7253b49d86bc11822177485a88aa95ba5e4e61c6f161ca540739f87aa0a8ea4e
   role: video
-status: scheduled
+status: published
 publish_at_msk: '20:00'
 youtube_title: В 300 метрах от твоего метро лежит сундук
 youtube_tags:
@@ -969,6 +969,7 @@ youtube_tags:
 - игра
 scheduled_for: '20:00'
 scheduled_at: '2026-11-26T15:02:38.420648+00:00'
+published_at: '2026-11-26T17:03:45.162694+00:00'
 ```
 
 Каждый день рядом с тобой появляются сундуки: мелкие, клад дня с таймером до полуночи и большой — за неделю прогулок.
