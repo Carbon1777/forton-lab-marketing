@@ -850,7 +850,7 @@ media:
 - path: assets/video/diktum-promo-02-sobesedovanie.mp4
   sha256: 0dfb53eb86eabe9aa31ea52af6be3ab1b53afd39ff79b6610b930717f41f45ea
   role: video
-status: scheduled
+status: published
 publish_at_msk: '20:00'
 youtube_title: Знал ответы, но завалил собеседование?
 youtube_tags:
@@ -864,6 +864,7 @@ youtube_tags:
 - софтскиллс
 scheduled_for: '20:00'
 scheduled_at: '2026-11-27T16:30:29.442939+00:00'
+published_at: '2026-11-27T17:03:47.370468+00:00'
 ```
 
 На интервью решает не только что ты говоришь, но и как. В Diktum вставляешь вакансию и резюме, а ИИ проводит три этапа — HR, руководитель, директор — и оценивает каждый ответ, в том числе по структуре STAR. Отрепетируй заранее: diktumweb.ru
