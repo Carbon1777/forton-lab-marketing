@@ -1001,7 +1001,7 @@ media:
 - path: assets/video/vual-r6-boring.mp4
   sha256: 813b0b4ce9f51e36192c77bdf55a4226bc1658a4eb01cafce1b0ffcb5f05a278
   role: video
-status: scheduled
+status: published
 publish_at_msk: '20:00'
 youtube_title: Помнишь лето 2016-го? Мы делаем новую игру для прогулок
 youtube_tags:
@@ -1011,6 +1011,7 @@ youtube_tags:
 - город
 scheduled_for: '20:00'
 scheduled_at: '2026-11-28T15:09:31.919224+00:00'
+published_at: '2026-11-28T17:03:24.275189+00:00'
 ```
 
 Летом 2016-го весь город гулял с телефонами. Потом игры на ходу у нас отключили — и гулять снова стало просто гулять.
